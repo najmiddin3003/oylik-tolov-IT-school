@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Lokal sinov qoldiqlari
+    ".e2e/**",
+    ".playwright-mcp/**",
+    ".mongo-data/**",
   ]),
 ]);
 

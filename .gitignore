@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 !.env.example
+
+# lokal sinov qoldiqlari
+/.e2e/
+/.playwright-mcp/
+/.mongo-data/
