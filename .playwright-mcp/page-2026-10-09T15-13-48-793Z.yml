@@ -1,0 +1,134 @@
+- generic [active] [ref=f11e1]:
+  - generic [ref=f11e2]:
+    - complementary [ref=f11e3]:
+      - link "To'lov nazorati O'quv markaz" [ref=f11e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f11e9]:
+          - generic [ref=f11e10]: To'lov nazorati
+          - generic [ref=f11e11]: O'quv markaz
+      - navigation "Asosiy menyu" [ref=f11e12]:
+        - link "Bosh sahifa" [ref=f11e13] [cursor=pointer]:
+          - /url: /
+        - link "O'quvchilar" [ref=f11e16] [cursor=pointer]:
+          - /url: /students
+        - link "To'lovlar" [ref=f11e19] [cursor=pointer]:
+          - /url: /payments
+        - link "Google Sheets" [ref=f11e22] [cursor=pointer]:
+          - /url: /sync
+      - button "Chiqish" [ref=f11e26]
+    - main [ref=f11e29]:
+      - 'link "Sayt va Google Sheets o''rtasida 4 ta farq topildi Qaysi to''lovlar mos kelmayotganini ko''rish uchun bosing. · Tekshiruv: 09.10.2026 20:13" [ref=f11e30] [cursor=pointer]':
+        - /url: /sync
+        - generic [ref=f11e33]:
+          - text: Sayt va Google Sheets o'rtasida 4 ta farq topildi
+          - generic [ref=f11e34]: "Qaysi to'lovlar mos kelmayotganini ko'rish uchun bosing. · Tekshiruv: 09.10.2026 20:13"
+        - generic [aria-hidden] [ref=f11e35]: →
+      - link "← O'quvchilar" [ref=f11e118] [cursor=pointer]:
+        - /url: /students
+      - generic [ref=f11e119]:
+        - generic [ref=f11e120]:
+          - heading "Saidov Sardor" [level=1] [ref=f11e121]
+          - paragraph [ref=f11e122]:
+            - generic [ref=f11e123]:
+              - generic [ref=f11e124]: Matematika
+              - generic [ref=f11e125]: Faol
+              - generic [ref=f11e126]: · 650 000 so'm / oy
+        - generic [ref=f11e127]:
+          - link "Tahrirlash" [ref=f11e128] [cursor=pointer]:
+            - /url: /students/6ac9036dbc41d6a099fa6e63/edit
+          - button "O'chirish" [ref=f11e130]
+      - generic [ref=f11e131]:
+        - generic [ref=f11e132]:
+          - generic [ref=f11e133]:
+            - generic [ref=f11e134]:
+              - heading "Oylar bo'yicha holat" [level=2] [ref=f11e135]
+              - generic [ref=f11e136]: "Jami qarz: 1 350 000 so'm"
+            - table [ref=f11e138]:
+              - rowgroup [ref=f11e139]:
+                - row [ref=f11e140]:
+                  - columnheader "Oy" [ref=f11e141]
+                  - columnheader "To'landi" [ref=f11e142]
+                  - columnheader "Qarz" [ref=f11e143]
+                  - columnheader "Holat" [ref=f11e144]
+              - rowgroup [ref=f11e145]:
+                - row [ref=f11e146]:
+                  - cell "Oktabr 2026" [ref=f11e147]
+                  - cell "600 000 so'm" [ref=f11e148]
+                  - cell "50 000 so'm" [ref=f11e149]
+                  - cell "Qisman" [ref=f11e150]
+                - row [ref=f11e153]:
+                  - cell "Sentabr 2026" [ref=f11e154]
+                  - cell "—" [ref=f11e155]
+                  - cell "650 000 so'm" [ref=f11e156]
+                  - cell "To'lamagan" [ref=f11e157]
+                - row [ref=f11e160]:
+                  - cell "Avgust 2026" [ref=f11e161]
+                  - cell "—" [ref=f11e162]
+                  - cell "650 000 so'm" [ref=f11e163]
+                  - cell "To'lamagan" [ref=f11e164]
+          - generic [ref=f11e167]:
+            - heading "To'lovlar tarixi (1)" [level=2] [ref=f11e169]
+            - table [ref=f11e171]:
+              - rowgroup [ref=f11e172]:
+                - row [ref=f11e173]:
+                  - columnheader "Sana" [ref=f11e174]
+                  - columnheader "Oy uchun" [ref=f11e175]
+                  - columnheader "Summa" [ref=f11e176]
+                  - columnheader "Usul" [ref=f11e177]
+                  - columnheader "Izoh" [ref=f11e178]
+                  - columnheader "Amal" [ref=f11e179]
+              - rowgroup [ref=f11e181]:
+                - row [ref=f11e182]:
+                  - cell "04.10.2026" [ref=f11e183]
+                  - cell "Oktabr 2026" [ref=f11e184]
+                  - cell "600 000 so'm" [ref=f11e185]
+                  - cell "Naqd" [ref=f11e186]
+                  - cell [ref=f11e187]
+                  - cell [ref=f11e188]:
+                    - button "O'chirish" [ref=f11e190]
+        - generic [ref=f11e191]:
+          - generic [ref=f11e192]:
+            - heading "To'lov qo'shish" [level=2] [ref=f11e194]
+            - generic [ref=f11e196]:
+              - generic [ref=f11e197]:
+                - generic [ref=f11e198]:
+                  - generic [ref=f11e199]: Qaysi oy uchun
+                  - textbox "Qaysi oy uchun" [ref=f11e200]: 2026-08
+                - generic [ref=f11e201]:
+                  - generic [ref=f11e202]: Summa (so'm)
+                  - textbox "Summa (so'm)" [ref=f11e203]:
+                    - /placeholder: "500000"
+                    - text: "650000"
+                - generic [ref=f11e204]:
+                  - generic [ref=f11e205]: To'langan sana
+                  - textbox "To'langan sana" [ref=f11e206]: 2026-10-09
+                - generic [ref=f11e207]:
+                  - generic [ref=f11e208]: Usul
+                  - combobox "Usul" [ref=f11e209]:
+                    - option "Naqd" [selected]
+                    - option "Karta"
+                    - option "O'tkazma"
+              - generic [ref=f11e210]:
+                - generic [ref=f11e211]: Izoh (ixtiyoriy)
+                - textbox "Izoh (ixtiyoriy)" [ref=f11e212]:
+                  - /placeholder: "Masalan: chek №123"
+              - button "To'lovni saqlash" [ref=f11e213]
+          - generic [ref=f11e214]:
+            - heading "Ma'lumotlar" [level=2] [ref=f11e216]
+            - generic [ref=f11e217]:
+              - generic [ref=f11e218]:
+                - term [ref=f11e219]: Telefon
+                - definition [ref=f11e220]: —
+              - generic [ref=f11e221]:
+                - term [ref=f11e222]: Ota-ona telefoni
+                - definition [ref=f11e223]:
+                  - link "+998 97 000 11 22" [ref=f11e224] [cursor=pointer]:
+                    - /url: tel:+998970001122
+              - generic [ref=f11e225]:
+                - term [ref=f11e226]: Boshlagan sana
+                - definition [ref=f11e227]: 31.08.2026
+              - generic [ref=f11e228]:
+                - term [ref=f11e229]: Oylik to'lov
+                - definition [ref=f11e230]: 650 000 so'm
+  - button "Open Next.js Dev Tools" [ref=f11e78] [cursor=pointer]
+  - alert [ref=f11e116]: O'quvchini tahrirlash

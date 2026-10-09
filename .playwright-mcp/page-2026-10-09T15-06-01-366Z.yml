@@ -1,0 +1,12 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - heading "To'lov nazorati" [level=1] [ref=e9]
+        - paragraph [ref=e10]: O'quv markaz to'lovlari tizimiga kirish
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: Parol
+          - textbox "Parol" [active] [ref=e15]
+        - button "Kirish" [ref=e16]
+  - button "Open Next.js Dev Tools" [ref=e22] [cursor=pointer]

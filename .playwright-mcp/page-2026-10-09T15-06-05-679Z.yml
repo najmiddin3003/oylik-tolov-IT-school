@@ -1,0 +1,67 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e26]:
+    - complementary [ref=e27]:
+      - link "To'lov nazorati O'quv markaz" [ref=e28] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e33]:
+          - generic [ref=e34]: To'lov nazorati
+          - generic [ref=e35]: O'quv markaz
+      - navigation "Asosiy menyu" [ref=e36]:
+        - link "Bosh sahifa" [ref=e37] [cursor=pointer]:
+          - /url: /
+        - link "O'quvchilar" [ref=e40] [cursor=pointer]:
+          - /url: /students
+        - link "To'lovlar" [ref=e43] [cursor=pointer]:
+          - /url: /payments
+        - link "Google Sheets" [ref=e46] [cursor=pointer]:
+          - /url: /sync
+      - button "Chiqish" [ref=e50]
+    - main [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - heading "Bosh sahifa" [level=1] [ref=e56]
+          - paragraph [ref=e57]: Oktabr 2026 oyi uchun to'lovlar holati
+        - generic [ref=e59]:
+          - link "Oldingi oy" [ref=e60] [cursor=pointer]:
+            - /url: /?month=2026-09
+            - text: ‹
+          - generic [ref=e61] [cursor=pointer]:
+            - text: Oktabr 2026
+            - textbox "Oyni tanlash" [ref=e62]: 2026-10
+          - link "Keyingi oy" [ref=e63] [cursor=pointer]:
+            - /url: /?month=2026-11
+            - text: ›
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - paragraph [ref=e67]: Faol o'quvchilar
+          - paragraph [ref=e68]: "0"
+          - paragraph [ref=e69]: Oktabr 2026 holatiga
+        - generic [ref=e70]:
+          - paragraph [ref=e72]: To'lagan
+          - paragraph [ref=e73]: "0"
+          - paragraph [ref=e74]: —
+        - generic [ref=e75]:
+          - paragraph [ref=e77]: To'lamagan
+          - paragraph [ref=e78]: "0"
+          - paragraph [ref=e79]: to'liq qarzdorlar
+        - generic [ref=e80]:
+          - paragraph [ref=e82]: Yig'ildi
+          - paragraph [ref=e83]: 0 so'm
+          - paragraph [ref=e84]: 0 ta to'lov
+      - generic [ref=e85]:
+        - generic [ref=e86]:
+          - generic [ref=e87]: Oylik reja bajarilishi
+          - generic [ref=e88]: 0 so'm / 0 so'm
+        - progressbar "Reja bajarilishi" [ref=e89]
+        - paragraph [ref=e90]: "0% bajarildi · Umumiy qarz: 0 so'm"
+      - generic [ref=e91]:
+        - generic [ref=e92]:
+          - heading "To'lov qilmaganlar 0" [level=2] [ref=e93]
+          - link "+ O'quvchi qo'shish" [ref=e94] [cursor=pointer]:
+            - /url: /students/new
+        - generic [ref=e95]:
+          - paragraph [ref=e96]: Hali o'quvchi yo'q
+          - link "Birinchi o'quvchini qo'shing" [ref=e98] [cursor=pointer]:
+            - /url: /students/new
+  - button "Open Next.js Dev Tools" [ref=e22] [cursor=pointer]
+  - alert [ref=e99]: To'lov nazorati

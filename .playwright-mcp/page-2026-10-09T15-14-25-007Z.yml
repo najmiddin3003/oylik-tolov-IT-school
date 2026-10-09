@@ -1,0 +1,22 @@
+- generic [active] [ref=f13e1]:
+  - generic [ref=f13e2]:
+    - complementary [ref=f13e3]:
+      - link "To'lov nazorati O'quv markaz" [ref=f13e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f13e9]:
+          - generic [ref=f13e10]: To'lov nazorati
+          - generic [ref=f13e11]: O'quv markaz
+      - navigation "Asosiy menyu" [ref=f13e12]:
+        - link "Bosh sahifa" [ref=f13e13] [cursor=pointer]:
+          - /url: /
+        - link "O'quvchilar" [ref=f13e16] [cursor=pointer]:
+          - /url: /students
+        - link "To'lovlar" [ref=f13e19] [cursor=pointer]:
+          - /url: /payments
+        - link "Google Sheets" [ref=f13e22] [cursor=pointer]:
+          - /url: /sync
+      - button "Chiqish" [ref=f13e26]
+    - main [ref=f13e29]:
+      - generic "Yuklanmoqda" [ref=f13e30]
+  - button "Open Next.js Dev Tools" [ref=f13e44] [cursor=pointer]
+  - alert [ref=f13e48]

@@ -1,0 +1,71 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - complementary [ref=f4e3]:
+      - link "To'lov nazorati O'quv markaz" [ref=f4e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f4e9]:
+          - generic [ref=f4e10]: To'lov nazorati
+          - generic [ref=f4e11]: O'quv markaz
+      - navigation "Asosiy menyu" [ref=f4e12]:
+        - link "Bosh sahifa" [ref=f4e13] [cursor=pointer]:
+          - /url: /
+        - link "O'quvchilar" [ref=f4e16] [cursor=pointer]:
+          - /url: /students
+        - link "To'lovlar" [ref=f4e19] [cursor=pointer]:
+          - /url: /payments
+        - link "Google Sheets" [ref=f4e22] [cursor=pointer]:
+          - /url: /sync
+      - button "Chiqish" [ref=f4e26]
+    - main [ref=f4e29]:
+      - generic [ref=f4e30]:
+        - generic [ref=f4e31]:
+          - heading "Google Sheets bilan solishtirish" [level=1] [ref=f4e32]
+          - paragraph [ref=f4e33]: Tizim har kuni soat 06:00 da (Toshkent vaqti) Sheets'dagi to'lovlar jadvalini saytdagi ma'lumotlar bilan solishtiradi.
+        - button "Hozir tekshirish" [disabled] [ref=f4e36]
+      - generic [ref=f4e39]: Boshlash uchun pastda Google Sheets havolasini kiriting va saqlang.
+      - generic [ref=f4e40]:
+        - heading "Sozlamalar" [level=2] [ref=f4e42]
+        - generic [ref=f4e44]:
+          - generic [ref=f4e45]:
+            - generic [ref=f4e46]: Google Sheets havolasi
+            - textbox "Google Sheets havolasi" [ref=f4e47]:
+              - /placeholder: https://docs.google.com/spreadsheets/d/…/edit#gid=0
+            - paragraph [ref=f4e48]: Kerakli varaqni oching va brauzerdagi manzilni to'liq nusxalang (gid= qismi bilan).
+          - group "Jadvaldagi ustun nomlari (sarlavha qatori)" [ref=f4e49]:
+            - paragraph [ref=f4e51]: Sarlavhalar shu nomlarga mos bo'lishi kerak. Topilmasa, tizim «Ism», «F.I.SH», «Summa», «To'lov», «Oy», «Sana» kabi keng tarqalgan nomlarni o'zi qidiradi.
+            - generic [ref=f4e52]:
+              - generic [ref=f4e53]:
+                - generic [ref=f4e54]:
+                  - text: Ism ustuni
+                  - generic [ref=f4e55]: · majburiy
+                - textbox "Ism ustuni · majburiy" [ref=f4e56]: Ism
+              - generic [ref=f4e57]:
+                - generic [ref=f4e58]:
+                  - text: Telefon ustuni
+                  - generic [ref=f4e59]: · tavsiya
+                - textbox "Telefon ustuni · tavsiya" [ref=f4e60]: Telefon
+              - generic [ref=f4e61]:
+                - generic [ref=f4e62]:
+                  - text: Oy ustuni
+                  - generic [ref=f4e63]: · yoki sana
+                - textbox "Oy ustuni · yoki sana" [ref=f4e64]: Oy
+              - generic [ref=f4e65]:
+                - generic [ref=f4e66]:
+                  - text: Summa ustuni
+                  - generic [ref=f4e67]: · majburiy
+                - textbox "Summa ustuni · majburiy" [ref=f4e68]: Summa
+              - generic [ref=f4e69]:
+                - generic [ref=f4e70]:
+                  - text: Sana ustuni
+                  - generic [ref=f4e71]: · ixtiyoriy
+                - textbox "Sana ustuni · ixtiyoriy" [ref=f4e72]: Sana
+          - button "Sozlamalarni saqlash" [ref=f4e74]
+  - generic [ref=f4e79] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=f4e80]
+    - generic [ref=f4e84]:
+      - button "Open issues overlay" [ref=f4e85]:
+        - generic [ref=f4e86]:
+          - generic [aria-hidden] [ref=f4e87]: "-1"
+          - generic [ref=f4e88]: "0"
+      - button "Collapse issues badge" [ref=f4e89]
+  - alert [ref=f4e92]

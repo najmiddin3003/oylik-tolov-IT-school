@@ -1,0 +1,118 @@
+- generic [active] [ref=f6e1]:
+  - generic [ref=f6e2]:
+    - complementary [ref=f6e3]:
+      - link "To'lov nazorati O'quv markaz" [ref=f6e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f6e9]:
+          - generic [ref=f6e10]: To'lov nazorati
+          - generic [ref=f6e11]: O'quv markaz
+      - navigation "Asosiy menyu" [ref=f6e12]:
+        - link "Bosh sahifa" [ref=f6e13] [cursor=pointer]:
+          - /url: /
+        - link "O'quvchilar" [ref=f6e16] [cursor=pointer]:
+          - /url: /students
+        - link "To'lovlar" [ref=f6e19] [cursor=pointer]:
+          - /url: /payments
+        - link "Google Sheets" [ref=f6e22] [cursor=pointer]:
+          - /url: /sync
+      - button "Chiqish" [ref=f6e26]
+    - main [ref=f6e29]:
+      - 'link "Sayt va Google Sheets o''rtasida 4 ta farq topildi Qaysi to''lovlar mos kelmayotganini ko''rish uchun bosing. · Tekshiruv: 09.10.2026 20:10" [ref=f6e30] [cursor=pointer]':
+        - /url: /sync
+        - generic [ref=f6e33]:
+          - text: Sayt va Google Sheets o'rtasida 4 ta farq topildi
+          - generic [ref=f6e34]: "Qaysi to'lovlar mos kelmayotganini ko'rish uchun bosing. · Tekshiruv: 09.10.2026 20:10"
+        - generic [aria-hidden] [ref=f6e35]: →
+      - generic [ref=f6e36]:
+        - generic [ref=f6e37]:
+          - heading "Bosh sahifa" [level=1] [ref=f6e38]
+          - paragraph [ref=f6e39]: Oktabr 2026 oyi uchun to'lovlar holati
+        - generic [ref=f6e41]:
+          - link "Oldingi oy" [ref=f6e42] [cursor=pointer]:
+            - /url: /?month=2026-09
+            - text: ‹
+          - generic [ref=f6e43] [cursor=pointer]:
+            - text: Oktabr 2026
+            - textbox "Oyni tanlash" [ref=f6e44]: 2026-10
+          - link "Keyingi oy" [ref=f6e45] [cursor=pointer]:
+            - /url: /?month=2026-11
+            - text: ›
+      - generic "Guruh bo'yicha filtr" [ref=f6e46]:
+        - link "Barcha guruhlar" [ref=f6e47] [cursor=pointer]:
+          - /url: /?month=2026-10
+        - link "Ingliz tili A1" [ref=f6e48] [cursor=pointer]:
+          - /url: /?month=2026-10&group=Ingliz+tili+A1
+        - link "Matematika" [ref=f6e49] [cursor=pointer]:
+          - /url: /?month=2026-10&group=Matematika
+      - generic [ref=f6e50]:
+        - generic [ref=f6e51]:
+          - paragraph [ref=f6e53]: Faol o'quvchilar
+          - paragraph [ref=f6e54]: "4"
+          - paragraph [ref=f6e55]: Oktabr 2026 holatiga
+        - generic [ref=f6e56]:
+          - paragraph [ref=f6e58]: To'lagan
+          - paragraph [ref=f6e59]: "2"
+          - paragraph [ref=f6e60]: 50% o'quvchi
+        - generic [ref=f6e61]:
+          - paragraph [ref=f6e63]: To'lamagan
+          - paragraph [ref=f6e64]: "2"
+          - paragraph [ref=f6e65]: shundan 2 ta qisman
+        - generic [ref=f6e66]:
+          - paragraph [ref=f6e68]: Yig'ildi
+          - paragraph [ref=f6e69]: 1 750 000 so'm
+          - paragraph [ref=f6e70]: 4 ta to'lov
+      - generic [ref=f6e71]:
+        - generic [ref=f6e72]:
+          - generic [ref=f6e73]: Oylik reja bajarilishi
+          - generic [ref=f6e74]: 1 750 000 so'm / 2 050 000 so'm
+        - progressbar "Reja bajarilishi" [ref=f6e75]
+        - paragraph [ref=f6e77]: "85% bajarildi · Umumiy qarz: 300 000 so'm"
+      - generic [ref=f6e78]:
+        - generic [ref=f6e79]:
+          - heading "To'lov qilmaganlar 2" [level=2] [ref=f6e80]
+          - link "+ O'quvchi qo'shish" [ref=f6e81] [cursor=pointer]:
+            - /url: /students/new
+        - table [ref=f6e83]:
+          - rowgroup [ref=f6e84]:
+            - row [ref=f6e85]:
+              - columnheader "O'quvchi" [ref=f6e86]
+              - columnheader "Guruh" [ref=f6e87]
+              - columnheader "Oylik" [ref=f6e88]
+              - columnheader "To'landi" [ref=f6e89]
+              - columnheader "Qarz" [ref=f6e90]
+              - columnheader "Holat" [ref=f6e91]
+              - columnheader "Amal" [ref=f6e92]
+          - rowgroup [ref=f6e94]:
+            - row [ref=f6e95]:
+              - cell [ref=f6e96]:
+                - link "Aliyev Vali" [ref=f6e97] [cursor=pointer]:
+                  - /url: /students/6ac902f3c7e68c3840849826
+                - link "+998 90 123 45 67" [ref=f6e98] [cursor=pointer]:
+                  - /url: tel:+998901234567
+              - cell "Ingliz tili A1" [ref=f6e99]
+              - cell "500 000 so'm" [ref=f6e100]
+              - cell "300 000 so'm" [ref=f6e101]
+              - cell "200 000 so'm" [ref=f6e102]
+              - cell "Qisman" [ref=f6e103]
+              - cell [ref=f6e106]:
+                - link "To'lov qo'shish" [ref=f6e107] [cursor=pointer]:
+                  - /url: /students/6ac902f3c7e68c3840849826?month=2026-10#tolov
+            - row [ref=f6e108]:
+              - cell [ref=f6e109]:
+                - link "Karimova Nodira" [ref=f6e110] [cursor=pointer]:
+                  - /url: /students/6ac9036dbc41d6a099fa6e61
+                - link "+998 93 555 66 77" [ref=f6e111] [cursor=pointer]:
+                  - /url: tel:+998935556677
+              - cell "Ingliz tili A1" [ref=f6e112]
+              - cell "500 000 so'm" [ref=f6e113]
+              - cell "400 000 so'm" [ref=f6e114]
+              - cell "100 000 so'm" [ref=f6e115]
+              - cell "Qisman" [ref=f6e116]
+              - cell [ref=f6e119]:
+                - link "To'lov qo'shish" [ref=f6e120] [cursor=pointer]:
+                  - /url: /students/6ac9036dbc41d6a099fa6e61?month=2026-10#tolov
+      - group [ref=f6e122]:
+        - generic "To'laganlar 2 ko'rsatish ▾" [ref=f6e123] [cursor=pointer]:
+          - generic [ref=f6e124]: To'laganlar 2
+          - generic [ref=f6e125]: ko'rsatish ▾
+  - button "Open Next.js Dev Tools" [ref=f6e131] [cursor=pointer]

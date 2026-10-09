@@ -1,0 +1,69 @@
+- generic [active] [ref=f11e1]:
+  - generic [ref=f11e2]:
+    - complementary [ref=f11e3]:
+      - link "To'lov nazorati O'quv markaz" [ref=f11e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f11e9]:
+          - generic [ref=f11e10]: To'lov nazorati
+          - generic [ref=f11e11]: O'quv markaz
+      - navigation "Asosiy menyu" [ref=f11e12]:
+        - link "Bosh sahifa" [ref=f11e13] [cursor=pointer]:
+          - /url: /
+        - link "O'quvchilar" [ref=f11e16] [cursor=pointer]:
+          - /url: /students
+        - link "To'lovlar" [ref=f11e19] [cursor=pointer]:
+          - /url: /payments
+        - link "Google Sheets" [ref=f11e22] [cursor=pointer]:
+          - /url: /sync
+      - button "Chiqish" [ref=f11e26]
+    - main [ref=f11e29]:
+      - 'link "Sayt va Google Sheets o''rtasida 4 ta farq topildi Qaysi to''lovlar mos kelmayotganini ko''rish uchun bosing. · Tekshiruv: 09.10.2026 20:13" [ref=f11e30] [cursor=pointer]':
+        - /url: /sync
+        - generic [ref=f11e33]:
+          - text: Sayt va Google Sheets o'rtasida 4 ta farq topildi
+          - generic [ref=f11e34]: "Qaysi to'lovlar mos kelmayotganini ko'rish uchun bosing. · Tekshiruv: 09.10.2026 20:13"
+        - generic [aria-hidden] [ref=f11e35]: →
+      - generic [ref=f11e82]:
+        - generic [ref=f11e84]:
+          - heading "O'quvchini tahrirlash" [level=1] [ref=f11e85]
+          - paragraph [ref=f11e86]: Saidov Sardor
+        - generic [ref=f11e88]:
+          - generic [ref=f11e89]:
+            - generic [ref=f11e90]: Ism-familiya *
+            - textbox "Ism-familiya *" [ref=f11e91]:
+              - /placeholder: "Masalan: Aliyev Vali"
+              - text: Saidov Sardor
+          - generic [ref=f11e92]:
+            - generic [ref=f11e93]: Telefon
+            - textbox "Telefon" [ref=f11e94]:
+              - /placeholder: +998 90 123 45 67
+          - generic [ref=f11e95]:
+            - generic [ref=f11e96]: Ota-ona telefoni
+            - textbox "Ota-ona telefoni" [ref=f11e97]:
+              - /placeholder: +998 ...
+          - generic [ref=f11e98]:
+            - generic [ref=f11e99]: Guruh / kurs
+            - combobox "Guruh / kurs" [ref=f11e100]: Matematika
+          - generic [ref=f11e101]:
+            - generic [ref=f11e102]: Oylik to'lov (so'm) *
+            - textbox "Oylik to'lov (so'm) *" [ref=f11e103]:
+              - /placeholder: "500000"
+              - text: "600000"
+          - generic [ref=f11e104]:
+            - generic [ref=f11e105]: O'qishni boshlagan sana *
+            - textbox "O'qishni boshlagan sana *" [ref=f11e106]: 2026-08-31
+          - generic [ref=f11e107]:
+            - generic [ref=f11e108]: Holati
+            - combobox "Holati" [ref=f11e109]:
+              - option "Faol (o'qiyapti)" [selected]
+              - option "Nofaol (ketgan / to'xtatgan)"
+          - generic [ref=f11e110]:
+            - generic [ref=f11e111]: Izoh
+            - textbox "Izoh" [ref=f11e112]:
+              - /placeholder: Chegirma, kelishuv va h.k.
+          - generic [ref=f11e113]:
+            - button "O'zgarishlarni saqlash" [ref=f11e114]
+            - link "Bekor qilish" [ref=f11e115] [cursor=pointer]:
+              - /url: /students/6ac9036dbc41d6a099fa6e63
+  - button "Open Next.js Dev Tools" [ref=f11e78] [cursor=pointer]
+  - alert [ref=f11e116]: O'quvchini tahrirlash
