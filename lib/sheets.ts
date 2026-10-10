@@ -35,8 +35,9 @@ export function parseSheetUrl(raw: string): SheetSource | null {
     }
     const m = /^\/spreadsheets\/d\/([\w-]+)/.exec(url.pathname);
     if (!m) return null;
+    // "#gid=" — hozir ochiq turgan varaq; "?gid=" esa havola birinchi ochilgandagisi bo'lib qolishi mumkin
     const gid =
-      url.searchParams.get("gid") ?? /(?:^|[#&])gid=(\d+)/.exec(url.hash)?.[1] ?? null;
+      /(?:^#|[#&])gid=(\d+)/.exec(url.hash)?.[1] ?? url.searchParams.get("gid") ?? null;
     return { kind: "gsheet", id: m[1], gid };
   }
 

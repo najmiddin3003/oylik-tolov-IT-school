@@ -113,6 +113,14 @@ export function PaymentForm({
         <input id="pf-note" name="note" className={inputCls} placeholder="Masalan: chek №123" />
       </div>
 
+      <label className="flex items-start gap-2.5 text-sm text-slate-600">
+        <input type="checkbox" name="spread" defaultChecked className="mt-0.5 size-4 rounded border-slate-300 accent-brand-600" />
+        <span>
+          Oylik to&apos;lovdan ortiq summani keyingi oylarga o&apos;tkazish
+          <span className="block text-xs text-slate-400">Masalan: 300 ming oylikda 700 ming → 3 oyga taqsimlanadi</span>
+        </span>
+      </label>
+
       {state.error ? (
         <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
           {state.error}

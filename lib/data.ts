@@ -53,6 +53,9 @@ export type MismatchRow = {
   studentId: string | null;
   studentName: string;
   phone: string;
+  group: string;
+  fee: number;
+  parts: { row: number; date: string; amount: number; cash: number; card: number }[];
   month: string;
   siteAmount: number;
   sheetAmount: number;
@@ -71,8 +74,13 @@ export type SyncRunView = {
   error: string;
   sheetRowCount: number;
   matchedCount: number;
+  basis: "month" | "date";
   monthFrom: string;
   monthTo: string;
+  dateFrom: string;
+  dateTo: string;
+  courseFilter: string;
+  filteredOut: number;
   skipped: { row: number; reason: string }[];
   mismatches: MismatchRow[];
 };
@@ -296,8 +304,13 @@ function toRunView(r: Awaited<ReturnType<typeof findRuns>>[number]): SyncRunView
     error: r.error ?? "",
     sheetRowCount: r.sheetRowCount ?? 0,
     matchedCount: r.matchedCount ?? 0,
+    basis: r.basis === "date" ? "date" : "month",
     monthFrom: r.monthFrom ?? "",
     monthTo: r.monthTo ?? "",
+    dateFrom: r.dateFrom ?? "",
+    dateTo: r.dateTo ?? "",
+    courseFilter: r.courseFilter ?? "",
+    filteredOut: r.filteredOut ?? 0,
     skipped: (r.skipped ?? []).map((s) => ({ row: s.row ?? 0, reason: s.reason ?? "" })),
     mismatches: (r.mismatches ?? []).map((m) => ({
       id: String(m._id),
@@ -305,6 +318,15 @@ function toRunView(r: Awaited<ReturnType<typeof findRuns>>[number]): SyncRunView
       studentId: m.studentId ? String(m.studentId) : null,
       studentName: m.studentName ?? "",
       phone: m.phone ?? "",
+      group: m.group ?? "",
+      fee: m.fee ?? 0,
+      parts: (m.parts ?? []).map((p) => ({
+        row: p.row ?? 0,
+        date: p.date ?? "",
+        amount: p.amount ?? 0,
+        cash: p.cash ?? 0,
+        card: p.card ?? 0,
+      })),
       month: m.month,
       siteAmount: m.siteAmount ?? 0,
       sheetAmount: m.sheetAmount ?? 0,

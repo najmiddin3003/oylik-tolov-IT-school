@@ -22,16 +22,29 @@ export function RunSyncButton({ disabled }: { disabled: boolean }) {
   );
 }
 
-export function SheetSettingsForm({ sheetUrl, columns }: { sheetUrl: string; columns: ColumnNames }) {
+const COLUMN_FIELDS: { key: keyof ColumnNames; label: string; hint: string }[] = [
+  { key: "name", label: "Ism", hint: "majburiy" },
+  { key: "course", label: "Kurs", hint: "filtr uchun" },
+  { key: "amount", label: "Jami summa", hint: "yoki naqd + plastik" },
+  { key: "cash", label: "Naqd", hint: "ixtiyoriy" },
+  { key: "card", label: "Plastik", hint: "ixtiyoriy" },
+  { key: "date", label: "To'lov sanasi", hint: "oy ustuni bo'lmasa — majburiy" },
+  { key: "fee", label: "Kurs narxi", hint: "import uchun" },
+  { key: "month", label: "Oy", hint: "ixtiyoriy" },
+  { key: "phone", label: "Telefon", hint: "ixtiyoriy" },
+];
+
+export function SheetSettingsForm({
+  sheetUrl,
+  columns,
+  courseFilter,
+}: {
+  sheetUrl: string;
+  columns: ColumnNames;
+  courseFilter: string;
+}) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(saveSheetSettings, {});
   const fe = state.fieldErrors ?? {};
-  const cols: { name: string; label: string; value: string; hint: string }[] = [
-    { name: "colName", label: "Ism ustuni", value: columns.name, hint: "majburiy" },
-    { name: "colPhone", label: "Telefon ustuni", value: columns.phone, hint: "tavsiya" },
-    { name: "colMonth", label: "Oy ustuni", value: columns.month, hint: "yoki sana" },
-    { name: "colAmount", label: "Summa ustuni", value: columns.amount, hint: "majburiy" },
-    { name: "colDate", label: "Sana ustuni", value: columns.date, hint: "ixtiyoriy" },
-  ];
 
   return (
     <form action={formAction} className="grid gap-5">
@@ -52,29 +65,59 @@ export function SheetSettingsForm({ sheetUrl, columns }: { sheetUrl: string; col
           <p className="mt-1 text-xs text-rose-600">{fe.sheetUrl}</p>
         ) : (
           <p className="mt-1 text-xs text-slate-500">
-            Kerakli varaqni oching va brauzerdagi manzilni to&apos;liq nusxalang (gid= qismi bilan).
+            To&apos;lovlar varag&apos;ini (masalan «O&apos;quvchilar») oching va brauzerdagi manzilni to&apos;liq nusxalang. Yangi oy
+            uchun yangi jadval ochilsa — shu yerga yangisini qo&apos;ying.
           </p>
         )}
       </div>
 
-      <fieldset>
-        <legend className="mb-1 text-sm font-medium text-slate-700">Jadvaldagi ustun nomlari (sarlavha qatori)</legend>
-        <p className="mb-3 text-xs text-slate-500">
-          Sarlavhalar shu nomlarga mos bo&apos;lishi kerak. Topilmasa, tizim «Ism», «F.I.SH», «Summa», «To&apos;lov», «Oy», «Sana» kabi
-          keng tarqalgan nomlarni o&apos;zi qidiradi.
+      <div>
+        <label htmlFor="courseFilter" className={labelCls}>
+          Faqat shu kurs
+        </label>
+        <input
+          id="courseFilter"
+          name="courseFilter"
+          defaultValue={courseFilter}
+          className={inputCls}
+          placeholder="Bo'sh — barcha kurslar"
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          «Kurs» ustunida shu nom bor qatorlargina solishtiriladi, qolganlari e&apos;tiborsiz qoldiriladi. Bir nechta kurs —
+          vergul bilan.
         </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {cols.map((c) => (
-            <div key={c.name}>
-              <label htmlFor={c.name} className="mb-1 block text-xs font-medium text-slate-600">
-                {c.label}
-              </label>
-              <input id={c.name} name={c.name} defaultValue={c.value} className={inputCls} />
-              <span className="mt-1 block text-[11px] text-slate-400">{c.hint}</span>
-            </div>
-          ))}
+      </div>
+
+      <details className="group rounded-lg border border-slate-200">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium text-slate-700 [&::-webkit-details-marker]:hidden">
+          <span>
+            Jadval ustunlari{" "}
+            <span className="font-normal text-slate-500">
+              · {columns.name} · {columns.course} · {columns.amount} · {columns.date}
+            </span>
+          </span>
+          <span className="text-xs text-slate-400 group-open:rotate-180" aria-hidden>
+            ▾
+          </span>
+        </summary>
+        <div className="border-t border-slate-100 p-4">
+          <p className="mb-3 text-xs text-slate-500">
+            Sarlavha qatoridagi nomlar. Topilmasa, tizim «F.I.SH», «Summa», «Naqd», «Sana» kabi keng tarqalgan nomlarni ham
+            o&apos;zi qidiradi. «Oy» ustuni bo&apos;lmasa, to&apos;lovlar <b>to&apos;lov sanasi</b> bo&apos;yicha solishtiriladi.
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {COLUMN_FIELDS.map((c) => (
+              <div key={c.key}>
+                <label htmlFor={`col_${c.key}`} className="mb-1 block text-xs font-medium text-slate-600">
+                  {c.label}
+                </label>
+                <input id={`col_${c.key}`} name={`col_${c.key}`} defaultValue={columns[c.key]} className={inputCls} />
+                <span className="mt-1 block text-[11px] text-slate-400">{c.hint}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </fieldset>
+      </details>
 
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={pending} className={btn.secondary}>

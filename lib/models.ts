@@ -37,19 +37,27 @@ const paymentSchema = new Schema(
 );
 paymentSchema.index({ student: 1, month: 1 });
 paymentSchema.index({ month: 1, paidAt: -1 });
+paymentSchema.index({ paidAt: 1 });
 
 // ---------- Sozlamalar (bitta hujjat, _id = "main") ----------
+// Ustun nomlarining standart qiymatlari lib/compare.ts dagi DEFAULT_COLUMNS da.
 const settingSchema = new Schema(
   {
     _id: { type: String, default: "main" },
     sheetUrl: { type: String, default: "" },
     columns: {
-      name: { type: String, default: "Ism" },
-      phone: { type: String, default: "Telefon" },
-      month: { type: String, default: "Oy" },
-      amount: { type: String, default: "Summa" },
-      date: { type: String, default: "Sana" },
+      name: String,
+      phone: String,
+      month: String,
+      amount: String,
+      date: String,
+      cash: String,
+      card: String,
+      fee: String,
+      course: String,
     },
+    /** Faqat shu kurs(lar) qatorlari solishtiriladi; bo'sh — hammasi */
+    courseFilter: { type: String },
     /** Bir vaqtda ikkita tekshiruv ishlab ketmasligi uchun qulf */
     syncLockedUntil: { type: Date, default: null },
   },
@@ -65,17 +73,34 @@ export const MISMATCH_KINDS = [
 ] as const;
 export type MismatchKind = (typeof MISMATCH_KINDS)[number];
 
+const sheetPartSchema = new Schema(
+  {
+    row: { type: Number, default: 0 },
+    date: { type: String, default: "" },
+    amount: { type: Number, default: 0 },
+    cash: { type: Number, default: 0 },
+    card: { type: Number, default: 0 },
+  },
+  { _id: false },
+);
+
 const mismatchSchema = new Schema(
   {
     kind: { type: String, enum: MISMATCH_KINDS, required: true },
     studentId: { type: Schema.Types.ObjectId, ref: "Student", default: null },
     studentName: { type: String, default: "" },
     phone: { type: String, default: "" },
+    /** Sheets'dagi kurs nomi (yangi o'quvchi import qilinsa — guruhi) */
+    group: { type: String, default: "" },
     month: { type: String, required: true },
     siteAmount: { type: Number, default: 0 },
     sheetAmount: { type: Number, default: 0 },
     sheetRows: { type: [Number], default: [] },
     sheetDate: { type: String, default: "" },
+    /** Sheets'dagi kurs narxi (oylik) */
+    fee: { type: Number, default: 0 },
+    /** Sheets'dagi alohida to'lov qatorlari (sana, naqd/plastik) */
+    parts: { type: [sheetPartSchema], default: [] },
     note: { type: String, default: "" },
     resolved: { type: Boolean, default: false },
   },
@@ -91,8 +116,14 @@ const syncRunSchema = new Schema(
     error: { type: String, default: "" },
     sheetRowCount: { type: Number, default: 0 },
     matchedCount: { type: Number, default: 0 },
+    /** "date" — to'lov sanasi bo'yicha, "month" — oy ustuni bo'yicha solishtirilgan */
+    basis: { type: String, enum: ["month", "date"], default: "month" },
     monthFrom: { type: String, default: "" },
     monthTo: { type: String, default: "" },
+    dateFrom: { type: String, default: "" },
+    dateTo: { type: String, default: "" },
+    courseFilter: { type: String, default: "" },
+    filteredOut: { type: Number, default: 0 },
     skipped: { type: [{ row: Number, reason: String, _id: false }], default: [] },
     mismatches: { type: [mismatchSchema], default: [] },
   },

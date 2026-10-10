@@ -2,6 +2,7 @@
 
 import mongoose from "mongoose";
 import { refresh } from "next/cache";
+import { allocateAmount, type Allocation } from "@/lib/allocate";
 import { requireAuth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { Payment, PAYMENT_METHODS, Student, type PaymentMethod } from "@/lib/models";
@@ -18,6 +19,7 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
   const paidAt = isoToDate(String(formData.get("paidAt") ?? ""));
   const methodRaw = String(formData.get("method") ?? "naqd");
   const note = String(formData.get("note") ?? "").trim().slice(0, 500);
+  const spread = formData.get("spread") === "on";
 
   const fieldErrors: Record<string, string> = {};
   if (!mongoose.isValidObjectId(studentId)) fieldErrors.studentId = "O'quvchini tanlang";
@@ -31,15 +33,29 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
     : "naqd";
 
   await connectDB();
-  const student = await Student.findById(studentId, { fullName: 1 }).lean();
+  const student = await Student.findById(studentId, { fullName: 1, monthlyFee: 1 }).lean();
   if (!student) return { error: "O'quvchi topilmadi" };
 
-  await Payment.create({ student: studentId, month, amount: amount!, paidAt: paidAt!, method, note, source: "site" });
+  // Oylik to'lovdan ortiq summa keyingi oylarga o'tkaziladi (oldindan to'lov)
+  let parts: Allocation[] = [{ month, amount: amount! }];
+  if (spread && student.monthlyFee > 0 && amount! > 0) {
+    const agg = await Payment.aggregate<{ _id: string; total: number }>([
+      { $match: { student: new mongoose.Types.ObjectId(studentId), month: { $gte: month } } },
+      { $group: { _id: "$month", total: { $sum: "$amount" } } },
+    ]);
+    const paid = new Map(agg.map((a) => [a._id, a.total]));
+    parts = allocateAmount(amount!, student.monthlyFee, month, paid);
+  }
+
+  await Payment.insertMany(
+    parts.map((p) => ({ student: studentId, month: p.month, amount: p.amount, paidAt: paidAt!, method, note, source: "site" })),
+  );
   refresh();
-  return {
-    ok: true,
-    message: `${student.fullName}: ${monthLabel(month)} uchun ${formatMoney(amount!)} saqlandi`,
-  };
+  const what =
+    parts.length === 1
+      ? `${monthLabel(parts[0].month)} uchun ${formatMoney(parts[0].amount)}`
+      : parts.map((p) => `${monthLabel(p.month)} — ${formatMoney(p.amount)}`).join(", ");
+  return { ok: true, message: `${student.fullName}: ${what} saqlandi` };
 }
 
 export async function deletePayment(id: string): Promise<void> {

@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { importMismatch, resolveMismatch } from "@/app/actions/sync";
+import { importAllMismatches, importMismatch, resolveMismatch } from "@/app/actions/sync";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
 import { btn, Card, CardHeader, EmptyState, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { pageGuard } from "@/lib/auth";
 import { getSyncPageData, type MismatchRow, type SyncRunView } from "@/lib/data";
 import type { MismatchKind } from "@/lib/models";
 import { syncHour } from "@/lib/sync";
-import { formatDateTime, formatMoney, monthLabel } from "@/lib/time";
-import { pageGuard } from "@/lib/auth";
+import { formatDate, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Google Sheets" };
 
@@ -17,10 +17,11 @@ const KIND: Record<MismatchKind, { label: string; tone: "rose" | "amber" | "bran
   missing_on_site: { label: "Saytda yo'q", tone: "rose", help: "Sheets'da to'lov bor, saytda kiritilmagan" },
   missing_in_sheet: { label: "Sheets'da yo'q", tone: "amber", help: "Saytda to'lov bor, Sheets'da yozilmagan" },
   amount_diff: { label: "Summa farqi", tone: "brand", help: "Ikkala joyda bor, lekin summa har xil" },
-  unknown_student: { label: "Noma'lum o'quvchi", tone: "slate", help: "Sheets'dagi ism/telefon saytdagi o'quvchiga mos kelmadi" },
+  unknown_student: { label: "Saytda yo'q o'quvchi", tone: "slate", help: "Sheets'dagi o'quvchi saytda topilmadi" },
 };
 
 const TRIGGER = { auto: "avtomatik", cron: "cron", manual: "qo'lda" } as const;
+const isImportable = (m: MismatchRow) => m.kind === "missing_on_site" || m.kind === "unknown_student";
 
 export default function SyncPage() {
   return (
@@ -50,7 +51,9 @@ async function SyncView() {
         </div>
       ) : null}
 
-      {last ? <LastRun run={last} /> : settings.sheetUrl ? (
+      {last ? (
+        <LastRun run={last} />
+      ) : settings.sheetUrl ? (
         <Card className="mb-6">
           <EmptyState title="Hali tekshiruv o'tkazilmagan">«Hozir tekshirish» tugmasini bosing.</EmptyState>
         </Card>
@@ -59,7 +62,7 @@ async function SyncView() {
       <Card className="mb-6">
         <CardHeader title="Sozlamalar" />
         <div className="p-5">
-          <SheetSettingsForm sheetUrl={settings.sheetUrl} columns={settings.columns} />
+          <SheetSettingsForm sheetUrl={settings.sheetUrl} columns={settings.columns} courseFilter={settings.courseFilter} />
         </div>
       </Card>
 
@@ -73,8 +76,8 @@ async function SyncView() {
                   {formatDateTime(r.startedAt)} <span className="text-slate-400">· {TRIGGER[r.trigger]}</span>
                 </span>
                 {r.ok ? (
-                  r.mismatches.length ? (
-                    <Tag tone="amber">{r.mismatches.length} ta farq</Tag>
+                  r.mismatches.filter((m) => !m.resolved).length ? (
+                    <Tag tone="amber">{r.mismatches.filter((m) => !m.resolved).length} ta farq</Tag>
                   ) : (
                     <Tag tone="emerald">Bir xil ✓</Tag>
                   )
@@ -90,9 +93,17 @@ async function SyncView() {
   );
 }
 
+function periodLabel(run: SyncRunView): string {
+  if (run.basis === "date" && run.dateFrom) return `${formatDate(run.dateFrom)} – ${formatDate(run.dateTo)}`;
+  if (run.monthFrom) return run.monthFrom === run.monthTo ? monthLabel(run.monthFrom) : `${monthLabel(run.monthFrom)} – ${monthLabel(run.monthTo)}`;
+  return "—";
+}
+
 function LastRun({ run }: { run: SyncRunView }) {
   const open = run.mismatches.filter((m) => !m.resolved);
   const resolved = run.mismatches.length - open.length;
+  const importable = open.filter(isImportable);
+  const newStudents = new Set(importable.filter((m) => m.kind === "unknown_student").map((m) => m.studentName.toLowerCase())).size;
 
   if (!run.ok) {
     return (
@@ -107,34 +118,52 @@ function LastRun({ run }: { run: SyncRunView }) {
 
   return (
     <>
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Mini label="Oxirgi tekshiruv" value={formatDateTime(run.startedAt)} small />
-        <Mini label="Sheets'dagi to'lovlar" value={String(run.sheetRowCount)} hint={run.monthFrom ? `${monthLabel(run.monthFrom)} – ${monthLabel(run.monthTo)}` : undefined} />
+        <Mini
+          label="Sheets'dagi to'lovlar"
+          value={String(run.sheetRowCount)}
+          hint={run.courseFilter ? `«${run.courseFilter}» qatorlari` : "barcha qatorlar"}
+        />
         <Mini label="Mos keldi" value={String(run.matchedCount)} tone="text-emerald-600" />
         <Mini label="Farqlar" value={String(open.length)} tone={open.length ? "text-rose-600" : "text-emerald-600"} hint={resolved ? `${resolved} tasi hal qilingan` : undefined} />
       </div>
+      <p className="mb-6 text-xs leading-relaxed text-slate-500">
+        {run.basis === "date" ? "To'lov sanasi bo'yicha" : "To'lov oyi bo'yicha"} solishtirildi:{" "}
+        <span className="num font-medium text-slate-700">{periodLabel(run)}</span>
+        {run.courseFilter ? (
+          <>
+            {" "}
+            · faqat «{run.courseFilter}»{run.filteredOut ? `, boshqa kurslarning ${run.filteredOut} ta qatori e'tiborsiz` : ""}
+          </>
+        ) : null}
+        {run.basis === "date" ? ". Saytdagi to'lovlar «To'langan sana»si bo'yicha olinadi; jadvaldagi oxirgi sanadan keyingilari hali solishtirilmaydi." : "."}
+      </p>
 
       <Card className="mb-6">
         <CardHeader
           title={open.length ? "Mos kelmagan to'lovlar" : "Natija"}
           right={
-            <span className="hidden flex-wrap gap-1.5 md:flex">
-              {(Object.keys(KIND) as MismatchKind[]).map((k) => (
-                <span key={k} title={KIND[k].help}>
-                  <Tag tone={KIND[k].tone}>{KIND[k].label}</Tag>
-                </span>
-              ))}
-            </span>
+            importable.length ? (
+              <ConfirmAction
+                action={importAllMismatches.bind(null, run.id)}
+                confirmText={`Sheets'dan saytga qo'shiladi: ${newStudents ? `${newStudents} ta yangi o'quvchi va ` : ""}${importable.length} ta yozuvdagi to'lovlar. Keyin qayta tekshiriladi. Davom etilsinmi?`}
+                className={`${btn.primary} py-1.5`}
+                pendingText="Qo'shilmoqda…"
+              >
+                Hammasini saytga qo&apos;shish ({importable.length})
+              </ConfirmAction>
+            ) : null
           }
         />
         {open.length === 0 ? (
           <EmptyState title="Sayt va Google Sheets bir xil ✓">
-            {run.monthFrom ? `${monthLabel(run.monthFrom)} – ${monthLabel(run.monthTo)} oralig'idagi barcha to'lovlar mos keldi.` : "Sheets'da solishtiriladigan to'lov topilmadi."}
+            {run.sheetRowCount ? `${periodLabel(run)} oralig'idagi barcha to'lovlar mos keldi.` : "Sheets'da solishtiriladigan to'lov topilmadi."}
           </EmptyState>
         ) : (
           <ul className="divide-y divide-slate-100">
             {open.map((m) => (
-              <MismatchItem key={m.id} m={m} runId={run.id} />
+              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} />
             ))}
           </ul>
         )}
@@ -160,8 +189,14 @@ function LastRun({ run }: { run: SyncRunView }) {
   );
 }
 
-function MismatchItem({ m, runId }: { m: MismatchRow; runId: string }) {
+function MismatchItem({ m, runId, basis }: { m: MismatchRow; runId: string; basis: "month" | "date" }) {
   const k = KIND[m.kind];
+  const details = [m.group, m.fee ? `oylik ${formatMoney(m.fee)}` : ""].filter(Boolean).join(", ");
+  const importText =
+    m.kind === "unknown_student"
+      ? `«${m.studentName}» saytga yangi o'quvchi sifatida qo'shiladi${details ? ` (${details})` : ""} va Sheets'dagi to'lovlari kiritiladi. Davom etilsinmi?`
+      : `${m.studentName}: Sheets'dagi ${formatMoney(m.sheetAmount)} to'lov saytga qo'shilsinmi?`;
+
   return (
     <li className="flex flex-wrap items-start gap-x-6 gap-y-3 px-5 py-4 hover:bg-slate-50/60">
       <div className="min-w-[200px] flex-1">
@@ -169,7 +204,10 @@ function MismatchItem({ m, runId }: { m: MismatchRow; runId: string }) {
           <span title={k.help}>
             <Tag tone={k.tone}>{k.label}</Tag>
           </span>
-          <span className="text-xs text-slate-500">{monthLabel(m.month)}</span>
+          <span className="text-xs text-slate-500">
+            {monthLabel(m.month)}
+            {basis === "date" ? " (to'langan oy)" : ""}
+          </span>
         </div>
         {m.studentId ? (
           <Link href={`/students/${m.studentId}`} className="font-medium text-slate-900 hover:text-brand-600">
@@ -179,34 +217,39 @@ function MismatchItem({ m, runId }: { m: MismatchRow; runId: string }) {
           <span className="font-medium text-slate-900">{m.studentName}</span>
         )}
         {m.phone ? <span className="num ml-2 text-xs text-slate-500">{m.phone}</span> : null}
-        {m.note ? <p className="mt-0.5 text-xs text-slate-500">{m.note}</p> : null}
+        {m.parts.length ? (
+          <p className="num mt-0.5 text-xs text-slate-500">
+            Sheets:{" "}
+            {m.parts
+              .map((p) => `${p.date ? formatDate(p.date) : "sanasiz"} — ${formatMoney(p.amount)}${p.card && !p.cash ? " (plastik)" : ""} · ${p.row}-qator`)
+              .join("; ")}
+          </p>
+        ) : null}
+        {m.kind === "unknown_student" && (m.group || m.fee) ? (
+          <p className="mt-0.5 text-xs text-slate-500">
+            {[m.group && `Kurs: ${m.group}`, m.fee && `oylik ${formatMoney(m.fee)}`].filter(Boolean).join(" · ")}
+          </p>
+        ) : null}
+        {m.note ? <p className="mt-0.5 text-xs text-amber-700">{m.note}</p> : null}
       </div>
 
       <dl className="num grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 text-sm">
         <dt className="text-slate-500">Saytda</dt>
         <dd className="whitespace-nowrap text-right font-medium text-slate-900">{m.siteAmount ? formatMoney(m.siteAmount) : "—"}</dd>
         <dt className="text-slate-500">Sheets&apos;da</dt>
-        <dd className="whitespace-nowrap text-right font-medium text-slate-900">
-          {m.sheetAmount ? formatMoney(m.sheetAmount) : "—"}
-          {m.sheetRows.length ? <span className="ml-1.5 text-xs font-normal text-slate-400">({m.sheetRows.join(", ")}-qator)</span> : null}
-        </dd>
+        <dd className="whitespace-nowrap text-right font-medium text-slate-900">{m.sheetAmount ? formatMoney(m.sheetAmount) : "—"}</dd>
       </dl>
 
       <div className="flex w-full flex-wrap gap-1 sm:ml-auto sm:w-auto sm:justify-end">
-        {m.kind === "missing_on_site" ? (
+        {isImportable(m) ? (
           <ConfirmAction
             action={importMismatch.bind(null, runId, m.id)}
-            confirmText={`${m.studentName}: ${monthLabel(m.month)} uchun ${formatMoney(m.sheetAmount)} to'lov saytga qo'shilsinmi?`}
+            confirmText={importText}
             className={`${btn.ghost} text-brand-600 hover:bg-brand-50`}
             pendingText="…"
           >
             Saytga qo&apos;shish
           </ConfirmAction>
-        ) : null}
-        {m.kind === "unknown_student" ? (
-          <Link href="/students/new" className={`${btn.ghost} text-brand-600 hover:bg-brand-50`}>
-            O&apos;quvchi qo&apos;shish
-          </Link>
         ) : null}
         {m.studentId && m.kind !== "missing_on_site" ? (
           <Link href={`/students/${m.studentId}?month=${m.month}`} className={btn.ghost}>
