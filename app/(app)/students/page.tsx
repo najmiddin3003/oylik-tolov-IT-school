@@ -1,14 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { deleteStudent } from "@/app/actions/students";
-import { ConfirmAction } from "@/components/SubmitButton";
-import { btn, Card, EmptyState, inputCls, PageHeader, PageSkeleton, StatusBadge, Tag, td, th } from "@/components/ui";
-import { listGroups, listStudents } from "@/lib/data";
-import { formatMoney, monthLabel } from "@/lib/time";
+import { ArrowUpDown, Check, Download, Plus, Search, UserCheck, Users, Wallet } from "lucide-react";
+import { FilterForm } from "@/components/FilterForm";
+import { SyncAlert } from "@/components/ShellParts";
+import { StudentsTable } from "@/components/StudentsTable";
+import { btn, Card, cx, EmptyState, inputCls, MiniStat, PageHeader, PageSkeleton, Pagination, selectCls } from "@/components/ui";
 import { pageGuard } from "@/lib/auth";
+import { listGroups, listStudents, type StudentSort, type StudentTab } from "@/lib/data";
+import { currentMonth, formatNumber, isValidMonth, monthLabel } from "@/lib/time";
 
-export const metadata: Metadata = { title: "O'quvchilar" };
+export const metadata: Metadata = { title: "O‘quvchilar" };
+
+const PAGE_SIZE = 20;
+const SORTS: { key: StudentSort; label: string }[] = [
+  { key: "name", label: "Ism bo‘yicha (A–Z)" },
+  { key: "-name", label: "Ism bo‘yicha (Z–A)" },
+  { key: "debt", label: "Qarz bo‘yicha (ko‘pdan)" },
+];
 
 export default function StudentsPage({ searchParams }: PageProps<"/students">) {
   return (
@@ -21,104 +30,157 @@ export default function StudentsPage({ searchParams }: PageProps<"/students">) {
 async function Students({ searchParams }: { searchParams: PageProps<"/students">["searchParams"] }) {
   await pageGuard();
   const sp = await searchParams;
-  const q = typeof sp.q === "string" ? sp.q.slice(0, 100) : "";
-  const group = typeof sp.group === "string" ? sp.group : "";
-  const status = sp.status === "inactive" || sp.status === "all" ? sp.status : "active";
-  const [{ rows, month }, groups] = await Promise.all([listStudents({ q, group, status }), listGroups()]);
+  const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
+  const month = isValidMonth(sp.month) ? sp.month : currentMonth();
+  const q = str("q").slice(0, 100);
+  const group = str("group");
+  const status = str("status") === "inactive" || str("status") === "all" ? (str("status") as "inactive" | "all") : "active";
+  const tab: StudentTab = str("tab") === "debt" || str("tab") === "paid" ? (str("tab") as StudentTab) : "all";
+  const sort: StudentSort = SORTS.some((s) => s.key === str("sort")) ? (str("sort") as StudentSort) : "name";
+  const page = Math.max(1, Number(str("page")) || 1);
+
+  const [data, groups] = await Promise.all([
+    listStudents({ q, group, status, month, tab, sort, page, pageSize: PAGE_SIZE }),
+    listGroups(),
+  ]);
+  const { rows, counts, stats } = data;
+  const filtered = Boolean(q || group || tab !== "all" || status !== "active");
+
+  const base = { month, ...(q ? { q } : {}), ...(group ? { group } : {}), ...(status !== "active" ? { status } : {}) };
+  const href = (extra: Record<string, string>) => `/students?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}), ...(sort !== "name" ? { sort } : {}), ...extra })}`;
+  const tabHref = (t: StudentTab) => `/students?${new URLSearchParams({ ...base, ...(t !== "all" ? { tab: t } : {}), ...(sort !== "name" ? { sort } : {}) })}`;
+  const nextSort = SORTS[(SORTS.findIndex((s) => s.key === sort) + 1) % SORTS.length];
+  const currentSort = SORTS.find((s) => s.key === sort)!;
+
+  const tabs: { key: StudentTab; label: string; n: number }[] = [
+    { key: "all", label: "Barcha o‘quvchilar", n: counts.all },
+    { key: "debt", label: "Qarzdorlar", n: counts.debt },
+    { key: "paid", label: "To‘laganlar", n: counts.paid },
+  ];
 
   return (
     <>
       <PageHeader
-        title="O'quvchilar"
-        subtitle={`${rows.length} ta o'quvchi · to'lov holati ${monthLabel(month)} bo'yicha`}
+        eyebrow="O‘quvchilar bazasi"
+        title="O‘quvchilar"
+        subtitle="Guruhlar, oylik to‘lovlar va qarzdorlikni bir joyda boshqaring."
         actions={
-          <Link href="/students/new" className={btn.primary}>
-            + Yangi o&apos;quvchi
-          </Link>
+          <>
+            <a href={`/api/export/oquvchilar?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}) })}`} className={btn.outline}>
+              <Download className="size-[18px]" strokeWidth={1.8} aria-hidden />
+              CSV yuklash
+            </a>
+            <Link href="/students/new" className={btn.primary}>
+              <Plus className="size-[18px]" strokeWidth={2.2} aria-hidden />
+              Yangi o‘quvchi
+            </Link>
+          </>
         }
       />
 
-      <form method="get" className="mb-4 grid gap-2 sm:grid-cols-[1fr_200px_170px_auto]" role="search">
-        <input name="q" defaultValue={q} placeholder="Ism, telefon yoki guruh bo'yicha qidirish…" className={inputCls} aria-label="Qidirish" />
-        <select name="group" defaultValue={group} className={inputCls} aria-label="Guruh">
-          <option value="">Barcha guruhlar</option>
-          {groups.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
-        <select name="status" defaultValue={status} className={inputCls} aria-label="Holat">
-          <option value="active">Faol o&apos;quvchilar</option>
-          <option value="inactive">Nofaol</option>
-          <option value="all">Hammasi</option>
-        </select>
-        <button type="submit" className={btn.secondary}>
-          Qidirish
-        </button>
-      </form>
+      <Suspense fallback={null}>
+        <SyncAlert />
+      </Suspense>
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
+        <MiniStat label="Jami o‘quvchilar" value={stats.total} icon={Users} tone="slate" />
+        <MiniStat label="Bu oy faol" value={stats.activeThisMonth} icon={UserCheck} tone="emerald" />
+        <MiniStat label="To‘liq to‘lagan" value={stats.fullyPaid} icon={Check} tone="emerald" />
+        <MiniStat label="Jami qarzdorlik" value={formatNumber(stats.totalDebt)} unit="so‘m" icon={Wallet} tone="amber" />
+      </div>
 
       <Card>
-        {rows.length === 0 ? (
-          <EmptyState title={q || group ? "Hech narsa topilmadi" : "Hali o'quvchi qo'shilmagan"}>
-            {q || group ? (
-              "Qidiruv shartlarini o'zgartirib ko'ring."
-            ) : (
-              <Link href="/students/new" className="font-medium text-brand-600 hover:underline">
-                Birinchi o&apos;quvchini qo&apos;shing
+        <div className="flex gap-7 overflow-x-auto overflow-y-hidden border-b border-line px-6">
+          {tabs.map((t) => {
+            const active = t.key === tab;
+            return (
+              <Link
+                key={t.key}
+                href={tabHref(t.key)}
+                aria-current={active ? "page" : undefined}
+                className={cx(
+                  "relative flex shrink-0 items-center gap-2 py-4 text-[15px] font-medium transition",
+                  active ? "text-brand-700 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand-600" : "text-ink-500 hover:text-ink-900",
+                )}
+              >
+                {t.label}
+                <span
+                  className={cx(
+                    "num inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 text-xs font-semibold",
+                    active ? "bg-brand-100 text-brand-700" : "bg-slate-100 text-ink-500",
+                  )}
+                >
+                  {t.n}
+                </span>
               </Link>
-            )}
-          </EmptyState>
-        ) : (
-          <div className="relative overflow-x-auto">
-            <table className="w-full min-w-[720px]">
-              <thead className="bg-slate-50/70">
-                <tr>
-                  <th className={th}>O&apos;quvchi</th>
-                  <th className={th}>Guruh</th>
-                  <th className={`${th} text-right`}>Oylik to&apos;lov</th>
-                  <th className={th}>{monthLabel(month)}</th>
-                  <th className={`${th} text-right`}>Amallar</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((r) => (
-                  <tr key={r.id} className={`hover:bg-slate-50/60 ${r.active ? "" : "opacity-60"}`}>
-                    <td className={td}>
-                      <Link href={`/students/${r.id}`} className="font-medium text-slate-900 hover:text-brand-600">
-                        {r.fullName}
-                      </Link>
-                      <span className="num block text-xs text-slate-500">{r.phone || "telefon yo'q"}</span>
-                    </td>
-                    <td className={`${td} text-slate-500`}>{r.group || "—"}</td>
-                    <td className={`${td} num whitespace-nowrap text-right`}>{formatMoney(r.monthlyFee)}</td>
-                    <td className={td}>
-                      {!r.active ? <Tag>Nofaol</Tag> : !r.started ? <Tag tone="brand">Hali boshlamagan</Tag> : <StatusBadge status={r.status} />}
-                    </td>
-                    <td className={`${td} text-right`}>
-                      <div className="flex items-center justify-end gap-1">
-                        <Link href={`/students/${r.id}`} className={btn.ghost}>
-                          Ko&apos;rish
-                        </Link>
-                        <Link href={`/students/${r.id}/edit`} className={btn.ghost}>
-                          Tahrirlash
-                        </Link>
-                        <ConfirmAction
-                          action={deleteStudent.bind(null, r.id, null)}
-                          confirmText={`${r.fullName} va uning barcha to'lovlari o'chirib yuborilsinmi? Bu amalni qaytarib bo'lmaydi.`}
-                          className={`${btn.ghost} text-rose-600 hover:bg-rose-50 hover:text-rose-700`}
-                          pendingText="…"
-                        >
-                          O&apos;chirish
-                        </ConfirmAction>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            );
+          })}
+        </div>
+
+        <FilterForm action="/students" className="flex flex-wrap items-center gap-3 px-6 py-5">
+          <input type="hidden" name="month" value={month} />
+          {tab !== "all" ? <input type="hidden" name="tab" value={tab} /> : null}
+          {sort !== "name" ? <input type="hidden" name="sort" value={sort} /> : null}
+          <label className="relative min-w-[220px] flex-1">
+            <span className="sr-only">Qidirish</span>
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-ink-400" strokeWidth={1.8} aria-hidden />
+            <input name="q" type="search" defaultValue={q} placeholder="Ism yoki telefon orqali izlash..." className={cx(inputCls, "pl-11")} />
+          </label>
+          <select name="group" defaultValue={group} className={selectCls} aria-label="Guruh">
+            <option value="">Barcha guruhlar</option>
+            {groups.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+          <select name="status" defaultValue={status} className={selectCls} aria-label="Holat">
+            <option value="active">Faol o‘quvchilar</option>
+            <option value="inactive">Nofaol</option>
+            <option value="all">Hammasi</option>
+          </select>
+          <Link
+            href={`/students?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}), ...(nextSort.key !== "name" ? { sort: nextSort.key } : {}) })}`}
+            className={cx(btn.outline, "w-11 px-0", sort !== "name" && "border-brand-200 bg-brand-50 text-brand-700")}
+            aria-label={`Saralash: ${currentSort.label}. Bosilsa: ${nextSort.label}`}
+            title={`Saralash: ${currentSort.label}`}
+          >
+            <ArrowUpDown className="size-[18px]" strokeWidth={1.8} aria-hidden />
+          </Link>
+        </FilterForm>
+
+        {rows.length === 0 ? (
+          <div className="border-t border-line-soft">
+            <EmptyState title={filtered ? "Hech narsa topilmadi" : "Hali o‘quvchi qo‘shilmagan"} icon={Users}>
+              {filtered ? (
+                "Qidiruv yoki filtr shartlarini o‘zgartirib ko‘ring."
+              ) : (
+                <>
+                  <Link href="/students/new" className="font-medium text-brand-600 hover:underline">
+                    Birinchi o‘quvchini qo‘shing
+                  </Link>{" "}
+                  yoki{" "}
+                  <Link href="/sync" className="font-medium text-brand-600 hover:underline">
+                    Google Sheets’dan import qiling
+                  </Link>
+                  .
+                </>
+              )}
+            </EmptyState>
           </div>
+        ) : (
+          <StudentsTable rows={rows} month={month} monthTitle={monthLabel(month)} />
         )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-6 py-4 text-[13px] text-ink-400">
+          <span>
+            {counts.all} ta o‘quvchidan {data.shown} tasi ko‘rsatilmoqda
+          </span>
+          <span className="flex items-center gap-3">
+            {monthLabel(month)}
+            <Pagination page={data.page} pages={data.pages} href={(p) => href({ page: String(p) })} />
+          </span>
+        </div>
       </Card>
     </>
   );

@@ -22,7 +22,7 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
   const spread = formData.get("spread") === "on";
 
   const fieldErrors: Record<string, string> = {};
-  if (!mongoose.isValidObjectId(studentId)) fieldErrors.studentId = "O'quvchini tanlang";
+  if (!mongoose.isValidObjectId(studentId)) fieldErrors.studentId = "O‘quvchini tanlang";
   if (!isValidMonth(month)) fieldErrors.month = "Oyni tanlang";
   if (amount === null || amount <= 0) fieldErrors.amount = "Summani kiriting";
   if (!paidAt) fieldErrors.paidAt = "Sanani tanlang";
@@ -34,7 +34,7 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
 
   await connectDB();
   const student = await Student.findById(studentId, { fullName: 1, monthlyFee: 1 }).lean();
-  if (!student) return { error: "O'quvchi topilmadi" };
+  if (!student) return { error: "O‘quvchi topilmadi" };
 
   // Oylik to'lovdan ortiq summa keyingi oylarga o'tkaziladi (oldindan to'lov)
   let parts: Allocation[] = [{ month, amount: amount! }];
@@ -55,7 +55,7 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
     parts.length === 1
       ? `${monthLabel(parts[0].month)} uchun ${formatMoney(parts[0].amount)}`
       : parts.map((p) => `${monthLabel(p.month)} — ${formatMoney(p.amount)}`).join(", ");
-  return { ok: true, message: `${student.fullName}: ${what} saqlandi` };
+  return { ok: true, message: `${student.fullName}: ${what} saqlandi`, nonce: Date.now() };
 }
 
 export async function deletePayment(id: string): Promise<void> {

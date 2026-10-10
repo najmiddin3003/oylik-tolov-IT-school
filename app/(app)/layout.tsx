@@ -1,74 +1,124 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { logout } from "@/app/actions/auth";
-import { NAV, NavIcon } from "@/components/nav";
-import { NavLinks } from "@/components/NavLinks";
-import { SyncAlert } from "@/components/SyncAlert";
-import { LogoMark } from "@/components/ui";
+import { ArrowRight, Building2, ChartColumn, ShieldCheck } from "lucide-react";
+import { BottomNav } from "@/components/NavLinks";
+import {
+  BellFallback,
+  HeaderBell,
+  HeaderMonthServer,
+  SidebarNavServer,
+  StaticNav,
+  UserMenu,
+} from "@/components/ShellParts";
+import { Breadcrumb, BreadcrumbFallback, HeaderSearch, MonthPillSkeleton } from "@/components/TopBar";
+import { BrandName, LogoMark } from "@/components/ui";
 
-function StaticNav() {
-  // usePathname tayyor bo'lguncha ko'rinadigan oddiy menyu
-  return (
-    <>
-      {NAV.map((item) => (
-        <Link key={item.href} href={item.href} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600">
-          <NavIcon d={item.icon} />
-          {item.label}
-        </Link>
-      ))}
-    </>
-  );
-}
+const CENTER_NAME = process.env.CENTER_NAME || "Asosiy markaz";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
-    <div className="min-h-screen lg:pl-60">
+    <div className="min-h-screen lg:pl-[264px]">
       {/* Kompyuter: chap menyu */}
-      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r border-slate-200 bg-white lg:flex">
-        <Link href="/" className="flex items-center gap-3 px-5 py-5">
-          <LogoMark />
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] flex-col overflow-y-auto border-r border-line bg-white px-6 pb-5 pt-7 lg:flex">
+        <Link href="/" className="flex items-center gap-3.5">
+          <LogoMark className="size-12" />
           <span className="leading-tight">
-            <span className="block text-sm font-semibold text-slate-900">To&apos;lov nazorati</span>
-            <span className="block text-xs text-slate-500">O&apos;quv markaz</span>
+            <BrandName className="block text-lg" />
+            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.22em] text-ink-400">O‘quv markazi</span>
           </span>
         </Link>
-        <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="Asosiy menyu">
+
+        <div className="mt-7 flex items-center gap-3 rounded-2xl border border-line px-3 py-3">
+          <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-line bg-slate-50 text-ink-500" aria-hidden>
+            <Building2 className="size-[18px]" strokeWidth={1.8} />
+          </span>
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-[15px] font-semibold text-ink-900">{CENTER_NAME}</span>
+            <span className="mt-0.5 block text-xs text-ink-400">Boshqaruv maydoni</span>
+          </span>
+        </div>
+
+        <p className="mb-3 mt-8 px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-400">Ish maydoni</p>
+        <nav className="flex flex-col gap-1.5" aria-label="Asosiy menyu">
           <Suspense fallback={<StaticNav />}>
-            <NavLinks variant="side" />
+            <SidebarNavServer />
           </Suspense>
         </nav>
-        <form action={logout} className="border-t border-slate-100 p-3">
-          <button type="submit" className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
-            <NavIcon d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
-            Chiqish
-          </button>
-        </form>
+
+        <div className="mt-auto pt-8">
+          <div className="relative overflow-hidden rounded-2xl border border-brand-100/70 bg-[linear-gradient(160deg,#f5f6ff_0%,#eceeff_100%)] p-4">
+            <span className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full border-[14px] border-white/60" aria-hidden />
+            <span className="relative inline-flex size-9 items-center justify-center rounded-xl bg-white text-brand-600 shadow-card" aria-hidden>
+              <ChartColumn className="size-[18px]" strokeWidth={1.8} />
+            </span>
+            <p className="relative mt-4 text-[15px] font-semibold text-ink-900">
+              Har bir to‘lov muhim<span className="text-brand-600">.</span>
+            </p>
+            <p className="relative mt-1.5 text-[13px] leading-relaxed text-ink-500">O‘quvchilar va to‘lovlar — bitta tartibli maydonda.</p>
+            <Link href="/sync" className="relative mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand-600 hover:text-brand-800">
+              Sheets bilan solishtirish
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          </div>
+
+          <div className="mt-4 flex items-center gap-3 border-t border-line pt-4">
+            <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-ink-700" aria-hidden>
+              A
+            </span>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block text-sm font-semibold text-ink-900">Administrator</span>
+              <span className="mt-0.5 block truncate text-xs text-ink-400">Markaz boshqaruvchisi</span>
+            </span>
+            <UserMenu placement="sidebar" />
+          </div>
+        </div>
       </aside>
 
-      {/* Telefon: yuqori panel */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur lg:hidden">
-        <Link href="/" className="flex items-center gap-2.5">
-          <LogoMark className="size-8" />
-          <span className="text-sm font-semibold text-slate-900">To&apos;lov nazorati</span>
-        </Link>
-        <form action={logout}>
-          <button type="submit" className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">
-            Chiqish
-          </button>
-        </form>
+      {/* Yuqori panel */}
+      <header className="sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur">
+        <div className="mx-auto flex h-[72px] max-w-[1440px] items-center gap-3 px-4 sm:px-6 lg:px-10">
+          <Link href="/" className="flex items-center gap-2.5 lg:hidden" aria-label="Bosh sahifa">
+            <LogoMark className="size-9 rounded-xl" />
+            <BrandName className="hidden text-base sm:inline" />
+          </Link>
+          <div className="hidden min-w-0 lg:block">
+            <Suspense fallback={<BreadcrumbFallback />}>
+              <Breadcrumb />
+            </Suspense>
+          </div>
+          <div className="ml-auto flex items-center gap-2 sm:gap-4">
+            <Suspense fallback={null}>
+              <HeaderSearch />
+            </Suspense>
+            <span className="hidden h-7 w-px bg-line md:block" aria-hidden />
+            <Suspense fallback={<MonthPillSkeleton />}>
+              <HeaderMonthServer />
+            </Suspense>
+            <Suspense fallback={<BellFallback />}>
+              <HeaderBell />
+            </Suspense>
+            <div className="lg:hidden">
+              <UserMenu placement="header" />
+            </div>
+          </div>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
-        <Suspense fallback={null}>
-          <SyncAlert />
-        </Suspense>
+      <main className="mx-auto max-w-[1440px] px-4 pb-28 pt-8 sm:px-6 lg:px-10 lg:pb-10">
         {children}
+        <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-400">
+          <span className="inline-flex items-center gap-1.5">
+            <ShieldCheck className="size-3.5" aria-hidden />
+            Ma’lumotlar xavfsiz bazada saqlanadi va har kuni Google Sheets bilan solishtiriladi.
+          </span>
+          <span>To‘lov nazorati / O‘quv markaz</span>
+        </footer>
       </main>
 
       {/* Telefon: pastki menyu */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Asosiy menyu">
+      <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Asosiy menyu">
         <Suspense fallback={null}>
-          <NavLinks variant="bottom" />
+          <BottomNav />
         </Suspense>
       </nav>
     </div>

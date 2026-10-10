@@ -1,21 +1,32 @@
 import type { Metadata } from "next";
-import { LogoMark } from "@/components/ui";
+import { ShieldCheck } from "lucide-react";
+import { BrandName, LogoMark } from "@/components/ui";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = { title: "Kirish" };
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <LogoMark className="mx-auto mb-4 size-12" />
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">To&apos;lov nazorati</h1>
-          <p className="mt-1 text-sm text-slate-500">O&apos;quv markaz to&apos;lovlari tizimiga kirish</p>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
+      <span className="pointer-events-none absolute -left-40 -top-40 size-[480px] rounded-full bg-brand-100/50 blur-3xl" aria-hidden />
+      <span className="pointer-events-none absolute -bottom-48 -right-32 size-[420px] rounded-full bg-brand-50 blur-3xl" aria-hidden />
+      <div className="relative w-full max-w-[400px]">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <LogoMark className="size-14 rounded-2xl" />
+          <h1 className="mt-5 text-2xl">
+            <BrandName />
+          </h1>
+          <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-ink-400">O‘quv markazi</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-line bg-white p-7 shadow-card">
+          <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink-900">Tizimga kirish</h2>
+          <p className="mb-6 mt-1 text-sm text-ink-500">Davom etish uchun administrator parolini kiriting.</p>
           <LoginForm />
         </div>
+        <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-ink-400">
+          <ShieldCheck className="size-3.5" aria-hidden />
+          Ma’lumotlar xavfsiz bazada saqlanadi
+        </p>
       </div>
     </main>
   );

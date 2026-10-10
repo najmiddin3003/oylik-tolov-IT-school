@@ -11,10 +11,13 @@ const studentSchema = new Schema(
     startDate: { type: Date, required: true },
     active: { type: Boolean, default: true },
     note: { type: String, trim: true, default: "", maxlength: 1000 },
+    /** Tartib raqami (#001) — o'chirilgan o'quvchining raqami qayta berilmaydi */
+    seq: { type: Number, default: null },
   },
   { timestamps: true },
 );
 studentSchema.index({ active: 1, fullName: 1 });
+studentSchema.index({ seq: 1 });
 studentSchema.index({ group: 1 });
 
 // ---------- To'lov ----------
@@ -38,6 +41,9 @@ const paymentSchema = new Schema(
 paymentSchema.index({ student: 1, month: 1 });
 paymentSchema.index({ month: 1, paidAt: -1 });
 paymentSchema.index({ paidAt: 1 });
+
+// ---------- Hisoblagich (tartib raqamlari uchun) ----------
+const counterSchema = new Schema({ _id: { type: String }, value: { type: Number, default: 0 } }, { versionKey: false });
 
 // ---------- Sozlamalar (bitta hujjat, _id = "main") ----------
 // Ustun nomlarining standart qiymatlari lib/compare.ts dagi DEFAULT_COLUMNS da.
@@ -142,5 +148,7 @@ export const Payment: Model<InferSchemaType<typeof paymentSchema>> =
   models.Payment || model("Payment", paymentSchema);
 export const Setting: Model<InferSchemaType<typeof settingSchema>> =
   models.Setting || model("Setting", settingSchema);
+export const Counter: Model<InferSchemaType<typeof counterSchema>> =
+  models.Counter || model("Counter", counterSchema);
 export const SyncRun: Model<InferSchemaType<typeof syncRunSchema>> =
   models.SyncRun || model("SyncRun", syncRunSchema);

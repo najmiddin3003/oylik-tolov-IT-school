@@ -4,6 +4,7 @@ import { allocateAmount, importFromMonth } from "./allocate";
 import { connectDB } from "./db";
 import { Payment, Student, SyncRun, type PaymentMethod } from "./models";
 import { nameKey } from "./normalize";
+import { nextStudentSeq } from "./seq";
 import { isoToDate, monthOfDate } from "./time";
 
 export type ImportResult = { students: number; payments: number; resolved: number; skipped: string[] };
@@ -87,6 +88,7 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
     const months = group.flatMap((m) => partsOf(m).map((p) => partMonth(m, p))).sort();
     const fee = Math.max(0, ...group.map((m) => m.fee ?? 0));
     const created = await Student.create({
+      seq: await nextStudentSeq(),
       fullName: first.studentName.replace(/\s+/g, " ").trim(),
       phone: first.phone ?? "",
       group: first.group ?? "",

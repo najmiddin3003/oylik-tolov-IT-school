@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { StudentForm } from "@/components/StudentForm";
 import { Card, PageHeader, PageSkeleton } from "@/components/ui";
+import { pageGuard } from "@/lib/auth";
 import { getStudent, listGroups } from "@/lib/data";
 import { todayISO } from "@/lib/time";
-import { pageGuard } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Tahrirlash" };
 
@@ -23,9 +23,9 @@ async function EditStudent({ params }: { params: PageProps<"/students/[id]/edit"
   const [student, groups] = await Promise.all([getStudent(id), listGroups()]);
   if (!student) notFound();
   return (
-    <div className="max-w-3xl">
-      <PageHeader title="O'quvchini tahrirlash" subtitle={student.fullName} />
-      <Card className="p-5 sm:p-6">
+    <div className="max-w-5xl">
+      <PageHeader eyebrow="O‘quvchi profili" title="Tahrirlash" subtitle={student.fullName} />
+      <Card>
         <StudentForm student={student} groups={groups} today={todayISO()} />
       </Card>
     </div>

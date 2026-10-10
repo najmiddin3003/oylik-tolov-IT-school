@@ -96,11 +96,15 @@ export function formatDateTime(d: Date | string | null | undefined): string {
   return `${formatDate(date)} ${hh}:${mi}`;
 }
 
-export function formatMoney(n: number): string {
+/** 1250000 -> "1 250 000" */
+export function formatNumber(n: number): string {
   const rounded = Math.round(n);
   const sign = rounded < 0 ? "-" : "";
-  const digits = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  return `${sign}${digits} so'm`;
+  return sign + String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+export function formatMoney(n: number): string {
+  return `${formatNumber(n)} so‘m`;
 }
 
 /**

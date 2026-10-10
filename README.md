@@ -21,6 +21,10 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 
   «Saytga qo'shish» (yoki «Hammasini saytga qo'shish») Sheets'dagi yozuvlardan saytga o'quvchi (ism, kurs → guruh,
   kurs narxi → oylik to'lov) va to'lovlarni (har qator alohida, o'z sanasi bilan) yaratadi.
+- **Umumiy oy tanlagich** yuqori panelda — bosh sahifa, o‘quvchilar va to‘lovlar shu oy bo‘yicha ko‘rsatiladi; `/` tugmasi — o‘quvchi qidiruvi.
+- **O‘quvchilar** sahifasida tablar (Barcha / Qarzdorlar / To‘laganlar), saralash va belgilash katakchalari orqali bir nechta o‘quvchini
+  birdan nofaol/faol qilish yoki o‘chirish. Har o‘quvchining tartib raqami bor (`#001`).
+- **CSV eksport** — «Hisobotni yuklash» (oylik hisobot), o‘quvchilar va to‘lovlar ro‘yxati; Excel uchun UTF-8 va `;` ajratgich.
 - Admin paroli bilan kirish (sessiya 30 kun).
 
 ## Ishga tushirish

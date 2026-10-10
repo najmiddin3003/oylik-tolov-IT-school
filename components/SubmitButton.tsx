@@ -12,11 +12,12 @@ export function SubmitButton({
   children: ReactNode;
   pendingText?: string;
   className: string;
+  /** Faqat ikonkali tugma uchun ham nom (tooltip va ekran o'quvchi) */
   title?: string;
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={className} title={title} aria-busy={pending}>
+    <button type="submit" disabled={pending} className={className} title={title} aria-label={title} aria-busy={pending}>
       {pending && pendingText ? pendingText : children}
     </button>
   );
@@ -30,6 +31,7 @@ export function ConfirmAction({
   className,
   pendingText,
   title,
+  formClassName,
 }: {
   action: () => Promise<void>;
   confirmText: string;
@@ -37,10 +39,12 @@ export function ConfirmAction({
   className: string;
   pendingText?: string;
   title?: string;
+  formClassName?: string;
 }) {
   return (
     <form
       action={action}
+      className={formClassName}
       onSubmit={(e) => {
         if (!window.confirm(confirmText)) e.preventDefault();
       }}

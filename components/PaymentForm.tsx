@@ -1,140 +1,240 @@
 "use client";
 
-import { useActionState, useState, type ChangeEvent } from "react";
+import { useActionState, useState } from "react";
+import { Banknote, CalendarDays, Check, CreditCard, Landmark, Lock, Plus, type LucideIcon } from "lucide-react";
 import { addPayment } from "@/app/actions/payments";
 import type { FormState } from "@/app/actions/types";
-import { btn, inputCls, labelCls } from "./ui";
+import type { StudentOption } from "@/lib/data";
+import type { PaymentMethod } from "@/lib/models";
+import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
+import { btn, cx, inputCls, labelCls } from "./ui";
 
-type StudentOption = { id: string; label: string; monthlyFee: number };
+const METHODS: { key: PaymentMethod; label: string; icon: LucideIcon }[] = [
+  { key: "naqd", label: "Naqd", icon: Banknote },
+  { key: "karta", label: "Karta", icon: CreditCard },
+  { key: "otkazma", label: "O‘tkazma", icon: Landmark },
+];
 
-/**
- * To'lov qo'shish formasi.
- * - `studentId` berilsa — o'quvchi tanlanmaydi (o'quvchi sahifasida).
- * - `students` berilsa — ro'yxatdan tanlanadi (To'lovlar sahifasida).
- */
-export function PaymentForm({
-  studentId,
-  students,
-  defaultMonth,
-  defaultAmount,
-  today,
-}: {
-  studentId?: string;
-  students?: StudentOption[];
+type Props = {
+  students: StudentOption[];
+  /** O'quvchi sahifasida — o'quvchi tanlanmaydi */
+  fixedStudentId?: string;
+  defaultStudentId?: string;
   defaultMonth: string;
-  defaultAmount?: number;
   today: string;
-}) {
+};
+
+/** To'lov qo'shish formasi (To'lovlar sahifasi va o'quvchi sahifasi). */
+export function PaymentForm(props: Props) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(addPayment, {});
-  const [selected, setSelected] = useState(studentId ?? "");
-  const [amount, setAmount] = useState("");
-  const fe = state.fieldErrors ?? {};
+  return (
+    <form action={formAction} className="grid gap-5" noValidate>
+      {/* Muvaffaqiyatli saqlangach maydonlar yangi qiymatlar bilan qayta chiziladi */}
+      <PaymentFields key={state.nonce ?? 0} {...props} fe={state.fieldErrors ?? {}} />
+
+      {state.error ? (
+        <p className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+      {state.ok && state.message ? (
+        <p className="rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800" role="status">
+          ✓ {state.message}
+        </p>
+      ) : null}
+
+      <button type="submit" disabled={pending} className={cx(btn.primary, "h-12 w-full")}>
+        <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
+        {pending ? "Saqlanmoqda…" : "To‘lovni saqlash"}
+      </button>
+      <p className="-mt-2 flex items-center justify-center gap-1.5 text-xs text-ink-400">
+        <Lock className="size-3" aria-hidden />
+        Bazaga saqlanadi va Google Sheets bilan solishtiriladi
+      </p>
+    </form>
+  );
+}
+
+function roundTo10k(n: number) {
+  return Math.round(n / 10_000) * 10_000;
+}
+
+function PaymentFields({
+  students,
+  fixedStudentId,
+  defaultStudentId,
+  defaultMonth,
+  today,
+  fe,
+}: Props & { fe: Record<string, string> }) {
+  const [studentId, setStudentId] = useState(fixedStudentId ?? defaultStudentId ?? "");
+  const [month, setMonth] = useState(defaultMonth);
+  const [amount, setAmount] = useState<string | null>(null); // null — avtomatik (qolgan summa)
+  const [method, setMethod] = useState<PaymentMethod>("naqd");
+  const [showNote, setShowNote] = useState(false);
+
+  const st = students.find((s) => s.id === studentId);
+  const fee = st?.fee ?? 0;
+  const paid = st?.paid[month] ?? 0;
+  const remaining = Math.max(0, fee - paid);
+  const shown = amount ?? (st ? formatNumber(remaining || fee) : "");
+  const chips = [...new Set([roundTo10k(fee / 3), roundTo10k(fee / 2)])].filter((v) => v > 0 && v < fee);
 
   return (
-    <form action={formAction} className="grid gap-4" noValidate>
-      {studentId ? <input type="hidden" name="studentId" value={studentId} /> : null}
-
-      {students ? (
+    <>
+      {fixedStudentId ? (
+        <input type="hidden" name="studentId" value={fixedStudentId} />
+      ) : (
         <div>
-          <label htmlFor="studentId" className={labelCls}>
-            O&apos;quvchi
+          <label htmlFor="pf-student" className={labelCls}>
+            O‘quvchi <span className="text-brand-600">*</span>
           </label>
           <select
-            id="studentId"
+            id="pf-student"
             name="studentId"
-            value={selected}
+            value={studentId}
             onChange={(e) => {
-              setSelected(e.target.value);
-              const st = students.find((s) => s.id === e.target.value);
-              if (st) setAmount(String(st.monthlyFee));
+              setStudentId(e.target.value);
+              setAmount(null);
             }}
-            className={inputCls}
+            className={cx(inputCls, "h-12")}
             aria-invalid={!!fe.studentId}
           >
-            <option value="">— tanlang —</option>
+            <option value="">— O‘quvchini tanlang —</option>
             {students.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.label}
+                {s.name}
+                {s.group ? ` — ${s.group}` : ""}
               </option>
             ))}
           </select>
-          {fe.studentId ? <p className="mt-1 text-xs text-rose-600">{fe.studentId}</p> : null}
+          {fe.studentId ? <p className="mt-1.5 text-xs text-rose-600">{fe.studentId}</p> : null}
+        </div>
+      )}
+
+      {st ? (
+        <div className="rounded-xl border border-brand-100 bg-brand-50/50 px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13px] text-ink-500">Qolgan to‘lov</span>
+            <span className={cx("num text-[17px] font-semibold", remaining ? "text-brand-700" : "text-emerald-600")}>
+              {remaining ? formatMoney(remaining) : "To‘langan ✓"}
+            </span>
+          </div>
+          <div className="num mt-2 flex items-center justify-between gap-3 text-xs text-ink-400">
+            <span>Oylik: {formatMoney(fee)}</span>
+            <span>To‘landi: {formatMoney(paid)}</span>
+          </div>
         </div>
       ) : null}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="pf-month" className={labelCls}>
-            Qaysi oy uchun
+          <span className={labelCls}>Qaysi oy uchun</span>
+          <label className={cx(inputCls, "relative flex cursor-pointer items-center justify-between gap-2", fe.month && "border-rose-400")}>
+            <span className="num truncate">{monthLabel(month)}</span>
+            <CalendarDays className="size-4 shrink-0 text-ink-400" strokeWidth={1.8} aria-hidden />
+            <input
+              type="month"
+              name="month"
+              value={month}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setMonth(e.target.value);
+                setAmount(null);
+              }}
+              className="picker-overlay absolute inset-0 cursor-pointer opacity-0"
+              aria-label="Qaysi oy uchun"
+            />
           </label>
-          <input id="pf-month" name="month" type="month" defaultValue={defaultMonth} className={inputCls} aria-invalid={!!fe.month} />
-        </div>
-        <div>
-          <label htmlFor="pf-amount" className={labelCls}>
-            Summa (so&apos;m)
-          </label>
-          <input
-            id="pf-amount"
-            name="amount"
-            inputMode="numeric"
-            // O'quvchi ro'yxatdan tanlansa summa avtomatik to'ladi (controlled); aks holda forma
-            // saqlangandan keyin React uni yangi standart qiymatga qaytaradi (uncontrolled).
-            {...(students
-              ? { value: amount, onChange: (e: ChangeEvent<HTMLInputElement>) => setAmount(e.target.value) }
-              : { defaultValue: defaultAmount ? String(defaultAmount) : "" })}
-            className={`${inputCls} num`}
-            placeholder="500000"
-            aria-invalid={!!fe.amount}
-          />
-          {fe.amount ? <p className="mt-1 text-xs text-rose-600">{fe.amount}</p> : null}
         </div>
         <div>
           <label htmlFor="pf-date" className={labelCls}>
-            To&apos;langan sana
+            To‘langan sana
           </label>
           <input id="pf-date" name="paidAt" type="date" defaultValue={today} className={inputCls} aria-invalid={!!fe.paidAt} />
-        </div>
-        <div>
-          <label htmlFor="pf-method" className={labelCls}>
-            Usul
-          </label>
-          <select id="pf-method" name="method" defaultValue="naqd" className={inputCls}>
-            <option value="naqd">Naqd</option>
-            <option value="karta">Karta</option>
-            <option value="otkazma">O&apos;tkazma</option>
-          </select>
         </div>
       </div>
 
       <div>
-        <label htmlFor="pf-note" className={labelCls}>
-          Izoh <span className="font-normal text-slate-400">(ixtiyoriy)</span>
+        <label htmlFor="pf-amount" className={labelCls}>
+          To‘lov summasi <span className="text-brand-600">*</span>
         </label>
-        <input id="pf-note" name="note" className={inputCls} placeholder="Masalan: chek №123" />
+        <div className="relative">
+          <input
+            id="pf-amount"
+            name="amount"
+            inputMode="numeric"
+            autoComplete="off"
+            value={shown}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 12);
+              setAmount(digits ? formatNumber(Number(digits)) : "");
+            }}
+            className={cx(inputCls, "num h-16 pr-16 text-[26px] font-semibold tracking-[-0.01em]")}
+            placeholder="0"
+            aria-invalid={!!fe.amount}
+          />
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-ink-400">so‘m</span>
+        </div>
+        {fe.amount ? <p className="mt-1.5 text-xs text-rose-600">{fe.amount}</p> : null}
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          {chips.map((v) => (
+            <button key={v} type="button" onClick={() => setAmount(formatNumber(v))} className="num h-7 rounded-lg border border-line px-2.5 text-xs font-medium text-ink-500 transition hover:border-brand-200 hover:text-brand-700">
+              {formatNumber(v)}
+            </button>
+          ))}
+          {fee ? (
+            <button
+              type="button"
+              onClick={() => setAmount(formatNumber(remaining || fee))}
+              className="ml-auto h-7 rounded-lg bg-brand-50 px-2.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
+            >
+              To‘liq to‘lash
+            </button>
+          ) : null}
+        </div>
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-ink-500">
+          <input type="checkbox" name="spread" defaultChecked className="size-3.5 rounded accent-brand-600" />
+          Oylikdan ortiq summani keyingi oylarga o‘tkazish
+        </label>
       </div>
 
-      <label className="flex items-start gap-2.5 text-sm text-slate-600">
-        <input type="checkbox" name="spread" defaultChecked className="mt-0.5 size-4 rounded border-slate-300 accent-brand-600" />
-        <span>
-          Oylik to&apos;lovdan ortiq summani keyingi oylarga o&apos;tkazish
-          <span className="block text-xs text-slate-400">Masalan: 300 ming oylikda 700 ming → 3 oyga taqsimlanadi</span>
-        </span>
-      </label>
+      <fieldset>
+        <legend className={labelCls}>To‘lov usuli</legend>
+        <div className="grid grid-cols-3 gap-2">
+          {METHODS.map((m) => {
+            const Icon = m.icon;
+            const active = method === m.key;
+            return (
+              <label
+                key={m.key}
+                className={cx(
+                  "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border text-sm font-medium transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-brand-500/15",
+                  active ? "border-brand-300 bg-brand-50 text-brand-700" : "border-line text-ink-500 hover:bg-slate-50",
+                )}
+              >
+                <input type="radio" name="method" value={m.key} checked={active} onChange={() => setMethod(m.key)} className="sr-only" />
+                <Icon className="size-4" strokeWidth={1.8} aria-hidden />
+                {m.label}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
 
-      {state.error ? (
-        <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
-          {state.error}
-        </p>
-      ) : null}
-      {state.ok && state.message ? (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
-          ✓ {state.message}
-        </p>
-      ) : null}
-
-      <button type="submit" disabled={pending} className={btn.primary}>
-        {pending ? "Saqlanmoqda…" : "To'lovni saqlash"}
-      </button>
-    </form>
+      {showNote ? (
+        <div>
+          <label htmlFor="pf-note" className={labelCls}>
+            Izoh <span className="font-normal text-ink-400">(ixtiyoriy)</span>
+          </label>
+          <input id="pf-note" name="note" className={inputCls} placeholder="Masalan: chek №123" autoFocus />
+        </div>
+      ) : (
+        <button type="button" onClick={() => setShowNote(true)} className="-my-1 inline-flex w-fit items-center gap-1.5 text-sm text-ink-500 hover:text-brand-700">
+          <Plus className="size-4" aria-hidden />
+          Izoh qo‘shish <span className="text-ink-300">(ixtiyoriy)</span>
+        </button>
+      )}
+    </>
   );
 }

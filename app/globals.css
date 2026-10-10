@@ -1,15 +1,41 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme {
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
+  /* Asosiy ko'k (brend) */
+  --color-brand-50: #eef0ff;
+  --color-brand-100: #e1e4ff;
+  --color-brand-200: #c6ccff;
+  --color-brand-300: #9da6ff;
+  --color-brand-400: #6f7bff;
+  --color-brand-500: #4352ff;
+  --color-brand-600: #2b3aff;
+  --color-brand-700: #1f2de6;
+  --color-brand-800: #1a24b8;
+
+  /* Matn (siyoh) va fon */
+  --color-ink-900: #0e1121;
+  --color-ink-800: #1c2033;
+  --color-ink-700: #33384d;
+  --color-ink-600: #4c5269;
+  --color-ink-500: #6b7189;
+  --color-ink-400: #8c92a8;
+  --color-ink-300: #b4b9c9;
+  --color-line: #e7e9f0;
+  --color-line-soft: #f0f1f6;
+  --color-canvas: #f6f7fb;
+
+  /* Holat ranglari */
+  --color-paid: #1fa971;
+  --color-partial: #6f78ff;
+  --color-unpaid: #e2a33b;
+
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.03);
+  --shadow-brand: 0 8px 18px -6px rgb(43 58 255 / 0.55);
+  --shadow-pop: 0 12px 32px -8px rgb(16 24 40 / 0.18);
 }
 
 :root {
@@ -18,8 +44,8 @@
 
 html,
 body {
-  background: #f6f7f9;
-  color: #0f172a;
+  background: var(--color-canvas);
+  color: var(--color-ink-700);
 }
 
 /* Raqamlar ustunlarda bir tekis turishi uchun */
@@ -37,13 +63,23 @@ body {
   }
 }
 .skeleton {
-  background: linear-gradient(90deg, #eef0f3 25%, #e2e5ea 37%, #eef0f3 63%);
+  background: linear-gradient(90deg, #eef0f5 25%, #e3e6ee 37%, #eef0f5 63%);
   background-size: 800px 100%;
   animation: shimmer 1.4s ease infinite;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
 }
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
   }
+}
+
+/* Oy/sana tanlagich: ko'rinmas input ustidagi bosilganda brauzer kalendari */
+input[type="month"].picker-overlay::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }

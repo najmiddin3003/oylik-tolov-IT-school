@@ -7,6 +7,7 @@ import { requireAuth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { Payment, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { nextStudentSeq } from "@/lib/seq";
 import { isoToDate } from "@/lib/time";
 import type { FormState } from "./types";
 
@@ -31,13 +32,13 @@ export async function saveStudent(
   const active = str(formData, "active") !== "false";
 
   const fieldErrors: Record<string, string> = {};
-  if (fullName.length < 3) fieldErrors.fullName = "Ism-familiyani to'liq kiriting";
+  if (fullName.length < 3) fieldErrors.fullName = "Ism-familiyani to‘liq kiriting";
   if (fullName.length > 120) fieldErrors.fullName = "Juda uzun";
   for (const [key, value] of [["phone", phone], ["parentPhone", parentPhone]] as const) {
-    if (value && value.replace(/\D/g, "").length < 9) fieldErrors[key] = "Telefon raqam noto'g'ri";
+    if (value && value.replace(/\D/g, "").length < 9) fieldErrors[key] = "Telefon raqam noto‘g‘ri";
   }
   const monthlyFee = parseAmount(feeRaw);
-  if (monthlyFee === null || monthlyFee < 0) fieldErrors.monthlyFee = "Oylik to'lov summasini kiriting";
+  if (monthlyFee === null || monthlyFee < 0) fieldErrors.monthlyFee = "Oylik to‘lov summasini kiriting";
   const startDate = isoToDate(startRaw);
   if (!startDate) fieldErrors.startDate = "Boshlagan sanani tanlang";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
@@ -47,12 +48,12 @@ export async function saveStudent(
 
   let savedId: string;
   if (id) {
-    if (!mongoose.isValidObjectId(id)) return { error: "O'quvchi topilmadi" };
+    if (!mongoose.isValidObjectId(id)) return { error: "O‘quvchi topilmadi" };
     const updated = await Student.findByIdAndUpdate(id, data, { runValidators: true });
-    if (!updated) return { error: "O'quvchi topilmadi" };
+    if (!updated) return { error: "O‘quvchi topilmadi" };
     savedId = id;
   } else {
-    const created = await Student.create(data);
+    const created = await Student.create({ ...data, seq: await nextStudentSeq() });
     savedId = String(created._id);
   }
   redirect(`/students/${savedId}`);
@@ -66,5 +67,20 @@ export async function deleteStudent(id: string, redirectTo: string | null): Prom
   await Payment.deleteMany({ student: id });
   await Student.findByIdAndDelete(id);
   if (redirectTo) redirect(redirectTo);
+  refresh();
+}
+
+/** Tanlangan o'quvchilar ustida amal: faol/nofaol qilish yoki o'chirish (to'lovlari bilan). */
+export async function bulkStudents(action: "activate" | "deactivate" | "delete", ids: string[]): Promise<void> {
+  await requireAuth();
+  const valid = ids.filter((id) => mongoose.isValidObjectId(id)).slice(0, 1000);
+  if (!valid.length) return;
+  await connectDB();
+  if (action === "delete") {
+    await Payment.deleteMany({ student: { $in: valid } });
+    await Student.deleteMany({ _id: { $in: valid } });
+  } else {
+    await Student.updateMany({ _id: { $in: valid } }, { $set: { active: action === "activate" } });
+  }
   refresh();
 }
