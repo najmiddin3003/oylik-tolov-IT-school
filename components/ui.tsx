@@ -278,6 +278,7 @@ export function HeroKpiCard({
   unit,
   badge,
   hint,
+  share,
   icon: Icon,
 }: {
   label: string;
@@ -285,6 +286,8 @@ export function HeroKpiCard({
   unit?: string;
   badge?: string;
   hint?: ReactNode;
+  /** Jami summaning ostida ko'rsatiladigan ulush, masalan { label: "Tushumning 40%", value: "600 000 so‘m" } */
+  share?: { label: string; value: string };
   icon: LucideIcon;
 }) {
   return (
@@ -301,6 +304,12 @@ export function HeroKpiCard({
         {value}
         {unit ? <span className="ml-1 text-lg font-semibold text-white/85">{unit}</span> : null}
       </p>
+      {share ? (
+        <p className="relative mt-3 flex items-center justify-between gap-3 rounded-lg bg-white/[0.13] px-3 py-2 text-[13px]">
+          <span className="text-white/80">{share.label}</span>
+          <span className="num whitespace-nowrap font-semibold text-white">{share.value}</span>
+        </p>
+      ) : null}
       <p className="relative mt-auto flex items-center gap-2 pt-3 text-[13px] text-white/80">
         {badge ? <span className="num rounded-md bg-white/20 px-1.5 py-0.5 text-xs font-semibold text-white">{badge}</span> : null}
         {hint}
@@ -314,12 +323,15 @@ export function MiniStat({
   label,
   value,
   unit,
+  hint,
   icon,
   tone = "slate",
 }: {
   label: string;
   value: ReactNode;
   unit?: string;
+  /** Qiymat ostidagi qo'shimcha qator */
+  hint?: ReactNode;
   icon: LucideIcon;
   tone?: Tone;
 }) {
@@ -332,6 +344,7 @@ export function MiniStat({
           {value}
           {unit ? <span className="ml-1 text-sm font-medium text-ink-400">{unit}</span> : null}
         </p>
+        {hint ? <p className="num mt-1 truncate text-[13px] text-ink-500">{hint}</p> : null}
       </div>
     </Card>
   );

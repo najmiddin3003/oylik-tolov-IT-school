@@ -282,3 +282,11 @@ test("markaz jadvali: bir o'quvchining bir oydagi ikki qatori bitta farq bo'lib 
   // Sobirov: sentabr va oktabr — ikki alohida farq
   assert.equal(res.mismatches.filter((m) => m.studentName === "Sobirov Jasur").length, 2);
 });
+
+test("tushumdan ulush (40%)", async () => {
+  const { shareOf } = await import("../lib/share");
+  assert.equal(shareOf(1_500_000, 40), 600_000);
+  assert.equal(shareOf(1_650_000, 40), 660_000);
+  assert.equal(shareOf(333_333, 40), 133_333);
+  assert.equal(shareOf(0, 40), 0);
+});

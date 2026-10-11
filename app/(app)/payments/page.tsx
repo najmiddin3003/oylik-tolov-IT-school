@@ -9,6 +9,7 @@ import { SyncAlert } from "@/components/ShellParts";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { Avatar, btn, Card, CardHeader, Chip, cx, inputCls, MiniStat, NoteCell, PageHeader, PageSkeleton, selectCls, td, th } from "@/components/ui";
 import { pageGuard } from "@/lib/auth";
+import { shareOf, sharePercent } from "@/lib/share";
 import { listPayments, listStudentOptions } from "@/lib/data";
 import type { PaymentMethod } from "@/lib/models";
 import { currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, todayISO } from "@/lib/time";
@@ -39,6 +40,8 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
   const [{ rows, totals }, students] = await Promise.all([listPayments(month, { q, method }), listStudentOptions(month)]);
   const preselect = students.some((s) => s.id === str("student")) ? str("student") : undefined;
   const filtered = Boolean(q || method);
+  const pct = sharePercent();
+  const shownTotal = rows.reduce((s, r) => s + r.amount, 0);
 
   return (
     <>
@@ -59,7 +62,18 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
       </Suspense>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3 xl:gap-5">
-        <MiniStat label="Jami tushum" value={formatNumber(totals.total)} unit="so‘m" icon={Wallet} tone="slate" />
+        <MiniStat
+          label="Jami tushum"
+          value={formatNumber(totals.total)}
+          unit="so‘m"
+          hint={
+            <>
+              Tushumning {pct}%: <span className="font-semibold text-ink-800">{formatMoney(shareOf(totals.total, pct))}</span>
+            </>
+          }
+          icon={Wallet}
+          tone="slate"
+        />
         <MiniStat label="Naqd to‘lovlar" value={formatNumber(totals.cash)} unit="so‘m" icon={Banknote} tone="emerald" />
         <MiniStat label="Karta va o‘tkazma" value={formatNumber(totals.nonCash)} unit="so‘m" icon={CreditCard} tone="brand" />
       </div>
@@ -156,6 +170,18 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
               </table>
             </div>
           )}
+          {rows.length ? (
+            <dl className="num border-t border-line px-6 py-4 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-ink-500">Jami{filtered ? " (filtr bo‘yicha)" : ""}</dt>
+                <dd className="text-[15px] font-semibold text-ink-900">{formatMoney(shownTotal)}</dd>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <dt className="text-ink-500">Tushumning {pct}%</dt>
+                <dd className="text-[15px] font-semibold text-brand-700">{formatMoney(shareOf(shownTotal, pct))}</dd>
+              </div>
+            </dl>
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-6 py-4 text-[13px] text-ink-400">
             <span>{rows.length} ta yozuv ko‘rsatilmoqda</span>
             <span>{monthLabel(month)}</span>

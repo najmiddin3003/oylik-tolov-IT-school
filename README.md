@@ -24,6 +24,7 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 - **Umumiy oy tanlagich** yuqori panelda — bosh sahifa, o‘quvchilar va to‘lovlar shu oy bo‘yicha ko‘rsatiladi; `/` tugmasi — o‘quvchi qidiruvi.
 - **O‘quvchilar** sahifasida tablar (Barcha / Qarzdorlar / To‘laganlar), saralash va belgilash katakchalari orqali bir nechta o‘quvchini
   birdan nofaol/faol qilish yoki o‘chirish. Har o‘quvchining tartib raqami bor (`#001`).
+- **Tushumning 40%** — bosh sahifadagi «Jami tushum» kartasida va to‘lovlar jadvali ostida (foiz: `SHARE_PERCENT`, standart 40).
 - **CSV eksport** — «Hisobotni yuklash» (oylik hisobot), o‘quvchilar va to‘lovlar ro‘yxati; Excel uchun UTF-8 va `;` ajratgich.
 - Admin paroli bilan kirish (sessiya 30 kun).
 

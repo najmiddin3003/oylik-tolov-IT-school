@@ -22,6 +22,7 @@ import {
   th,
 } from "@/components/ui";
 import { pageGuard } from "@/lib/auth";
+import { shareOf, sharePercent } from "@/lib/share";
 import { getMonthOverview, listGroups } from "@/lib/data";
 import { currentMonth, formatMoney, formatNumber, isValidMonth, monthLabel } from "@/lib/time";
 
@@ -98,6 +99,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
           label="Jami tushum"
           value={formatNumber(totals.collected)}
           unit="so‘m"
+          share={{ label: `Tushumning ${sharePercent()}%`, value: formatMoney(shareOf(totals.collected)) }}
           badge={`${planPct}%`}
           hint={`${totals.paymentCount} ta to‘lov qabul qilindi`}
           icon={Wallet}
