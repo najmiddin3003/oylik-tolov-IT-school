@@ -113,7 +113,9 @@ Bir vaqtda ikki tekshiruv ketmasligi uchun bazada qulf bor; oxirgi 60 ta natija 
 
 1. [my.eskiz.uz](https://my.eskiz.uz) da ro'yxatdan o'ting, balans to'ldiring.
 2. Vercel → Project → Settings → Environment Variables: `ESKIZ_EMAIL` (kabinet emaili) va `ESKIZ_PASSWORD` (kabinetdagi maxfiy kalit). Qayta deploy qiling.
-3. Eskiz kabinetida SMS matnini (shablon) moderatsiyaga yuboring — saytdagi Sozlamalar → SMS bo'limidagi «Namuna» matni.
+3. Eskiz kabinetida SMS matnini (shablon) moderatsiyaga yuboring. Saytdagi matn (Sozlamalar → SMS) shablon bilan
+   **harfma-harf bir xil** bo'lishi kerak; standart: `To'lov nazorati: {#oy#} uchun {#soni#} ta o'quvchi hali to'lov qilmagan`
+   (`{#oy#}` — oy nomi, bir necha oy bo'lsa `Sentabr-Oktabr`; `{#soni#}` — to'lamaganlar soni).
 4. Saytda Sozlamalar → SMS: eslatmani yoqing, raqamni tekshiring, «Sinov SMS yuborish» bilan sinab ko'ring.
 
 ## Tuzilma

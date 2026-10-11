@@ -5,8 +5,11 @@ import { feeFor, type FeeChange, type PercentChange } from "./fees";
 import { Setting } from "./models";
 
 export const DEFAULT_FEE = 300_000;
-// SMS'da oddiy apostrof: shunda 1 ta SMS 160 belgigacha sig'adi
-export const DEFAULT_SMS_TEMPLATE = "To'lov nazorati: {oy} uchun {soni} ta o'quvchi hali to'lov qilmagan.";
+// Eskiz'da tasdiqlangan shablon bilan harfma-harf bir xil bo'lishi kerak (oxirida nuqta yo'q).
+// Oddiy apostrof: shunda 1 ta SMS 160 belgigacha sig'adi.
+export const DEFAULT_SMS_TEMPLATE = "To'lov nazorati: {#oy#} uchun {#soni#} ta o'quvchi hali to'lov qilmagan";
+// Avvalgi standart matnlar — saqlangan bo'lsa, yangisi bilan almashtiriladi
+const LEGACY_SMS_TEMPLATES = new Set(["To'lov nazorati: {oy} uchun {soni} ta o'quvchi hali to'lov qilmagan."]);
 
 export type AppSettings = {
   sheetUrl: string;
@@ -72,7 +75,7 @@ function toAppSettings(doc: Doc | null): AppSettings {
       enabled: doc?.sms?.enabled ?? false,
       phone: doc?.sms?.phone || "998336263006",
       sender: doc?.sms?.sender || "4546",
-      template: doc?.sms?.template || DEFAULT_SMS_TEMPLATE,
+      template: doc?.sms?.template && !LEGACY_SMS_TEMPLATES.has(doc.sms.template) ? doc.sms.template : DEFAULT_SMS_TEMPLATE,
     },
   };
 }

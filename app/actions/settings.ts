@@ -10,6 +10,7 @@ import { applyFeeFrom, applyPercentFrom, feeFor, type FeeChange } from "@/lib/fe
 import { feeHistoryOf, studentFee, type StudentLean } from "@/lib/ledger";
 import { Salary, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { templateHasCount } from "@/lib/reminders";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/passwords";
 import { createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
@@ -236,7 +237,7 @@ export async function saveSmsSettings(_prev: FormState, fd: FormData): Promise<F
 
   const fieldErrors: Record<string, string> = {};
   if (!phone) fieldErrors.phone = "Raqamni to‘liq kiriting, masalan: 33 626 30 06";
-  if (!template.includes("{soni}")) fieldErrors.template = "Matnda {soni} bo‘lishi shart (to‘lamaganlar soni)";
+  if (!templateHasCount(template)) fieldErrors.template = "Matnda {#soni#} bo‘lishi shart (to‘lamaganlar soni)";
   if (!/^[\w.-]{2,11}$/.test(sender)) fieldErrors.sender = "Jo‘natuvchi nomi noto‘g‘ri (odatda 4546)";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 

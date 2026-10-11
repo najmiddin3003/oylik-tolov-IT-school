@@ -360,9 +360,10 @@ export function SmsForm({
         />
         <FieldError msg={fe.template} />
         <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
-          <code className="rounded bg-slate-100 px-1 text-ink-600">{"{oy}"}</code> — oy nomi,{" "}
-          <code className="rounded bg-slate-100 px-1 text-ink-600">{"{soni}"}</code> — to‘lov qilmaganlar soni. Lotin harflari va oddiy apostrof (&apos;) ishlating — shunda bitta SMS
-          160 belgigacha sig‘adi.
+          <code className="rounded bg-slate-100 px-1 text-ink-600">{"{#oy#}"}</code> — oy nomi,{" "}
+          <code className="rounded bg-slate-100 px-1 text-ink-600">{"{#soni#}"}</code> — to‘lov qilmaganlar soni. Matn Eskiz kabinetida tasdiqlangan
+          shablon bilan <b className="font-semibold text-ink-600">harfma-harf bir xil</b> bo‘lishi kerak (nuqta va apostroflargacha) — aks holda Eskiz SMS’ni
+          yubormaydi. Lotin harflari va oddiy apostrof (&apos;) ishlating.
         </p>
         <div className="mt-3 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 p-3.5">
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">

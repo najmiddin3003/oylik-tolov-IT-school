@@ -4,7 +4,7 @@ import { allocateAmount } from "../lib/allocate";
 import { formatUzPhone, normalizeUzPhone } from "../lib/eskiz";
 import { applyFeeFrom, applyPercentFrom, changesAfter, feeFor, percentFor } from "../lib/fees";
 import { fingerprint, hashPassword, safeEqualText, verifyPassword } from "../lib/passwords";
-import { dayLabel, daysInMonth, daysLeftInMonth, monthEndReminderActive, renderSmsText, smsCandidateMonths } from "../lib/reminders";
+import { dayLabel, daysInMonth, daysLeftInMonth, monthEndReminderActive, renderSmsText, smsCandidateMonths, templateHasCount } from "../lib/reminders";
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-123";
 
@@ -108,7 +108,14 @@ test("SMS matni va kun nomi", () => {
   const name = (m: string) => ({ "2026-09": "Sentabr", "2026-10": "Oktabr" })[m] ?? m;
   const t = "To'lov nazorati: {oy} uchun {soni} ta o'quvchi to'lov qilmagan.";
   assert.equal(renderSmsText(t, ["2026-10"], 7, name), "To'lov nazorati: Oktabr uchun 7 ta o'quvchi to'lov qilmagan.");
-  assert.equal(renderSmsText(t, ["2026-10", "2026-09"], 12, name), "To'lov nazorati: Sentabr va Oktabr uchun 12 ta o'quvchi to'lov qilmagan.");
+  // bir nechta oy — bitta so'z (Eskiz o'zgaruvchisiga mos)
+  assert.equal(renderSmsText(t, ["2026-10", "2026-09"], 12, name), "To'lov nazorati: Sentabr-Oktabr uchun 12 ta o'quvchi to'lov qilmagan.");
+  // Eskiz ko'rinishidagi o'zgaruvchilar: kabinetdagi shablon bilan aynan bir xil matn
+  const eskiz = "To'lov nazorati: {#oy#} uchun {#soni#} ta o'quvchi hali to'lov qilmagan";
+  assert.equal(renderSmsText(eskiz, ["2026-10"], 10, name), "To'lov nazorati: Oktabr uchun 10 ta o'quvchi hali to'lov qilmagan");
+  assert.equal(templateHasCount(eskiz), true);
+  assert.equal(templateHasCount("{soni}"), true);
+  assert.equal(templateHasCount("soni yo'q"), false);
   assert.equal(dayLabel("2026-10-10"), "10-oktabr, shanba");
   assert.equal(dayLabel("2026-10-09"), "9-oktabr, juma");
   assert.equal(dayLabel("2026-10-11"), "11-oktabr, yakshanba");

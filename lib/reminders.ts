@@ -37,11 +37,21 @@ export function smsCandidateMonths(todayIso: string, lookback = 2, startDay = SM
   return months;
 }
 
-/** SMS matni: {oy} va {soni} o'rniga qiymatlar qo'yiladi. */
+/**
+ * SMS matni: {oy} va {soni} (yoki Eskiz ko'rinishidagi {#oy#}, {#soni#}) o'rniga qiymatlar qo'yiladi.
+ * Bir nechta oy — bitta so'z qilib, chiziqcha bilan ("Sentabr-Oktabr"): Eskiz shablonidagi o'zgaruvchiga mos tushishi uchun.
+ */
 export function renderSmsText(template: string, months: string[], count: number, monthName: (m: string) => string): string {
-  const names = [...months].sort(compareMonths).map(monthName);
-  const oy = names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} va ${names[names.length - 1]}`;
-  return template.replaceAll("{oy}", oy).replaceAll("{soni}", String(count)).trim();
+  const oy = [...months].sort(compareMonths).map(monthName).join("-");
+  return template
+    .replace(/\{#?oy#?\}/g, oy)
+    .replace(/\{#?soni#?\}/g, String(count))
+    .trim();
+}
+
+/** Shablonda to'lamaganlar soni uchun joy bormi ({soni} yoki {#soni#}). */
+export function templateHasCount(template: string): boolean {
+  return /\{#?soni#?\}/.test(template);
 }
 
 const WEEKDAYS = ["yakshanba", "dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba"];
