@@ -58,9 +58,14 @@ export function monthLabel(month: string): string {
   return `${MONTH_NAMES[m - 1]} ${y}`;
 }
 
-/** "YYYY-MM-DD" (Toshkent vaqti bo'yicha bugun) — <input type="date"> uchun. */
+/** "YYYY-MM-DD" (Toshkent vaqti bo'yicha bugun). */
 export function todayISO(): string {
   return tashkentWall().toISOString().slice(0, 10);
+}
+
+/** Toshkent vaqti bo'yicha hozirgi soat (0-23). */
+export function tashkentHour(d: Date = new Date()): number {
+  return tashkentWall(d).getUTCHours();
 }
 
 export function dateToISO(d: Date): string {

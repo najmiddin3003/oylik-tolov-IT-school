@@ -6,7 +6,7 @@ import { importAllMismatches, importMismatch, resolveMismatch } from "@/app/acti
 import { ConfirmAction } from "@/components/SubmitButton";
 import { RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
 import { Avatar, btn, Card, CardHeader, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
-import { pageGuard } from "@/lib/auth";
+import { ownerGuard } from "@/lib/auth";
 import { getSyncPageData, type MismatchRow, type SyncRunView } from "@/lib/data";
 import type { MismatchKind } from "@/lib/models";
 import { syncHour } from "@/lib/sync";
@@ -33,7 +33,7 @@ export default function SyncPage() {
 }
 
 async function SyncView() {
-  await pageGuard();
+  await ownerGuard();
   const { settings, runs } = await getSyncPageData();
   const last = runs[0];
   const hour = String(syncHour()).padStart(2, "0");

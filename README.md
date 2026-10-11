@@ -21,12 +21,26 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 
   «Saytga qo'shish» (yoki «Hammasini saytga qo'shish») Sheets'dagi yozuvlardan saytga o'quvchi (ism, kurs → guruh,
   kurs narxi → oylik to'lov) va to'lovlarni (har qator alohida, o'z sanasi bilan) yaratadi.
-- **Umumiy oy tanlagich** yuqori panelda — bosh sahifa, o‘quvchilar va to‘lovlar shu oy bo‘yicha ko‘rsatiladi; `/` tugmasi — o‘quvchi qidiruvi.
+- **Umumiy oy tanlagich** yuqori panelda — bosh sahifa, o‘quvchilar va to‘lovlar shu oy bo‘yicha ko‘rsatiladi; `/` tugmasi — o‘quvchi qidiruvi
+  (yozilishi bilan natija chiqadi). Barcha ro‘yxat, sana va oy tanlagichlar — saytning o‘z dizaynida (brauzer standartisiz).
 - **O‘quvchilar** sahifasida tablar (Barcha / Qarzdorlar / To‘laganlar), saralash va belgilash katakchalari orqali bir nechta o‘quvchini
-  birdan nofaol/faol qilish yoki o‘chirish. Har o‘quvchining tartib raqami bor (`#001`).
-- **Tushumning 40%** — bosh sahifadagi «Jami tushum» kartasida va to‘lovlar jadvali ostida (foiz: `SHARE_PERCENT`, standart 40).
-- **CSV eksport** — «Hisobotni yuklash» (oylik hisobot), o‘quvchilar va to‘lovlar ro‘yxati; Excel uchun UTF-8 va `;` ajratgich.
-- Admin paroli bilan kirish (sessiya 30 kun).
+  birdan nofaol/faol qilish yoki o‘chirish. Har o‘quvchining tartib raqami bor (`#001`). Qidiruv Enter bosmasdan ishlaydi.
+- **Ikki xil kirish:**
+  - **Rahbar** (`ADMIN_PASSWORD` yoki Sozlamalarda almashtirilgan parol) — hamma bo‘limlar.
+  - **Administrator** (parolini rahbar Sozlamalarda o‘rnatadi) — faqat «To‘lovlar»: to‘lov kiritadi (sana avtomatik — bugun),
+    o‘chiradi (arxivga), qarzdorlarni ko‘radi. 40% ulush, oylik/avans va Sheets farqlari unga ko‘rinmaydi.
+  - Bir marta kirilsa — 30 kun eslab qolinadi. Parol almashsa, eski sessiyalar avtomatik bekor bo‘ladi.
+- **To‘lovlar** sahifasi: kutilayotgan tushum, tushgan summa, qolgan qarz (bosilsa — to‘lamaganlar ro‘yxati); tarix kunlar bo‘yicha
+  guruhlangan; usul va **kun** bo‘yicha filtr. O‘chirilgan to‘lov **arxivga** o‘tadi — hech qayerda hisoblanmaydi, rahbar
+  arxivdan ko‘radi, tiklaydi yoki butunlay o‘chiradi.
+- **Oy oxiri eslatmasi** — oy tugashiga 10 kun qolganda (va o‘tgan oyda to‘lamaganlar qolgan bo‘lsa) yuqoridagi qo‘ng‘iroqchada va
+  sahifalarda: «10 ta o‘quvchi to‘lov qilmadi» — bosilsa ism-familiyalar ro‘yxati.
+- **Sozlamalar** (rahbar): oylik to‘lov narxi (tanlangan oydan boshlab, o‘tgan oylar o‘zgarmaydi; hamma yoki faqat ma’lum narxdagilar),
+  tushum ulushi foizi (oydan boshlab), **oylik va avanslar** (oy ulushidan ayiriladi: 40% − olingan = qoldi), parollar, SMS, markaz nomi.
+- **SMS eslatma (Eskiz)** — har oyning 25-sanasidan boshlab, har kuni kechqurun (20:00) belgilangan raqamga to‘lamaganlar soni;
+  hamma to‘laguncha davom etadi, kuniga bitta SMS.
+- **Excel (.xlsx) eksport** — oylik hisobot, o‘quvchilar va to‘lovlar (+ «Xulosa» varag‘i).
+- **Yon menyu** — chetidan surib kengligini o‘zgartirish, ixcham (faqat ikonkalar) rejim yoki to‘liq yopish (`Ctrl+B`); holat eslab qolinadi.
 
 ## Ishga tushirish
 
@@ -90,23 +104,37 @@ noyabr (100 ming). Yangi o'quvchining boshlanish sanasi — Sheets'dagi birinchi
 | Qayerda ishlaydi | Nima qiladi |
 |---|---|
 | **O'z serveringiz (VPS, `npm start`)** | `instrumentation.ts` ichki rejalashtiruvchini ishga tushiradi: har 15 daqiqada «bugungi tekshiruv bo'ldimi?» deb qaraydi va `SYNC_HOUR` dan keyin kuniga bir marta tekshiradi. Server o'chib qolsa, yoqilganda o'tkazib yuborilgan tekshiruvni bajaradi. Xato bo'lsa, 1 soatdan keyin qayta urinadi. |
-| **Vercel** | `vercel.json` dagi cron har kuni 01:00 UTC (06:00 Toshkent) da `/api/cron/sync` ni chaqiradi. Vercel loyihasida `CRON_SECRET` o'zgaruvchisini qo'ying. |
-| **Tashqi cron** | `curl -H "Authorization: Bearer $CRON_SECRET" https://sizning-sayt.uz/api/cron/sync` |
+| **Vercel** | `vercel.json` dagi cron'lar: har kuni 01:00 UTC (06:00 Toshkent) da `/api/cron/sync`, 15:00 UTC (20:00 Toshkent) da `/api/cron/sms`. Vercel loyihasida `CRON_SECRET` o'zgaruvchisini qo'ying. Funksiyalar `arn1` (Stokgolm) regionida — MongoDB Atlas bilan bir joyda, shuning uchun tez. |
+| **Tashqi cron** | `curl -H "Authorization: Bearer $CRON_SECRET" https://sizning-sayt.uz/api/cron/sync` (SMS uchun — `/api/cron/sms`) |
 
 Bir vaqtda ikki tekshiruv ketmasligi uchun bazada qulf bor; oxirgi 60 ta natija saqlanadi.
+
+## SMS (Eskiz) ni ulash
+
+1. [my.eskiz.uz](https://my.eskiz.uz) da ro'yxatdan o'ting, balans to'ldiring.
+2. Vercel → Project → Settings → Environment Variables: `ESKIZ_EMAIL` (kabinet emaili) va `ESKIZ_PASSWORD` (kabinetdagi maxfiy kalit). Qayta deploy qiling.
+3. Eskiz kabinetida SMS matnini (shablon) moderatsiyaga yuboring — saytdagi Sozlamalar → SMS bo'limidagi «Namuna» matni.
+4. Saytda Sozlamalar → SMS: eslatmani yoqing, raqamni tekshiring, «Sinov SMS yuborish» bilan sinab ko'ring.
 
 ## Tuzilma
 
 ```
-app/(app)/            sahifalar: bosh sahifa, students, payments, sync
-app/actions/          server action'lar (login, o'quvchi, to'lov, Sheets)
-app/api/cron/sync/    kunlik tekshiruv endpoint'i (CRON_SECRET bilan)
+app/(app)/            sahifalar: bosh sahifa, students, payments, settings, sync
+app/actions/          server action'lar (login, o'quvchi, to'lov, sozlamalar, Sheets, qidiruv)
+app/api/cron/         kunlik tekshiruv va SMS endpoint'lari (CRON_SECRET bilan)
+app/api/export/       Excel eksport
+components/pickers.tsx  Select, DatePicker, MonthPicker (o'z dizayni)
+lib/auth.ts, session.ts  rollar (rahbar / administrator), sessiya va parol barmoq izi
+lib/ledger.ts         to'lov holati hisoblari (arxivlanganlar hisobga olinmaydi)
+lib/fees.ts           oylik narx va ulush foizi tarixi ("falon oydan boshlab")
+lib/reminders.ts      oy oxiri eslatmasi va SMS oynasi
+lib/sms.ts, eskiz.ts  kunlik SMS va Eskiz API
 lib/compare.ts        Sheets qatorlarini o'qish va solishtirish (sof funksiyalar, testlangan)
 lib/allocate.ts       to'lovni oylarga taqsimlash
 lib/importer.ts       Sheets farqlaridan saytga o'quvchi va to'lov qo'shish
 lib/normalize.ts      ism / telefon / summa / oy / sana normallashtirish
 lib/sheets.ts         Sheets'dan yuklash (CSV yoki service account)
 lib/sync.ts           tekshiruvni bajarish, natijani saqlash, kunlik rejim
-lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun
-proxy.ts              kirmagan foydalanuvchini /login ga yo'naltiradi
+lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog
+proxy.ts              kirmagan foydalanuvchini /login ga, administratorni /payments ga yo'naltiradi
 ```

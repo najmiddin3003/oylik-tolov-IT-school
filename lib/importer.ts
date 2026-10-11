@@ -2,6 +2,7 @@
 import mongoose from "mongoose";
 import { allocateAmount, importFromMonth } from "./allocate";
 import { connectDB } from "./db";
+import { LIVE, studentFee, type StudentLean } from "./ledger";
 import { Payment, Student, SyncRun, type PaymentMethod } from "./models";
 import { nameKey } from "./normalize";
 import { nextStudentSeq } from "./seq";
@@ -104,14 +105,17 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
   // 2) O'quvchilarning oylik to'lovi, boshlanish oyi va hozirgacha to'langan summalari
   const studentIds = [...new Set(studentFor.values())];
   const [infos, paidAgg] = await Promise.all([
-    Student.find({ _id: { $in: studentIds } }, { monthlyFee: 1, startDate: 1 }).lean(),
+    Student.find({ _id: { $in: studentIds } }, { monthlyFee: 1, feeHistory: 1, startDate: 1 }).lean<StudentLean[]>(),
     Payment.aggregate<{ _id: { student: mongoose.Types.ObjectId; month: string }; total: number }>([
-      { $match: { student: { $in: studentIds.map((id) => new mongoose.Types.ObjectId(id)) } } },
+      { $match: { ...LIVE, student: { $in: studentIds.map((id) => new mongoose.Types.ObjectId(id)) } } },
       { $group: { _id: { student: "$student", month: "$month" }, total: { $sum: "$amount" } } },
     ]),
   ]);
   const info = new Map(
-    infos.map((s) => [String(s._id), { fee: s.monthlyFee, startMonth: monthOfDate(s.startDate), paid: new Map<string, number>() }]),
+    infos.map((s) => [
+      String(s._id),
+      { feeOf: (m: string) => studentFee(s, m), startMonth: monthOfDate(s.startDate), paid: new Map<string, number>() },
+    ]),
   );
   for (const a of paidAgg) info.get(String(a._id.student))?.paid.set(a._id.month, a.total);
 
@@ -131,7 +135,7 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
     const payMonth = partMonth(m, p);
     const from = basis === "date" ? importFromMonth(payMonth, st.startMonth) : m.month;
     for (const chunk of splitByMethod(p)) {
-      for (const a of allocateAmount(chunk.amount, st.fee, from, st.paid)) {
+      for (const a of allocateAmount(chunk.amount, st.feeOf, from, st.paid)) {
         docs.push({
           student: studentId,
           month: a.month,
@@ -140,6 +144,7 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
           method: chunk.method,
           note: p.row ? `Google Sheets, ${p.row}-qator` : "Google Sheets",
           source: "sheets",
+          createdBy: "system",
         });
       }
     }

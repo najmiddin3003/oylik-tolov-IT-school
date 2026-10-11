@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { isActivePath, NAV, type NavCounts } from "./nav";
-import { cx } from "./ui";
+import type { NavCounts } from "@/lib/data";
+import type { Role } from "@/lib/session";
+import { isActivePath, navFor } from "./nav";
+import { cx, IconTile } from "./ui";
 
 const SYNC_DOT = {
   ok: { cls: "bg-paid", label: "Sheets bilan bir xil" },
@@ -19,40 +21,48 @@ function useHref() {
   return (href: string, monthAware: boolean) => (monthAware && month ? `${href}?month=${month}` : href);
 }
 
-export function SidebarNav({ counts }: { counts: NavCounts | null }) {
+export function SidebarNav({ counts, role }: { counts: NavCounts | null; role: Role }) {
   const pathname = usePathname();
   const hrefFor = useHref();
   return (
     <>
-      {NAV.map((item) => {
+      {navFor(role).map((item) => {
         const active = isActivePath(pathname, item.href);
-        const Icon = item.icon;
         const count = item.key === "students" ? counts?.students : item.key === "payments" ? counts?.payments : undefined;
-        const dot = item.key === "sync" && counts ? SYNC_DOT[counts.sync] : null;
+        const dot = item.key === "sync" && counts?.sync ? SYNC_DOT[counts.sync] : null;
         return (
           <Link
             key={item.href}
             href={hrefFor(item.href, item.monthAware)}
             aria-current={active ? "page" : undefined}
+            title={item.label}
             className={cx(
-              "relative flex h-12 items-center gap-3 rounded-xl px-3.5 text-[15px] font-medium transition",
-              active ? "bg-brand-50 text-brand-700" : "text-ink-600 hover:bg-slate-50 hover:text-ink-900",
-              active && "before:absolute before:-left-6 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand-600",
+              "group relative flex h-12 items-center gap-3 rounded-xl px-2 text-[15px] font-medium transition sb-rail:justify-center sb-rail:px-0",
+              active ? "bg-brand-50/80 text-brand-800" : "text-ink-600 hover:bg-slate-50 hover:text-ink-900",
             )}
           >
-            <Icon className={cx("size-5 shrink-0", active ? "text-brand-600" : "text-ink-400")} strokeWidth={1.8} aria-hidden />
-            <span className="flex-1 truncate">{item.label}</span>
+            {active ? (
+              <span className="absolute -left-5 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-brand-600 sb-rail:-left-3" aria-hidden />
+            ) : null}
+            <IconTile icon={item.icon} tone={item.tone} variant={active ? "solid" : "soft"} size="sm" />
+            <span className="min-w-0 flex-1 truncate whitespace-nowrap sb-rail:hidden">{item.label}</span>
             {count !== undefined ? (
               <span
                 className={cx(
-                  "num inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 text-xs font-semibold",
+                  "num inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 text-xs font-semibold sb-rail:hidden",
                   active ? "bg-brand-100 text-brand-700" : "bg-slate-100 text-ink-500",
                 )}
               >
                 {count}
               </span>
             ) : null}
-            {dot ? <span className={cx("mr-1.5 size-2 rounded-full", dot.cls)} title={dot.label} aria-label={dot.label} /> : null}
+            {dot ? (
+              <span
+                className={cx("mr-1.5 size-2 shrink-0 rounded-full sb-rail:absolute sb-rail:right-2 sb-rail:top-2 sb-rail:mr-0", dot.cls)}
+                title={dot.label}
+                aria-label={dot.label}
+              />
+            ) : null}
           </Link>
         );
       })}
@@ -60,12 +70,12 @@ export function SidebarNav({ counts }: { counts: NavCounts | null }) {
   );
 }
 
-export function BottomNav() {
+export function BottomNav({ role }: { role: Role }) {
   const pathname = usePathname();
   const hrefFor = useHref();
   return (
     <>
-      {NAV.map((item) => {
+      {navFor(role).map((item) => {
         const active = isActivePath(pathname, item.href);
         const Icon = item.icon;
         return (
@@ -73,10 +83,20 @@ export function BottomNav() {
             key={item.href}
             href={hrefFor(item.href, item.monthAware)}
             aria-current={active ? "page" : undefined}
-            className={cx("flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium", active ? "text-brand-600" : "text-ink-400")}
+            className={cx(
+              "group flex min-w-0 flex-1 flex-col items-center gap-1 py-2 text-[11px] font-medium",
+              active ? "text-brand-700" : "text-ink-400",
+            )}
           >
-            <Icon className="size-5" strokeWidth={1.8} aria-hidden />
-            {item.short}
+            <span
+              className={cx(
+                "inline-flex h-8 w-12 items-center justify-center rounded-full transition",
+                active ? "bg-brand-50 text-brand-600" : "group-hover:bg-slate-50",
+              )}
+            >
+              <Icon className="icon-wiggle size-5" strokeWidth={1.9} fill="currentColor" fillOpacity={active ? 0.18 : 0} aria-hidden />
+            </span>
+            <span className="max-w-full truncate px-0.5">{item.short}</span>
           </Link>
         );
       })}

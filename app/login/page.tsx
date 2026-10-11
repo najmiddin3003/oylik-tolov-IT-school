@@ -20,7 +20,7 @@ export default function LoginPage() {
         </div>
         <div className="rounded-2xl border border-line bg-white p-7 shadow-card">
           <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink-900">Tizimga kirish</h2>
-          <p className="mb-6 mt-1 text-sm text-ink-500">Davom etish uchun administrator parolini kiriting.</p>
+          <p className="mb-6 mt-1 text-sm text-ink-500">Davom etish uchun parolingizni kiriting. Bir marta kirsangiz, brauzer 30 kun eslab qoladi.</p>
           <LoginForm />
         </div>
         <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-ink-400">

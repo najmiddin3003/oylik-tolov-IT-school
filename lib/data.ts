@@ -1,30 +1,34 @@
 import "server-only";
 import mongoose from "mongoose";
-import { requireAuth } from "./auth";
+import { cache } from "react";
+import { requireAuth, requireOwner } from "./auth";
 import { connectDB } from "./db";
-import { Payment, Student, SyncRun, type MismatchKind, type PaymentMethod } from "./models";
+import { eskizConfigured } from "./eskiz";
+import { changesAfter, percentFor, shareOf, type FeeChange, type PercentChange } from "./fees";
+import {
+  feeHistoryOf,
+  LIVE,
+  loadStudents,
+  monthRows,
+  sortDebtors,
+  statusOf,
+  studentFee,
+  toRow,
+  type PayStatus,
+  type StudentLean,
+  type StudentRow,
+} from "./ledger";
+import { Payment, Salary, SmsLog, Student, SyncRun, type MismatchKind, type PaymentMethod } from "./models";
 import { normalizeText } from "./normalize";
-import { ensureStudentSeqs } from "./seq";
-import { getSettings } from "./sync";
-import { compareMonths, currentMonth, monthOfDate, shiftMonth } from "./time";
+import { daysLeftInMonth, monthEndReminderActive } from "./reminders";
+import { getSettings, standardFee } from "./settings";
+import { sharePercent } from "./share";
+import type { Role } from "./session";
+import { compareMonths, currentMonth, isoToDate, monthOfDate, shiftMonth, todayISO } from "./time";
+
+export type { PayStatus, StudentRow } from "./ledger";
 
 // ---------- Turlar (client komponentlarga uzatiladigan oddiy obyektlar) ----------
-
-export type PayStatus = "paid" | "partial" | "unpaid";
-
-export type StudentRow = {
-  id: string;
-  seq: number | null;
-  fullName: string;
-  phone: string;
-  group: string;
-  monthlyFee: number;
-  active: boolean;
-  paid: number;
-  debt: number;
-  status: PayStatus;
-  started: boolean; // tanlangan oyda o'qishni boshlaganmi
-};
 
 export type StudentDetail = {
   id: string;
@@ -33,7 +37,11 @@ export type StudentDetail = {
   phone: string;
   parentPhone: string;
   group: string;
+  /** Asosiy (birinchi) narx; keyingi o'zgarishlar feeHistory da */
   monthlyFee: number;
+  feeHistory: FeeChange[];
+  /** Joriy oy uchun narx */
+  currentFee: number;
   startDate: string; // ISO
   active: boolean;
   note: string;
@@ -50,15 +58,36 @@ export type PaymentRow = {
   method: PaymentMethod;
   note: string;
   source: "site" | "sheets";
+  createdBy: "owner" | "admin" | "system";
+  archivedAt: string | null;
+  archivedBy: "owner" | "admin" | null;
 };
 
 export type StudentOption = {
   id: string;
   name: string;
-  group: string;
-  fee: number;
+  monthlyFee: number;
+  feeHistory: FeeChange[];
   /** oy -> shu oy uchun to'langan summa (tanlangan oy atrofidagi oylar) */
   paid: Record<string, number>;
+};
+
+export type UnpaidStudent = {
+  id: string;
+  name: string;
+  phone: string;
+  fee: number;
+  paid: number;
+  debt: number;
+  status: PayStatus;
+};
+
+export type Reminder = {
+  month: string;
+  /** Joriy oy bo'lsa — oy tugashiga necha kun qolgani; o'tgan oy uchun null */
+  daysLeft: number | null;
+  total: number;
+  students: UnpaidStudent[];
 };
 
 export type MismatchRow = {
@@ -101,86 +130,86 @@ export type SyncRunView = {
 
 export type SyncState = "ok" | "warn" | "error" | "off";
 
+export type NavCounts = { role: Role; students?: number; payments: number; sync?: SyncState };
+
 // ---------- Yordamchilar ----------
 
-function statusOf(fee: number, paid: number): PayStatus {
-  if (paid >= fee) return "paid";
-  return paid > 0 ? "partial" : "unpaid";
-}
-
-async function paidByStudent(month: string): Promise<Map<string, number>> {
-  const agg = await Payment.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
-    { $match: { month } },
-    { $group: { _id: "$student", total: { $sum: "$amount" } } },
-  ]);
-  return new Map(agg.map((a) => [String(a._id), a.total]));
-}
-
-type StudentLean = {
-  _id: mongoose.Types.ObjectId;
-  seq?: number | null;
-  fullName: string;
-  phone?: string | null;
-  group?: string | null;
-  monthlyFee: number;
-  active?: boolean | null;
-  startDate: Date;
-};
-
-function toRow(s: StudentLean, paidMap: Map<string, number>, month: string): StudentRow {
-  const paid = paidMap.get(String(s._id)) ?? 0;
-  return {
-    id: String(s._id),
-    seq: s.seq ?? null,
-    fullName: s.fullName,
-    phone: s.phone ?? "",
-    group: s.group ?? "",
-    monthlyFee: s.monthlyFee,
-    active: s.active ?? true,
-    paid,
-    debt: Math.max(0, s.monthlyFee - paid),
-    status: statusOf(s.monthlyFee, paid),
-    started: compareMonths(monthOfDate(s.startDate), month) <= 0,
-  };
-}
-
-async function loadStudents(): Promise<StudentLean[]> {
-  await ensureStudentSeqs();
-  return Student.find({}, { fullName: 1, phone: 1, group: 1, monthlyFee: 1, active: 1, startDate: 1, seq: 1 })
-    .sort({ fullName: 1 })
-    .limit(5000)
-    .lean();
-}
-
-/** Qidiruv: ism / guruh (apostrof va katta-kichik harf farqisiz), telefon raqamlari. */
-function matchesQuery(r: StudentRow, q: string): boolean {
+/** Qidiruv: ism / guruh (apostrof va katta-kichik harf farqisiz), telefon raqamlari, #raqam. */
+function matchesQuery(r: { fullName: string; group: string; phone: string; seq: number | null }, q: string): boolean {
   const nq = normalizeText(q);
   if (!nq) return true;
   if (normalizeText(r.fullName).includes(nq) || normalizeText(r.group).includes(nq)) return true;
   const digits = q.replace(/\D/g, "");
   if (digits.length >= 3 && r.phone.replace(/\D/g, "").includes(digits)) return true;
-  const code = q.replace(/^#/, "");
+  const code = q.trim().replace(/^#/, "");
   return /^\d+$/.test(code) && r.seq === Number(code);
 }
 
-const byStatus: Record<PayStatus, number> = { unpaid: 0, partial: 1, paid: 2 };
+type PopulatedPayment = {
+  _id: mongoose.Types.ObjectId;
+  student: { _id: mongoose.Types.ObjectId; fullName: string; group?: string | null } | null;
+  month: string;
+  amount: number;
+  paidAt: Date;
+  method?: string | null;
+  note?: string | null;
+  source?: string | null;
+  createdBy?: string | null;
+  archivedAt?: Date | null;
+  archivedBy?: string | null;
+};
+
+function toPaymentRow(p: PopulatedPayment): PaymentRow {
+  return {
+    id: String(p._id),
+    studentId: p.student ? String(p.student._id) : "",
+    studentName: p.student?.fullName ?? "(o‘chirilgan o‘quvchi)",
+    studentGroup: p.student?.group ?? "",
+    month: p.month,
+    amount: p.amount,
+    paidAt: p.paidAt.toISOString(),
+    method: (p.method ?? "naqd") as PaymentMethod,
+    note: p.note ?? "",
+    source: p.source === "sheets" ? "sheets" : "site",
+    // Eski yozuvlarda maydon yo'q: Sheets'dan kelgani — tizim, qolgani — rahbar
+    createdBy: p.createdBy === "admin" || p.createdBy === "system" ? p.createdBy : !p.createdBy && p.source === "sheets" ? "system" : "owner",
+    archivedAt: p.archivedAt ? p.archivedAt.toISOString() : null,
+    archivedBy: p.archivedBy === "admin" || p.archivedBy === "owner" ? p.archivedBy : null,
+  };
+}
+
+function findPayments(filter: Record<string, unknown>, sort: Record<string, 1 | -1>, limit = 3000) {
+  return Payment.find(filter)
+    .sort(sort)
+    .limit(limit)
+    .populate<{ student: PopulatedPayment["student"] }>("student", "fullName group")
+    .lean<PopulatedPayment[]>();
+}
+
+function toUnpaid(r: StudentRow): UnpaidStudent {
+  return { id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status };
+}
 
 // ---------- Umumiy ----------
 
 export async function listGroups(): Promise<string[]> {
-  await requireAuth();
+  await requireOwner();
   await connectDB();
   const groups = (await Student.distinct("group")) as string[];
   return groups.filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
-/** Yon menyudagi son belgilari va Sheets holati. */
-export async function getNavCounts(): Promise<{ students: number; payments: number; sync: SyncState }> {
-  await requireAuth();
+/** Yon menyudagi son belgilari (rolga qarab). */
+export const getNavCounts = cache(async (): Promise<NavCounts> => {
+  const { role } = await requireAuth();
   await connectDB();
+  const month = currentMonth();
+  if (role === "admin") {
+    return { role, payments: await Payment.countDocuments({ ...LIVE, month }) };
+  }
   const [students, payments, settings, last] = await Promise.all([
     Student.countDocuments({ active: true }),
-    Payment.countDocuments({ month: currentMonth() }),
+    Payment.countDocuments({ ...LIVE, month }),
     getSettings(),
     SyncRun.findOne({}).select("ok mismatches.resolved").sort({ startedAt: -1 }).lean(),
   ]);
@@ -189,49 +218,122 @@ export async function getNavCounts(): Promise<{ students: number; payments: numb
     if (!last.ok) sync = "error";
     else sync = (last.mismatches ?? []).some((m) => !m.resolved) ? "warn" : "ok";
   }
-  return { students, payments, sync };
-}
+  return { role, students, payments, sync };
+});
 
-// ---------- Bosh sahifa ----------
+// ---------- Oy bo'yicha umumiy holat (bosh sahifa va to'lovlar sahifasi) ----------
 
-/** Tanlangan oy bo'yicha faol o'quvchilarning to'lov holati. */
-export async function getMonthOverview(month: string, group: string) {
+/** Tanlangan oy bo'yicha faol o'quvchilarning to'lov holati va tushum. */
+export const getMonthOverview = cache(async (month: string, group = "") => {
   await requireAuth();
   await connectDB();
-  const [students, paidMap, collectedAgg] = await Promise.all([
+  const [students, agg] = await Promise.all([
     loadStudents(),
-    paidByStudent(month),
-    Payment.aggregate<{ total: number; count: number }>([
-      { $match: { month } },
-      { $group: { _id: null, total: { $sum: "$amount" }, count: { $sum: 1 } } },
+    Payment.aggregate<{ _id: { student: mongoose.Types.ObjectId; method: string }; total: number; count: number }>([
+      { $match: { ...LIVE, month } },
+      { $group: { _id: { student: "$student", method: "$method" }, total: { $sum: "$amount" }, count: { $sum: 1 } } },
     ]),
   ]);
+  const inGroup = new Set(students.filter((s) => !group || (s.group ?? "") === group).map((s) => String(s._id)));
+
+  const paidMap = new Map<string, number>();
+  let collected = 0;
+  let paymentCount = 0;
+  let cash = 0;
+  for (const a of agg) {
+    const id = String(a._id.student);
+    paidMap.set(id, (paidMap.get(id) ?? 0) + a.total);
+    // Guruh tanlanmagan bo'lsa — hamma to'lovlar (o'quvchisi topilmaganlari ham) tushumga kiradi
+    if (group && !inGroup.has(id)) continue;
+    collected += a.total;
+    paymentCount += a.count;
+    if ((a._id.method ?? "naqd") === "naqd") cash += a.total;
+  }
 
   const rows = students
+    .filter((s) => inGroup.has(String(s._id)))
     .map((s) => toRow(s, paidMap, month))
-    .filter((r) => r.active && r.started && (!group || r.group === group));
-
-  const expected = rows.reduce((sum, r) => sum + r.monthlyFee, 0);
-  const debt = rows.reduce((sum, r) => sum + r.debt, 0);
-  const debtors = rows
-    .filter((r) => r.status !== "paid")
-    .sort((a, b) => byStatus[a.status] - byStatus[b.status] || a.fullName.localeCompare(b.fullName));
+    .filter((r) => r.active && r.started);
+  const debtors = sortDebtors(rows);
 
   return {
     rows,
     debtors,
+    /** O'quvchi id -> shu oy uchun to'langan (barcha o'quvchilar, guruhdan qat'i nazar) */
+    paid: Object.fromEntries(paidMap) as Record<string, number>,
     totals: {
       students: rows.length,
       groups: new Set(rows.map((r) => r.group).filter(Boolean)).size,
       paid: rows.filter((r) => r.status === "paid").length,
       partial: rows.filter((r) => r.status === "partial").length,
       unpaid: rows.filter((r) => r.status === "unpaid").length,
-      expected,
-      debt,
-      collected: collectedAgg[0]?.total ?? 0,
-      paymentCount: collectedAgg[0]?.count ?? 0,
+      expected: rows.reduce((sum, r) => sum + r.monthlyFee, 0),
+      debt: rows.reduce((sum, r) => sum + r.debt, 0),
+      collected,
+      paymentCount,
+      cash,
+      nonCash: collected - cash,
     },
   };
+});
+
+/** Tushum ulushi (masalan 40%) va shu oy uchun olingan oylik/avanslar — faqat rahbar uchun. */
+export async function getShareSummary(month: string, collected: number) {
+  await requireOwner();
+  await connectDB();
+  const [settings, salaries] = await Promise.all([
+    getSettings(),
+    Salary.find({ month }).sort({ date: -1, createdAt: -1 }).lean(),
+  ]);
+  const percent = percentFor(settings.shareHistory, month, sharePercent());
+  const share = shareOf(collected, percent);
+  const taken = salaries.reduce((s, x) => s + x.amount, 0);
+  return {
+    percent,
+    share,
+    taken,
+    left: share - taken,
+    salaries: salaries.map((x) => ({
+      id: String(x._id),
+      kind: x.kind as "oylik" | "avans",
+      amount: x.amount,
+      date: x.date.toISOString(),
+      month: x.month,
+      note: x.note ?? "",
+    })),
+  };
+}
+
+export type ShareSummary = Awaited<ReturnType<typeof getShareSummary>>;
+
+/**
+ * Oy oxiri eslatmalari: joriy oy — oy tugashiga 10 kun qolganda; o'tgan oy — to'lamaganlar qolgan bo'lsa.
+ */
+export const getReminders = cache(async (): Promise<Reminder[]> => {
+  await requireAuth();
+  await connectDB();
+  const today = todayISO();
+  const current = today.slice(0, 7);
+  const months = monthEndReminderActive(today) ? [current, shiftMonth(current, -1)] : [shiftMonth(current, -1)];
+  const students = await loadStudents();
+  const lists = await Promise.all(months.map((m) => monthRows(m, students)));
+  return months
+    .map((month, i) => {
+      const debtors = sortDebtors(lists[i]);
+      return {
+        month,
+        daysLeft: month === current ? daysLeftInMonth(today) : null,
+        total: debtors.reduce((s, r) => s + r.debt, 0),
+        students: debtors.map(toUnpaid),
+      };
+    })
+    .filter((r) => r.students.length > 0);
+});
+
+/** Bitta oy uchun to'lamaganlar ro'yxati (to'lovlar sahifasidagi «Qolgan qarz» kartasi). */
+export async function listUnpaid(month: string, group = ""): Promise<UnpaidStudent[]> {
+  const { debtors } = await getMonthOverview(month, group);
+  return debtors.map(toUnpaid);
 }
 
 // ---------- O'quvchilar ----------
@@ -249,17 +351,17 @@ export async function listStudents(opts: {
   page: number;
   pageSize: number;
 }) {
-  await requireAuth();
+  await requireOwner();
   await connectDB();
-  const [students, paidMap] = await Promise.all([loadStudents(), paidByStudent(opts.month)]);
+  const [{ debtors, rows: current, paid }, students] = await Promise.all([getMonthOverview(opts.month), loadStudents()]);
+  const paidMap = new Map(Object.entries(paid));
   const all = students.map((s) => toRow(s, paidMap, opts.month));
 
   // Yuqoridagi kartalar: filtrlardan qat'i nazar
-  const current = all.filter((r) => r.active && r.started);
   const stats = {
     total: all.length,
     activeThisMonth: current.length,
-    fullyPaid: current.filter((r) => r.status === "paid").length,
+    fullyPaid: current.length - debtors.length,
     totalDebt: current.reduce((s, r) => s + r.debt, 0),
   };
 
@@ -270,7 +372,7 @@ export async function listStudents(opts: {
       matchesQuery(r, opts.q),
   );
   const isDebtor = (r: StudentRow) => r.active && r.started && r.status !== "paid";
-  const isPaid = (r: StudentRow) => r.started && r.status === "paid";
+  const isPaid = (r: StudentRow) => r.active && r.started && r.status === "paid";
   const counts = { all: filtered.length, debt: filtered.filter(isDebtor).length, paid: filtered.filter(isPaid).length };
 
   const tabRows = opts.tab === "debt" ? filtered.filter(isDebtor) : opts.tab === "paid" ? filtered.filter(isPaid) : filtered;
@@ -292,11 +394,31 @@ export async function listStudents(opts: {
   };
 }
 
+/** Yuqoridagi tezkor qidiruv uchun (rahbar). */
+export async function searchStudents(q: string, limit = 8) {
+  await requireOwner();
+  if (!q.trim()) return [];
+  await connectDB();
+  const students = await loadStudents();
+  return students
+    .map((s) => ({
+      id: String(s._id),
+      fullName: s.fullName,
+      phone: s.phone ?? "",
+      group: s.group ?? "",
+      seq: s.seq ?? null,
+      active: s.active ?? true,
+    }))
+    .filter((s) => matchesQuery(s, q))
+    .sort((a, b) => Number(b.active) - Number(a.active) || a.fullName.localeCompare(b.fullName))
+    .slice(0, limit);
+}
+
 export async function getStudent(id: string): Promise<StudentDetail | null> {
-  await requireAuth();
+  await requireOwner();
   if (!mongoose.isValidObjectId(id)) return null;
   await connectDB();
-  const s = await Student.findById(id).lean();
+  const s = await Student.findById(id).lean<StudentLean & { parentPhone?: string | null; note?: string | null }>();
   if (!s) return null;
   return {
     id: String(s._id),
@@ -306,6 +428,8 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
     parentPhone: s.parentPhone ?? "",
     group: s.group ?? "",
     monthlyFee: s.monthlyFee,
+    feeHistory: feeHistoryOf(s),
+    currentFee: studentFee(s, currentMonth()),
     startDate: s.startDate.toISOString(),
     active: s.active ?? true,
     note: s.note ?? "",
@@ -314,27 +438,17 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
 
 /** O'quvchining barcha to'lovlari va boshlagan oyidan joriy oygacha har oy holati. */
 export async function getStudentPayments(student: StudentDetail) {
-  await requireAuth();
+  await requireOwner();
   await connectDB();
-  const payments = await Payment.find({ student: student.id }).sort({ paidAt: -1, month: -1 }).lean();
-  const rows: PaymentRow[] = payments.map((p) => ({
-    id: String(p._id),
-    studentId: student.id,
-    studentName: student.fullName,
-    studentGroup: student.group,
-    month: p.month,
-    amount: p.amount,
-    paidAt: p.paidAt.toISOString(),
-    method: (p.method ?? "naqd") as PaymentMethod,
-    note: p.note ?? "",
-    source: (p.source ?? "site") as "site" | "sheets",
-  }));
+  const payments = await findPayments({ ...LIVE, student: student.id }, { paidAt: -1, month: -1 });
+  const rows = payments.map(toPaymentRow);
 
   const byMonth = new Map<string, number>();
   for (const p of rows) byMonth.set(p.month, (byMonth.get(p.month) ?? 0) + p.amount);
 
   const start = monthOfDate(new Date(student.startDate));
   const now = currentMonth();
+  const feeOf = (m: string) => studentFee({ monthlyFee: student.monthlyFee, feeHistory: student.feeHistory }, m);
   // boshlanish oyidan joriy oygacha (ko'pi bilan 36 oy) + oldindan to'langan oylar
   const all = new Set(byMonth.keys());
   for (let i = 0, m = now; i < 36 && compareMonths(m, start) >= 0; i++, m = shiftMonth(m, -1)) all.add(m);
@@ -342,12 +456,13 @@ export async function getStudentPayments(student: StudentDetail) {
     .sort((a, b) => compareMonths(b, a))
     .map((month) => {
       const paid = byMonth.get(month) ?? 0;
-      return { month, paid, status: statusOf(student.monthlyFee, paid) };
+      const fee = feeOf(month);
+      return { month, fee, paid, status: statusOf(fee, paid) };
     });
 
   const totalDebt = months
     .filter((x) => compareMonths(x.month, now) <= 0 && compareMonths(x.month, start) >= 0)
-    .reduce((sum, x) => sum + Math.max(0, student.monthlyFee - x.paid), 0);
+    .reduce((sum, x) => sum + Math.max(0, x.fee - x.paid), 0);
   const totalPaid = rows.reduce((s, r) => s + r.amount, 0);
 
   return { payments: rows, months, totalDebt, totalPaid };
@@ -355,39 +470,42 @@ export async function getStudentPayments(student: StudentDetail) {
 
 // ---------- To'lovlar ----------
 
-export async function listPayments(month: string, opts: { q: string; method: string }) {
+export type PaymentFilter = { q: string; method: string; day: string };
+
+/**
+ * To'lovlar tarixi: tanlangan oy uchun to'lovlar. Kun tanlansa — o'sha kuni qabul qilingan
+ * barcha to'lovlar (qaysi oy uchunligidan qat'i nazar).
+ */
+export async function listPayments(month: string, f: PaymentFilter) {
   await requireAuth();
   await connectDB();
-  const payments = await Payment.find({ month })
-    .sort({ paidAt: -1, createdAt: -1 })
-    .populate<{ student: { _id: mongoose.Types.ObjectId; fullName: string; group?: string } | null }>("student", "fullName group")
-    .lean();
-  const all: PaymentRow[] = payments.map((p) => ({
-    id: String(p._id),
-    studentId: p.student ? String(p.student._id) : "",
-    studentName: p.student?.fullName ?? "(o‘chirilgan)",
-    studentGroup: p.student?.group ?? "",
-    month: p.month,
-    amount: p.amount,
-    paidAt: p.paidAt.toISOString(),
-    method: (p.method ?? "naqd") as PaymentMethod,
-    note: p.note ?? "",
-    source: (p.source ?? "site") as "site" | "sheets",
-  }));
+  const dayStart = f.day ? isoToDate(f.day) : null;
+  const filter = dayStart
+    ? { ...LIVE, paidAt: { $gte: dayStart, $lt: new Date(dayStart.getTime() + 24 * 3600_000) } }
+    : { ...LIVE, month };
+  const payments = await findPayments(filter, { paidAt: -1, createdAt: -1 });
+  const nq = normalizeText(f.q);
+  const rows = payments
+    .map(toPaymentRow)
+    .filter(
+      (r) =>
+        (!f.method || r.method === f.method) &&
+        (!nq || normalizeText(`${r.studentName} ${r.note} ${r.studentGroup}`).includes(nq)),
+    );
+  return { rows, total: rows.reduce((s, r) => s + r.amount, 0) };
+}
 
-  const totals = {
-    total: all.reduce((s, r) => s + r.amount, 0),
-    count: all.length,
-    cash: all.filter((r) => r.method === "naqd").reduce((s, r) => s + r.amount, 0),
-    nonCash: all.filter((r) => r.method !== "naqd").reduce((s, r) => s + r.amount, 0),
-  };
-  const nq = normalizeText(opts.q);
-  const rows = all.filter(
-    (r) =>
-      (!opts.method || r.method === opts.method) &&
-      (!nq || normalizeText(`${r.studentName} ${r.note} ${r.studentGroup}`).includes(nq)),
-  );
-  return { rows, totals };
+export async function listArchivedPayments(): Promise<PaymentRow[]> {
+  await requireOwner();
+  await connectDB();
+  const payments = await findPayments({ archivedAt: { $ne: null } }, { archivedAt: -1 }, 500);
+  return payments.map(toPaymentRow);
+}
+
+export async function countArchivedPayments(): Promise<number> {
+  await requireOwner();
+  await connectDB();
+  return Payment.countDocuments({ archivedAt: { $ne: null } });
 }
 
 /** To'lov formasi uchun: faol o'quvchilar va tanlangan oy atrofidagi to'lovlari. */
@@ -395,9 +513,9 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
   await requireAuth();
   await connectDB();
   const [students, agg] = await Promise.all([
-    Student.find({ active: true }, { fullName: 1, group: 1, monthlyFee: 1 }).sort({ fullName: 1 }).lean(),
+    Student.find({ active: true }, { fullName: 1, monthlyFee: 1, feeHistory: 1 }).sort({ fullName: 1 }).lean<StudentLean[]>(),
     Payment.aggregate<{ _id: { student: mongoose.Types.ObjectId; month: string }; total: number }>([
-      { $match: { month: { $gte: shiftMonth(month, -12), $lte: shiftMonth(month, 12) } } },
+      { $match: { ...LIVE, month: { $gte: shiftMonth(month, -12), $lte: shiftMonth(month, 12) } } },
       { $group: { _id: { student: "$student", month: "$month" }, total: { $sum: "$amount" } } },
     ]),
   ]);
@@ -409,10 +527,61 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
   return students.map((s) => ({
     id: String(s._id),
     name: s.fullName,
-    group: s.group ?? "",
-    fee: s.monthlyFee,
+    monthlyFee: s.monthlyFee,
+    feeHistory: feeHistoryOf(s),
     paid: paid.get(String(s._id)) ?? {},
   }));
+}
+
+// ---------- Sozlamalar ----------
+
+export async function getSettingsPageData(month: string) {
+  await requireOwner();
+  await connectDB();
+  const overview = await getMonthOverview(month);
+  const [settings, share, logs, active] = await Promise.all([
+    getSettings({ fresh: true }),
+    getShareSummary(month, overview.totals.collected),
+    SmsLog.find({}).sort({ createdAt: -1 }).limit(8).lean(),
+    Student.find({ active: true }, { monthlyFee: 1, feeHistory: 1 }).lean<StudentLean[]>(),
+  ]);
+
+  // Joriy oy narxlari: qaysi narxda nechta o'quvchi
+  const now = currentMonth();
+  const fees = new Map<number, number>();
+  for (const s of active) {
+    const fee = studentFee(s, now);
+    fees.set(fee, (fees.get(fee) ?? 0) + 1);
+  }
+  const feeGroups = [...fees.entries()].map(([fee, count]) => ({ fee, count })).sort((a, b) => b.count - a.count || b.fee - a.fee);
+
+  return {
+    centerName: settings.centerName,
+    /** Yangi o'quvchilar uchun standart narx: hozirgi va rejalashtirilgan o'zgarishlar */
+    standardNow: standardFee(settings, now),
+    standardNext: changesAfter(settings.feeSchedule, now),
+    feeGroups,
+    feeChanges: [...settings.feeChanges].reverse().slice(0, 10),
+    percentNow: percentFor(settings.shareHistory, now, sharePercent()),
+    shareHistory: [...settings.shareHistory].sort((a, b) => compareMonths(b.from, a.from)) as PercentChange[],
+    ownerPasswordInDb: Boolean(settings.ownerPasswordHash),
+    adminEnabled: Boolean(settings.adminPasswordHash),
+    sms: settings.sms,
+    eskizReady: eskizConfigured(),
+    smsLogs: logs.map((l) => ({
+      id: String(l._id),
+      day: l.day,
+      trigger: l.trigger as "cron" | "auto" | "test",
+      status: l.status as "sent" | "skipped" | "failed",
+      count: l.count ?? 0,
+      text: l.text ?? "",
+      error: l.error ?? "",
+      at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",
+    })),
+    month,
+    collected: overview.totals.collected,
+    share,
+  };
 }
 
 // ---------- Google Sheets ----------
@@ -466,15 +635,19 @@ function findRuns(limit: number) {
 }
 
 export async function getSyncPageData() {
-  await requireAuth();
+  await requireOwner();
   await connectDB();
-  const [settings, runs] = await Promise.all([getSettings(), findRuns(10)]);
-  return { settings, runs: runs.map(toRunView) };
+  const [settings, runs] = await Promise.all([getSettings({ fresh: true }), findRuns(10)]);
+  return {
+    settings: { sheetUrl: settings.sheetUrl, columns: settings.columns, courseFilter: settings.courseFilter },
+    runs: runs.map(toRunView),
+  };
 }
 
-/** Yuqoridagi ogohlantirish uchun: oxirgi tekshiruvdagi hal qilinmagan farqlar soni yoki xato. */
-export async function getSyncAlert(): Promise<{ unresolved: number; error: string; at: string } | null> {
-  await requireAuth();
+/** Ogohlantirish uchun: oxirgi tekshiruvdagi hal qilinmagan farqlar soni yoki xato (faqat rahbar ko'radi). */
+export const getSyncAlert = cache(async (): Promise<{ unresolved: number; error: string; at: string } | null> => {
+  const { role } = await requireAuth();
+  if (role !== "owner") return null;
   await connectDB();
   const last = await SyncRun.findOne({})
     .select("ok error startedAt mismatches.resolved")
@@ -484,4 +657,4 @@ export async function getSyncAlert(): Promise<{ unresolved: number; error: strin
   const unresolved = (last.mismatches ?? []).filter((m) => !m.resolved).length;
   if (last.ok && unresolved === 0) return null;
   return { unresolved, error: last.ok ? "" : last.error ?? "", at: last.startedAt.toISOString() };
-}
+});

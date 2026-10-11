@@ -23,10 +23,6 @@ export const btn = {
 export const inputCls =
   "block h-11 w-full rounded-xl border border-line bg-white px-3.5 text-[15px] text-ink-900 shadow-card transition placeholder:text-ink-300 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 aria-invalid:border-rose-400";
 
-/** Filtr qatoridagi ro'yxatlar uchun (to'liq kenglik emas) */
-export const selectCls =
-  "h-11 min-w-44 cursor-pointer rounded-xl border border-line bg-white pl-3.5 pr-9 text-[15px] text-ink-800 shadow-card transition focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10";
-
 export const labelCls = "mb-2 block text-sm font-medium text-ink-700";
 
 export const th = "px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.08em] text-ink-400";
@@ -196,7 +192,7 @@ export function GroupChip({ name }: { name: string }) {
 
 /** To'lov izohi: Sheets'dan import qilinganida takrorlanuvchi "Google Sheets, " qismi olib tashlanadi. */
 export function NoteCell({ note, source }: { note: string; source: "site" | "sheets" }) {
-  const text = source === "sheets" ? note.replace(/^Google Sheets,?s*/, "") : note;
+  const text = source === "sheets" ? note.replace(/^Google Sheets,?\s*/, "") : note;
   return (
     <span className="flex min-w-0 items-center gap-1.5">
       {source === "sheets" ? <Tag tone="emerald">Sheets</Tag> : null}
@@ -220,25 +216,83 @@ export function Progress({ value, max, className = "" }: { value: number; max: n
   );
 }
 
-// ---------- Statistik kartalar ----------
+// ---------- Jonli ikonkalar ----------
 
-export type Tone = "slate" | "emerald" | "amber" | "brand" | "sky";
+/** Ikonka rangi (bo'limlar: bosh sahifa — brand, o'quvchilar — violet, to'lovlar — emerald, Sheets — teal, sozlamalar — amber). */
+export type Tone = "slate" | "emerald" | "amber" | "brand" | "sky" | "violet" | "teal" | "rose" | "orange";
 
-const ICON_TONES: Record<Tone, string> = {
-  slate: "bg-slate-100 text-ink-500",
-  emerald: "bg-emerald-50 text-emerald-600",
-  amber: "bg-amber-50 text-amber-600",
-  brand: "bg-brand-50 text-brand-600",
-  sky: "bg-sky-50 text-sky-600",
+const TILE_SOFT: Record<Tone, string> = {
+  slate: "bg-linear-to-br from-slate-50 to-slate-100 text-ink-600 ring-slate-200/70",
+  emerald: "bg-linear-to-br from-emerald-50 to-emerald-100/80 text-emerald-600 ring-emerald-200/60",
+  amber: "bg-linear-to-br from-amber-50 to-amber-100/80 text-amber-600 ring-amber-200/60",
+  brand: "bg-linear-to-br from-brand-50 to-brand-100/80 text-brand-600 ring-brand-200/60",
+  sky: "bg-linear-to-br from-sky-50 to-sky-100/80 text-sky-600 ring-sky-200/60",
+  violet: "bg-linear-to-br from-violet-50 to-violet-100/80 text-violet-600 ring-violet-200/60",
+  teal: "bg-linear-to-br from-teal-50 to-teal-100/80 text-teal-600 ring-teal-200/60",
+  rose: "bg-linear-to-br from-rose-50 to-rose-100/80 text-rose-600 ring-rose-200/60",
+  orange: "bg-linear-to-br from-orange-50 to-orange-100/80 text-orange-600 ring-orange-200/60",
 };
 
-export function IconBox({ icon: Icon, tone = "slate", className = "" }: { icon: LucideIcon; tone?: Tone; className?: string }) {
+const TILE_SOLID: Record<Tone, string> = {
+  slate: "bg-linear-to-br from-slate-500 to-slate-700 text-white ring-white/10 shadow-[0_8px_16px_-8px_rgb(51_65_85/0.8)]",
+  emerald: "bg-linear-to-br from-emerald-400 to-emerald-600 text-white ring-white/15 shadow-[0_8px_16px_-8px_rgb(5_150_105/0.85)]",
+  amber: "bg-linear-to-br from-amber-400 to-orange-500 text-white ring-white/15 shadow-[0_8px_16px_-8px_rgb(234_88_12/0.8)]",
+  brand: "bg-linear-to-br from-brand-400 to-brand-700 text-white ring-white/15 shadow-[0_8px_16px_-8px_rgb(43_58_255/0.85)]",
+  sky: "bg-linear-to-br from-sky-400 to-sky-600 text-white ring-white/15 shadow-[0_8px_16px_-8px_rgb(2_132_199/0.85)]",
+  violet: "bg-linear-to-br from-violet-400 to-violet-600 text-white ring-white/15 shadow-[0_8px_16px_-8px_rgb(124_58_237/0.85)]",
+  teal: "bg-linear-to-br from-teal-400 to-emerald-600 text-white ring-white/15 shadow-[0_8px_16px_-8px_rgb(13_148_136/0.85)]",
+  rose: "bg-linear-to-br from-rose-400 to-rose-600 text-white ring-white/15 shadow-[0_8px_16px_-8px_rgb(225_29_72/0.85)]",
+  orange: "bg-linear-to-br from-orange-400 to-orange-600 text-white ring-white/15 shadow-[0_8px_16px_-8px_rgb(234_88_12/0.85)]",
+};
+
+const TILE_SIZE = {
+  sm: { box: "size-8 rounded-[10px]", icon: "size-[17px]" },
+  md: { box: "size-10 rounded-xl", icon: "size-5" },
+  lg: { box: "size-12 rounded-2xl", icon: "size-6" },
+  xl: { box: "size-14 rounded-2xl", icon: "size-7" },
+};
+
+/**
+ * Rangli ikonka plitkasi: yumshoq gradient fon, ikki tusli (duotone) ikonka va
+ * kursor kelganda yengil "jonlanish" (guruh ichida — `group` sinfi bo'lsa).
+ */
+export function IconTile({
+  icon: Icon,
+  tone = "brand",
+  variant = "soft",
+  size = "md",
+  className = "",
+}: {
+  icon: LucideIcon;
+  tone?: Tone;
+  variant?: "soft" | "solid";
+  size?: keyof typeof TILE_SIZE;
+  className?: string;
+}) {
+  const s = TILE_SIZE[size];
   return (
-    <span className={cx("inline-flex size-10 shrink-0 items-center justify-center rounded-xl", ICON_TONES[tone], className)} aria-hidden>
-      <Icon className="size-5" strokeWidth={1.8} />
+    <span
+      className={cx(
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden ring-1 ring-inset transition-[transform,box-shadow] duration-300",
+        s.box,
+        variant === "solid" ? TILE_SOLID[tone] : TILE_SOFT[tone],
+        className,
+      )}
+      aria-hidden
+    >
+      {/* yuqori chap burchakdagi yaltiroq */}
+      <span className="pointer-events-none absolute -left-1/4 -top-1/2 h-full w-[150%] rotate-[-18deg] bg-white/25" />
+      <Icon
+        className={cx("icon-wiggle relative", s.icon)}
+        strokeWidth={1.9}
+        fill="currentColor"
+        fillOpacity={variant === "solid" ? 0.22 : 0.16}
+      />
     </span>
   );
 }
+
+// ---------- Statistik kartalar ----------
 
 /** Katta raqamli karta (bosh sahifa). */
 export function KpiCard({
@@ -257,21 +311,23 @@ export function KpiCard({
   tone?: Tone;
 }) {
   return (
-    <Card className="flex min-h-[148px] flex-col p-5 sm:p-6">
+    <Card className="group flex min-h-[148px] flex-col p-5 transition hover:shadow-pop sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[15px] font-medium text-ink-600">{label}</p>
-        <IconBox icon={icon} tone={tone} className="size-9 rounded-[10px]" />
+        <IconTile icon={icon} tone={tone} />
       </div>
       <p className="num mt-3 text-[32px] font-bold leading-none tracking-[-0.02em] text-ink-900">
         {value}
         {unit ? <span className="ml-1 text-lg font-semibold text-ink-500">{unit}</span> : null}
       </p>
-      {hint ? <p className="mt-auto pt-3 text-[13px] text-ink-500">{hint}</p> : null}
+      {hint ? <div className="mt-auto pt-3 text-[13px] text-ink-500">{hint}</div> : null}
     </Card>
   );
 }
 
-/** Ko'k asosiy karta ("Jami tushum"). */
+export type ShareLine = { label: string; value: string; strong?: boolean; negative?: boolean };
+
+/** Ko'k asosiy karta ("Jami tushum"). Ostida ulush qatorlari (faqat rahbarga): 40%, olindi, qoldi. */
 export function HeroKpiCard({
   label,
   value,
@@ -286,29 +342,32 @@ export function HeroKpiCard({
   unit?: string;
   badge?: string;
   hint?: ReactNode;
-  /** Jami summaning ostida ko'rsatiladigan ulush, masalan { label: "Tushumning 40%", value: "600 000 so‘m" } */
-  share?: { label: string; value: string };
+  share?: ShareLine[];
   icon: LucideIcon;
 }) {
   return (
-    <section className="relative flex min-h-[148px] flex-col overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#3240ff_0%,#2534ee_100%)] p-5 text-white shadow-brand sm:p-6">
+    <section className="group relative flex min-h-[148px] flex-col overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#3b49ff_0%,#2534ee_55%,#1d27c9_100%)] p-5 text-white shadow-brand sm:p-6">
       <span className="pointer-events-none absolute -right-12 -top-20 h-64 w-40 rotate-[35deg] rounded-[44px] bg-white/[0.08]" aria-hidden />
       <span className="pointer-events-none absolute -bottom-28 right-24 h-56 w-36 rotate-[35deg] rounded-[40px] bg-white/[0.06]" aria-hidden />
       <div className="relative flex items-start justify-between gap-3">
         <p className="text-[15px] font-medium text-white/85">{label}</p>
-        <span className="inline-flex size-9 items-center justify-center rounded-[10px] bg-white/15" aria-hidden>
-          <Icon className="size-5" strokeWidth={1.8} />
+        <span className="relative inline-flex size-10 items-center justify-center overflow-hidden rounded-xl bg-white/15 ring-1 ring-inset ring-white/20" aria-hidden>
+          <Icon className="icon-wiggle size-5" strokeWidth={1.9} fill="currentColor" fillOpacity={0.25} />
         </span>
       </div>
       <p className="num relative mt-3 text-[32px] font-bold leading-none tracking-[-0.02em]">
         {value}
         {unit ? <span className="ml-1 text-lg font-semibold text-white/85">{unit}</span> : null}
       </p>
-      {share ? (
-        <p className="relative mt-3 flex items-center justify-between gap-3 rounded-lg bg-white/[0.13] px-3 py-2 text-[13px]">
-          <span className="text-white/80">{share.label}</span>
-          <span className="num whitespace-nowrap font-semibold text-white">{share.value}</span>
-        </p>
+      {share?.length ? (
+        <dl className="relative mt-3 grid gap-1 rounded-xl bg-white/[0.12] px-3 py-2 text-[13px] ring-1 ring-inset ring-white/10">
+          {share.map((s) => (
+            <div key={s.label} className="flex items-center justify-between gap-2">
+              <dt className="min-w-0 truncate whitespace-nowrap text-white/80">{s.label}</dt>
+              <dd className={cx("num whitespace-nowrap", s.strong ? "font-bold text-white" : "font-semibold text-white/95", s.negative && "text-rose-200")}>{s.value}</dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
       <p className="relative mt-auto flex items-center gap-2 pt-3 text-[13px] text-white/80">
         {badge ? <span className="num rounded-md bg-white/20 px-1.5 py-0.5 text-xs font-semibold text-white">{badge}</span> : null}
@@ -336,15 +395,15 @@ export function MiniStat({
   tone?: Tone;
 }) {
   return (
-    <Card className="flex items-center gap-4 p-5">
-      <IconBox icon={icon} tone={tone} className="size-11" />
+    <Card className="group flex items-center gap-4 p-5 transition hover:shadow-pop">
+      <IconTile icon={icon} tone={tone} size="lg" />
       <div className="min-w-0">
         <p className="truncate text-sm text-ink-500">{label}</p>
         <p className="num mt-0.5 truncate text-[26px] font-bold leading-tight tracking-[-0.02em] text-ink-900">
           {value}
           {unit ? <span className="ml-1 text-sm font-medium text-ink-400">{unit}</span> : null}
         </p>
-        {hint ? <p className="num mt-1 truncate text-[13px] text-ink-500">{hint}</p> : null}
+        {hint ? <div className="num mt-1 truncate text-[13px] text-ink-500">{hint}</div> : null}
       </div>
     </Card>
   );
@@ -352,12 +411,20 @@ export function MiniStat({
 
 // ---------- Bo'sh holat, skelet, sahifalash ----------
 
-export function EmptyState({ title, children, icon: Icon = ReceiptText }: { title: string; children?: ReactNode; icon?: LucideIcon }) {
+export function EmptyState({
+  title,
+  children,
+  icon = ReceiptText,
+  tone = "brand",
+}: {
+  title: string;
+  children?: ReactNode;
+  icon?: LucideIcon;
+  tone?: Tone;
+}) {
   return (
-    <div className="flex flex-col items-center px-6 py-14 text-center">
-      <span className="mb-4 inline-flex size-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600" aria-hidden>
-        <Icon className="size-6" strokeWidth={1.8} />
-      </span>
+    <div className="group flex flex-col items-center px-6 py-14 text-center">
+      <IconTile icon={icon} tone={tone} size="xl" className="mb-4" />
       <p className="text-base font-semibold text-ink-900">{title}</p>
       {children ? <div className="mt-1.5 max-w-sm text-sm text-ink-500">{children}</div> : null}
     </div>

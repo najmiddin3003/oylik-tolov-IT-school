@@ -1,13 +1,16 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Banknote, CalendarDays, Check, CreditCard, Landmark, Lock, Plus, type LucideIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Banknote, CalendarCheck, Check, CreditCard, Landmark, Lock, Plus, type LucideIcon } from "lucide-react";
 import { addPayment } from "@/app/actions/payments";
 import type { FormState } from "@/app/actions/types";
 import type { StudentOption } from "@/lib/data";
+import { feeFor } from "@/lib/fees";
 import type { PaymentMethod } from "@/lib/models";
-import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
+import { formatMoney, formatNumber } from "@/lib/time";
+import { DatePicker, formatDayLong, MonthPicker, Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
+import { useActionForm } from "./useActionForm";
 
 const METHODS: { key: PaymentMethod; label: string; icon: LucideIcon }[] = [
   { key: "naqd", label: "Naqd", icon: Banknote },
@@ -22,13 +25,15 @@ type Props = {
   defaultStudentId?: string;
   defaultMonth: string;
   today: string;
+  /** Rahbar to'langan sanani tanlay oladi; administratorda — har doim bugun */
+  canPickDate: boolean;
 };
 
 /** To'lov qo'shish formasi (To'lovlar sahifasi va o'quvchi sahifasi). */
 export function PaymentForm(props: Props) {
-  const [state, formAction, pending] = useActionState<FormState, FormData>(addPayment, {});
+  const [state, onSubmit, pending] = useActionForm<FormState>(addPayment, {});
   return (
-    <form action={formAction} className="grid gap-5" noValidate>
+    <form onSubmit={onSubmit} className="grid gap-5" noValidate>
       {/* Muvaffaqiyatli saqlangach maydonlar yangi qiymatlar bilan qayta chiziladi */}
       <PaymentFields key={state.nonce ?? 0} {...props} fe={state.fieldErrors ?? {}} />
 
@@ -65,6 +70,7 @@ function PaymentFields({
   defaultStudentId,
   defaultMonth,
   today,
+  canPickDate,
   fe,
 }: Props & { fe: Record<string, string> }) {
   const [studentId, setStudentId] = useState(fixedStudentId ?? defaultStudentId ?? "");
@@ -74,11 +80,31 @@ function PaymentFields({
   const [showNote, setShowNote] = useState(false);
 
   const st = students.find((s) => s.id === studentId);
-  const fee = st?.fee ?? 0;
+  const fee = st ? feeFor(st, month) : 0;
   const paid = st?.paid[month] ?? 0;
   const remaining = Math.max(0, fee - paid);
   const shown = amount ?? (st ? formatNumber(remaining || fee) : "");
   const chips = [...new Set([roundTo10k(fee / 3), roundTo10k(fee / 2)])].filter((v) => v > 0 && v < fee);
+
+  // O'quvchilar ro'yxati: faqat ism-familiya; o'ngda shu oy holati (to'lagan / qancha qolgan)
+  const options = useMemo(
+    () =>
+      students.map((s) => {
+        const f = feeFor(s, month);
+        const p = s.paid[month] ?? 0;
+        return {
+          value: s.id,
+          label: s.name,
+          hint:
+            f > 0 && p >= f ? (
+              <span className="font-medium text-emerald-600">to‘lagan ✓</span>
+            ) : p > 0 ? (
+              <span className="num text-brand-600">qoldi {formatNumber(f - p)}</span>
+            ) : undefined,
+        };
+      }),
+    [students, month],
+  );
 
   return (
     <>
@@ -89,25 +115,23 @@ function PaymentFields({
           <label htmlFor="pf-student" className={labelCls}>
             O‘quvchi <span className="text-brand-600">*</span>
           </label>
-          <select
+          <Select
             id="pf-student"
             name="studentId"
             value={studentId}
-            onChange={(e) => {
-              setStudentId(e.target.value);
+            onChange={(v) => {
+              setStudentId(v);
               setAmount(null);
             }}
-            className={cx(inputCls, "h-12")}
-            aria-invalid={!!fe.studentId}
-          >
-            <option value="">— O‘quvchini tanlang —</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-                {s.group ? ` — ${s.group}` : ""}
-              </option>
-            ))}
-          </select>
+            options={options}
+            placeholder="O‘quvchini tanlang"
+            searchable
+            searchPlaceholder="Ism bo‘yicha qidirish..."
+            emptyText="Bunday o‘quvchi topilmadi"
+            size="lg"
+            invalid={!!fe.studentId}
+            aria-label="O‘quvchi"
+          />
           {fe.studentId ? <p className="mt-1.5 text-xs text-rose-600">{fe.studentId}</p> : null}
         </div>
       )}
@@ -127,33 +151,35 @@ function PaymentFields({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={cx("grid gap-3", canPickDate && "sm:grid-cols-2 xl:grid-cols-1")}>
         <div>
           <span className={labelCls}>Qaysi oy uchun</span>
-          <label className={cx(inputCls, "relative flex cursor-pointer items-center justify-between gap-2", fe.month && "border-rose-400")}>
-            <span className="num truncate">{monthLabel(month)}</span>
-            <CalendarDays className="size-4 shrink-0 text-ink-400" strokeWidth={1.8} aria-hidden />
-            <input
-              type="month"
-              name="month"
-              value={month}
-              onChange={(e) => {
-                if (!e.target.value) return;
-                setMonth(e.target.value);
-                setAmount(null);
-              }}
-              className="picker-overlay absolute inset-0 cursor-pointer opacity-0"
-              aria-label="Qaysi oy uchun"
-            />
-          </label>
+          <MonthPicker
+            name="month"
+            value={month}
+            onChange={(m) => {
+              setMonth(m);
+              setAmount(null);
+            }}
+            invalid={!!fe.month}
+            aria-label="Qaysi oy uchun"
+          />
+          {fe.month ? <p className="mt-1.5 text-xs text-rose-600">{fe.month}</p> : null}
         </div>
-        <div>
-          <label htmlFor="pf-date" className={labelCls}>
-            To‘langan sana
-          </label>
-          <input id="pf-date" name="paidAt" type="date" defaultValue={today} className={inputCls} aria-invalid={!!fe.paidAt} />
-        </div>
+        {canPickDate ? (
+          <div>
+            <span className={labelCls}>To‘langan sana</span>
+            <DatePicker name="paidAt" defaultValue={today} max={today} invalid={!!fe.paidAt} aria-label="To‘langan sana" />
+            {fe.paidAt ? <p className="mt-1.5 text-xs text-rose-600">{fe.paidAt}</p> : null}
+          </div>
+        ) : null}
       </div>
+      {!canPickDate ? (
+        <p className="-mt-2 flex items-center gap-1.5 text-xs text-ink-400">
+          <CalendarCheck className="size-3.5 text-emerald-500" aria-hidden />
+          To‘langan sana: bugun, {formatDayLong(today)}
+        </p>
+      ) : null}
 
       <div>
         <label htmlFor="pf-amount" className={labelCls}>
@@ -209,12 +235,12 @@ function PaymentFields({
               <label
                 key={m.key}
                 className={cx(
-                  "flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border text-sm font-medium transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-brand-500/15",
+                  "group flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border text-sm font-medium transition has-[:focus-visible]:ring-4 has-[:focus-visible]:ring-brand-500/15",
                   active ? "border-brand-300 bg-brand-50 text-brand-700" : "border-line text-ink-500 hover:bg-slate-50",
                 )}
               >
                 <input type="radio" name="method" value={m.key} checked={active} onChange={() => setMethod(m.key)} className="sr-only" />
-                <Icon className="size-4" strokeWidth={1.8} aria-hidden />
+                <Icon className="icon-wiggle size-4" strokeWidth={1.9} fill="currentColor" fillOpacity={active ? 0.18 : 0} aria-hidden />
                 {m.label}
               </label>
             );

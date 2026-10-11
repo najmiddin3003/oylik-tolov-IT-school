@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Yon menyu holati <html data-sb="full|rail|hidden"> — sb-rail:hidden kabi sinflar uchun */
+@custom-variant sb-rail (&:where([data-sb="rail"], [data-sb="rail"] *));
+@custom-variant sb-hidden (&:where([data-sb="hidden"], [data-sb="hidden"] *));
+
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
@@ -40,6 +44,8 @@
 
 :root {
   color-scheme: light;
+  /* Yon menyu kengligi (localStorage dan <head> dagi skript o'rnatadi) */
+  --sb-w: 264px;
 }
 
 html,
@@ -68,18 +74,85 @@ body {
   animation: shimmer 1.4s ease infinite;
   border-radius: 0.75rem;
 }
-@media (prefers-reduced-motion: reduce) {
-  .skeleton {
-    animation: none;
+/* Ikonkalar: kursor kelganda yengil "jonlanish" */
+@keyframes icon-wiggle {
+  0%,
+  100% {
+    transform: rotate(0) scale(1);
+  }
+  30% {
+    transform: rotate(-12deg) scale(1.14);
+  }
+  60% {
+    transform: rotate(7deg) scale(1.08);
   }
 }
+.group:hover .icon-wiggle,
+.group:focus-visible .icon-wiggle {
+  animation: icon-wiggle 0.6s ease;
+}
 
-/* Oy/sana tanlagich: ko'rinmas input ustidagi bosilganda brauzer kalendari */
-input[type="month"].picker-overlay::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
+/* Ochiladigan oynalar */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: pop-in 0.14s ease-out;
+}
+
+/* Bildirishnoma nuqtasi */
+@keyframes ping-soft {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  80%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+.ping-soft {
+  animation: ping-soft 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Yon menyu: kenglik o'zgarganda silliq; surilayotganda — darhol */
+.sb-anim {
+  transition:
+    width 0.2s ease,
+    padding-left 0.2s ease,
+    left 0.2s ease;
+}
+[data-sb-drag] .sb-anim {
+  transition: none;
+}
+[data-sb="hidden"] .sb-aside {
+  visibility: hidden;
+  transition:
+    width 0.2s ease,
+    visibility 0s linear 0.2s;
+}
+
+dialog::backdrop {
+  background: rgb(14 17 33 / 0.45);
+  backdrop-filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .icon-wiggle,
+  .pop-in,
+  .ping-soft {
+    animation: none !important;
+  }
+  .sb-anim {
+    transition: none;
+  }
 }

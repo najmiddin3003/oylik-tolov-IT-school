@@ -1,15 +1,8 @@
 // Google Sheets bilan saytdagi to'lovlarni solishtirish va natijani bazaga yozish.
-import { connectDB } from "./db";
-import {
-  compareRecords,
-  DEFAULT_COLUMNS,
-  DEFAULT_COURSE_FILTER,
-  parseSheet,
-  type ColumnNames,
-  type MismatchResult,
-  type SheetWindow,
-} from "./compare";
+import { compareRecords, parseSheet, type MismatchResult, type SheetWindow } from "./compare";
+import { LIVE } from "./ledger";
 import { Payment, Setting, Student, SyncRun } from "./models";
+import { getSettings } from "./settings";
 import { fetchSheetRows, SheetError } from "./sheets";
 import { dateToISO, isoToDate, lastScheduledTime, todayISO } from "./time";
 
@@ -18,36 +11,6 @@ export type SyncTrigger = "auto" | "cron" | "manual";
 const LOCK_MS = 5 * 60_000;
 const KEEP_RUNS = 60;
 const DAY_MS = 24 * 3600_000;
-
-export type SyncSettings = { sheetUrl: string; columns: ColumnNames; courseFilter: string };
-
-export async function getSettings(): Promise<SyncSettings> {
-  await connectDB();
-  const doc = await Setting.findOneAndUpdate(
-    { _id: "main" },
-    {
-      $setOnInsert: {
-        _id: "main",
-        sheetUrl: process.env.SHEET_URL ?? "",
-        columns: DEFAULT_COLUMNS,
-        courseFilter: DEFAULT_COURSE_FILTER,
-      },
-    },
-    { upsert: true, returnDocument: "after", lean: true },
-  );
-  // Bo'sh qoldirilgan ustun nomlari o'rniga standart nomlar
-  const saved = (doc?.columns ?? {}) as Partial<Record<keyof ColumnNames, string | null>>;
-  const columns = { ...DEFAULT_COLUMNS };
-  for (const k of Object.keys(DEFAULT_COLUMNS) as (keyof ColumnNames)[]) {
-    if (saved[k]) columns[k] = saved[k]!;
-  }
-  return {
-    sheetUrl: doc?.sheetUrl || process.env.SHEET_URL || "",
-    columns,
-    // Eski hujjatlarda maydon yo'q bo'lsa — standart; ataylab bo'sh qoldirilgan bo'lsa — filtrsiz
-    courseFilter: typeof doc?.courseFilter === "string" ? doc.courseFilter : DEFAULT_COURSE_FILTER,
-  };
-}
 
 async function acquireLock(): Promise<boolean> {
   const now = new Date();
@@ -65,10 +28,12 @@ async function releaseLock() {
 /** Jadval qamragan davrdagi saytdagi to'lovlar. */
 async function loadSitePayments(window: SheetWindow | null) {
   if (!window) return [];
+  // Arxivlangan to'lovlar solishtirishda ham hisobga olinmaydi
   const filter =
     window.basis === "month"
-      ? { month: { $gte: window.monthFrom, $lte: window.monthTo } }
+      ? { ...LIVE, month: { $gte: window.monthFrom, $lte: window.monthTo } }
       : {
+          ...LIVE,
           paidAt: {
             $gte: isoToDate(window.dateFrom)!,
             $lt: new Date(isoToDate(window.dateTo)!.getTime() + DAY_MS),
@@ -85,7 +50,7 @@ async function loadSitePayments(window: SheetWindow | null) {
 
 /** Tekshiruvni hozir ishga tushiradi. Boshqa tekshiruv ketayotgan bo'lsa — null qaytaradi. */
 export async function runSync(trigger: SyncTrigger): Promise<{ id: string; ok: boolean; error: string; mismatches: number } | null> {
-  const settings = await getSettings();
+  const settings = await getSettings({ fresh: true });
   if (!(await acquireLock())) return null;
 
   const startedAt = new Date();

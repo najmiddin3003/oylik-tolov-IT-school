@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { Banknote, CalendarDays, CreditCard, HandCoins, Landmark, Pencil, Plus, Trash2, Wallet, type LucideIcon } from "lucide-react";
-import { deletePayment } from "@/app/actions/payments";
+import { Banknote, CalendarDays, CreditCard, HandCoins, Hourglass, Landmark, Pencil, Plus, Trash2, Wallet, type LucideIcon } from "lucide-react";
+import { archivePayment } from "@/app/actions/payments";
 import { deleteStudent } from "@/app/actions/students";
 import { PaidCell } from "@/components/cells";
 import { PaymentForm } from "@/components/PaymentForm";
@@ -16,6 +16,7 @@ import {
   cx,
   EmptyState,
   GroupChip,
+  IconTile,
   MiniStat,
   NoteCell,
   PageSkeleton,
@@ -25,10 +26,10 @@ import {
   td,
   th,
 } from "@/components/ui";
-import { pageGuard } from "@/lib/auth";
+import { ownerGuard } from "@/lib/auth";
 import { getStudent, getStudentPayments } from "@/lib/data";
 import type { PaymentMethod } from "@/lib/models";
-import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, todayISO } from "@/lib/time";
+import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "O‘quvchi profili" };
 
@@ -53,7 +54,7 @@ async function StudentView({
   params: PageProps<"/students/[id]">["params"];
   searchParams: PageProps<"/students/[id]">["searchParams"];
 }) {
-  await pageGuard();
+  await ownerGuard();
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const student = await getStudent(id);
   if (!student) notFound();
@@ -66,10 +67,14 @@ async function StudentView({
   const option = {
     id: student.id,
     name: student.fullName,
-    group: student.group,
-    fee: student.monthlyFee,
+    monthlyFee: student.monthlyFee,
+    feeHistory: student.feeHistory,
     paid: Object.fromEntries(months.map((m) => [m.month, m.paid])),
   };
+  const feeSteps = [
+    { from: monthOfDate(new Date(student.startDate)), fee: student.monthlyFee },
+    ...student.feeHistory,
+  ];
   const code = studentCode(student.seq);
 
   return (
@@ -105,9 +110,9 @@ async function StudentView({
       </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
-        <MiniStat label="Oylik to‘lov" value={formatNumber(student.monthlyFee)} unit="so‘m" icon={Wallet} tone="slate" />
+        <MiniStat label="Oylik to‘lov (hozir)" value={formatNumber(student.currentFee)} unit="so‘m" icon={Wallet} tone="violet" />
         <MiniStat label="Jami to‘langan" value={formatNumber(totalPaid)} unit="so‘m" icon={HandCoins} tone="emerald" />
-        <MiniStat label="Qarz" value={formatNumber(totalDebt)} unit="so‘m" icon={Banknote} tone={totalDebt ? "amber" : "emerald"} />
+        <MiniStat label="Qarz" value={formatNumber(totalDebt)} unit="so‘m" icon={Hourglass} tone={totalDebt ? "amber" : "emerald"} />
         <MiniStat label="O‘qishni boshlagan" value={formatDate(student.startDate)} icon={CalendarDays} tone="brand" />
       </div>
 
@@ -137,7 +142,7 @@ async function StudentView({
                 <tbody className="divide-y divide-line-soft">
                   {months.map((m) => {
                     const future = compareMonths(m.month, now) > 0;
-                    const debt = Math.max(0, student.monthlyFee - m.paid);
+                    const debt = Math.max(0, m.fee - m.paid);
                     return (
                       <tr key={m.month} className="transition hover:bg-slate-50/50">
                         <td className={cx(td, "whitespace-nowrap font-medium text-ink-900")}>
@@ -145,7 +150,7 @@ async function StudentView({
                           {future ? <span className="ml-2 text-xs font-normal text-ink-400">oldindan</span> : null}
                         </td>
                         <td className={td}>
-                          <PaidCell paid={m.paid} fee={student.monthlyFee} />
+                          <PaidCell paid={m.paid} fee={m.fee} />
                         </td>
                         <td className={cx(td, "num whitespace-nowrap text-right font-semibold", debt && !future ? "text-ink-900" : "text-ink-300")}>
                           {debt && !future ? formatMoney(debt) : "—"}
@@ -202,11 +207,11 @@ async function StudentView({
                           </td>
                           <td className={cx(td, "text-right")}>
                             <ConfirmAction
-                              action={deletePayment.bind(null, p.id)}
-                              confirmText={`${monthLabel(p.month)} uchun ${formatMoney(p.amount)} to‘lov o‘chirilsinmi?`}
+                              action={archivePayment.bind(null, p.id)}
+                              confirmText={`${monthLabel(p.month)} uchun ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, «To‘lovlar → Arxiv» dan qaytarish mumkin.`}
                               className={btn.iconDanger}
                               pendingText="…"
-                              title="To‘lovni o‘chirish"
+                              title="Arxivga o‘tkazish"
                             >
                               <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
                             </ConfirmAction>
@@ -223,16 +228,22 @@ async function StudentView({
 
         <div className="order-first flex min-w-0 flex-col gap-6 xl:order-none">
           <Card id="tolov" className="scroll-mt-24 p-6">
-            <div className="mb-6 flex items-center gap-3.5">
-              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600" aria-hidden>
-                <Plus className="size-5" strokeWidth={2} />
-              </span>
+            <div className="group mb-6 flex items-center gap-3.5">
+              <IconTile icon={Plus} tone="brand" variant="solid" />
               <div>
                 <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Yangi to‘lov</h2>
                 <p className="mt-0.5 text-sm text-ink-500">{student.fullName} uchun</p>
               </div>
             </div>
-            <PaymentForm key={formMonth} students={[option]} fixedStudentId={student.id} defaultMonth={formMonth} today={todayISO()} />
+            {/* Kalit faqat URL dagi oy bo'yicha: to'lovdan keyin forma qayta yaralmaydi va "saqlandi" xabari ko'rinib turadi */}
+            <PaymentForm
+              key={isValidMonth(sp.month) ? sp.month : "auto"}
+              students={[option]}
+              fixedStudentId={student.id}
+              defaultMonth={formMonth}
+              today={todayISO()}
+              canPickDate
+            />
           </Card>
 
           <Card className="p-6">
@@ -242,6 +253,18 @@ async function StudentView({
               <Info label="Ota-ona telefoni" value={student.parentPhone ? <Phone value={student.parentPhone} /> : "—"} />
               <Info label="Guruh" value={student.group || "—"} />
               <Info label="Boshlagan sana" value={formatDate(student.startDate)} />
+              <Info
+                label="Oylik narx"
+                value={
+                  <ul className="grid gap-1">
+                    {feeSteps.map((f) => (
+                      <li key={f.from} className="num">
+                        {formatMoney(f.fee)} <span className="text-ink-400">— {monthLabel(f.from)} dan</span>
+                      </li>
+                    ))}
+                  </ul>
+                }
+              />
               {student.note ? <Info label="Izoh" value={<span className="whitespace-pre-wrap">{student.note}</span>} /> : null}
             </dl>
           </Card>

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { StudentForm } from "@/components/StudentForm";
 import { Card, PageHeader, Skeleton } from "@/components/ui";
-import { pageGuard } from "@/lib/auth";
+import { ownerGuard } from "@/lib/auth";
 import { listGroups } from "@/lib/data";
-import { todayISO } from "@/lib/time";
+import { getSettings } from "@/lib/settings";
+import { currentMonth, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Yangi o‘quvchi" };
 
@@ -22,7 +23,8 @@ export default function NewStudentPage() {
 }
 
 async function NewStudentForm() {
-  await pageGuard();
-  const groups = await listGroups();
-  return <StudentForm groups={groups} today={todayISO()} />;
+  await ownerGuard();
+  const [groups, settings] = await Promise.all([listGroups(), getSettings()]);
+  const standard = settings.defaultFee === null ? null : { base: settings.defaultFee, schedule: settings.feeSchedule };
+  return <StudentForm groups={groups} today={todayISO()} month={currentMonth()} standard={standard} />;
 }

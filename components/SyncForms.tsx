@@ -6,6 +6,7 @@ import { runSyncNow, saveSheetSettings } from "@/app/actions/sync";
 import type { FormState } from "@/app/actions/types";
 import type { ColumnNames } from "@/lib/compare";
 import { btn, cx, inputCls, labelCls } from "./ui";
+import { useActionForm } from "./useActionForm";
 
 export function RunSyncButton({ disabled }: { disabled: boolean }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(runSyncNow, {});
@@ -50,11 +51,11 @@ export function SheetSettingsForm({
   columns: ColumnNames;
   courseFilter: string;
 }) {
-  const [state, formAction, pending] = useActionState<FormState, FormData>(saveSheetSettings, {});
+  const [state, onSubmit, pending] = useActionForm<FormState>(saveSheetSettings, {});
   const fe = state.fieldErrors ?? {};
 
   return (
-    <form action={formAction} className="grid gap-6">
+    <form onSubmit={onSubmit} className="grid gap-6">
       <div>
         <label htmlFor="sheetUrl" className={labelCls}>
           Google Sheets havolasi

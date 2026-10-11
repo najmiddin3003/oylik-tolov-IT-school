@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowUpDown, Check, Download, Plus, Search, UserCheck, Users, Wallet } from "lucide-react";
-import { FilterForm } from "@/components/FilterForm";
+import { ArrowUpDown, BadgeCheck, Download, Plus, UserCheck, Users, Wallet } from "lucide-react";
+import { FilterForm, SearchInput } from "@/components/FilterForm";
+import { Select } from "@/components/pickers";
 import { SyncAlert } from "@/components/ShellParts";
 import { StudentsTable } from "@/components/StudentsTable";
-import { btn, Card, cx, EmptyState, inputCls, MiniStat, PageHeader, PageSkeleton, Pagination, selectCls } from "@/components/ui";
-import { pageGuard } from "@/lib/auth";
+import { btn, Card, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Pagination } from "@/components/ui";
+import { ownerGuard } from "@/lib/auth";
 import { listGroups, listStudents, type StudentSort, type StudentTab } from "@/lib/data";
 import { currentMonth, formatNumber, isValidMonth, monthLabel } from "@/lib/time";
 
@@ -28,7 +29,7 @@ export default function StudentsPage({ searchParams }: PageProps<"/students">) {
 }
 
 async function Students({ searchParams }: { searchParams: PageProps<"/students">["searchParams"] }) {
-  await pageGuard();
+  await ownerGuard();
   const sp = await searchParams;
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
   const month = isValidMonth(sp.month) ? sp.month : currentMonth();
@@ -66,9 +67,11 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
         subtitle="Guruhlar, oylik to‘lovlar va qarzdorlikni bir joyda boshqaring."
         actions={
           <>
-            <a href={`/api/export/oquvchilar?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}) })}`} className={btn.outline}>
-              <Download className="size-[18px]" strokeWidth={1.8} aria-hidden />
-              CSV yuklash
+            <a href={`/api/export/oquvchilar?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}) })}`} className={cx(btn.outline, "group")}>
+              <span className="inline-flex size-6 items-center justify-center rounded-md bg-emerald-600 text-white" aria-hidden>
+                <Download className="icon-wiggle size-3.5" strokeWidth={2.4} />
+              </span>
+              Excel yuklash
             </a>
             <Link href="/students/new" className={btn.primary}>
               <Plus className="size-[18px]" strokeWidth={2.2} aria-hidden />
@@ -83,9 +86,9 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
       </Suspense>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
-        <MiniStat label="Jami o‘quvchilar" value={stats.total} icon={Users} tone="slate" />
-        <MiniStat label="Bu oy faol" value={stats.activeThisMonth} icon={UserCheck} tone="emerald" />
-        <MiniStat label="To‘liq to‘lagan" value={stats.fullyPaid} icon={Check} tone="emerald" />
+        <MiniStat label="Jami o‘quvchilar" value={stats.total} icon={Users} tone="violet" />
+        <MiniStat label="Bu oy faol" value={stats.activeThisMonth} icon={UserCheck} tone="sky" />
+        <MiniStat label="To‘liq to‘lagan" value={stats.fullyPaid} icon={BadgeCheck} tone="emerald" />
         <MiniStat label="Jami qarzdorlik" value={formatNumber(stats.totalDebt)} unit="so‘m" icon={Wallet} tone="amber" />
       </div>
 
@@ -121,24 +124,27 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
           <input type="hidden" name="month" value={month} />
           {tab !== "all" ? <input type="hidden" name="tab" value={tab} /> : null}
           {sort !== "name" ? <input type="hidden" name="sort" value={sort} /> : null}
-          <label className="relative min-w-[220px] flex-1">
-            <span className="sr-only">Qidirish</span>
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-ink-400" strokeWidth={1.8} aria-hidden />
-            <input name="q" type="search" defaultValue={q} placeholder="Ism yoki telefon orqali izlash..." className={cx(inputCls, "pl-11")} />
-          </label>
-          <select name="group" defaultValue={group} className={selectCls} aria-label="Guruh">
-            <option value="">Barcha guruhlar</option>
-            {groups.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-          <select name="status" defaultValue={status} className={selectCls} aria-label="Holat">
-            <option value="active">Faol o‘quvchilar</option>
-            <option value="inactive">Nofaol</option>
-            <option value="all">Hammasi</option>
-          </select>
+          <SearchInput defaultValue={q} placeholder="Ism yoki telefon orqali izlash..." label="Qidirish" className="min-w-[220px]" />
+          <Select
+            name="group"
+            defaultValue={group}
+            autoSubmit
+            aria-label="Guruh"
+            wrapperClassName="w-full sm:w-48"
+            options={[{ value: "", label: "Barcha guruhlar" }, ...groups.map((g) => ({ value: g, label: g }))]}
+          />
+          <Select
+            name="status"
+            defaultValue={status}
+            autoSubmit
+            aria-label="Holat"
+            wrapperClassName="w-full sm:w-48"
+            options={[
+              { value: "active", label: "Faol o‘quvchilar" },
+              { value: "inactive", label: "Nofaol" },
+              { value: "all", label: "Hammasi" },
+            ]}
+          />
           <Link
             href={`/students?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}), ...(nextSort.key !== "name" ? { sort: nextSort.key } : {}) })}`}
             className={cx(btn.outline, "w-11 px-0", sort !== "name" && "border-brand-200 bg-brand-50 text-brand-700")}
@@ -151,7 +157,7 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
 
         {rows.length === 0 ? (
           <div className="border-t border-line-soft">
-            <EmptyState title={filtered ? "Hech narsa topilmadi" : "Hali o‘quvchi qo‘shilmagan"} icon={Users}>
+            <EmptyState title={filtered ? "Hech narsa topilmadi" : "Hali o‘quvchi qo‘shilmagan"} icon={Users} tone="violet">
               {filtered ? (
                 "Qidiruv yoki filtr shartlarini o‘zgartirib ko‘ring."
               ) : (

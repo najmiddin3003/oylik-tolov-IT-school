@@ -10,24 +10,22 @@ export type Allocation = { month: string; amount: number };
  */
 export function allocateAmount(
   amount: number,
-  fee: number,
+  fee: number | ((month: string) => number),
   fromMonth: string,
   paid: Map<string, number>,
   maxMonths = 60,
 ): Allocation[] {
   if (!(amount > 0)) return [];
   const add = (m: string, v: number) => paid.set(m, (paid.get(m) ?? 0) + v);
+  const feeOf = typeof fee === "function" ? fee : () => fee;
 
-  if (!(fee > 0)) {
-    add(fromMonth, amount);
-    return [{ month: fromMonth, amount }];
-  }
-
+  // Narxi 0 bo'lgan oylar o'tkazib yuboriladi (masalan, bepul oy, keyin narx belgilangan);
+  // umuman narx bo'lmasa — butun summa birinchi oyga yoziladi (pastdagi qoldiq qismi).
   const out: Allocation[] = [];
   let rest = amount;
   let m = fromMonth;
   for (let i = 0; rest > 0 && i < maxMonths; i++, m = shiftMonth(m, 1)) {
-    const free = fee - (paid.get(m) ?? 0);
+    const free = feeOf(m) - (paid.get(m) ?? 0);
     if (free <= 0) continue;
     const take = Math.min(free, rest);
     out.push({ month: m, amount: take });

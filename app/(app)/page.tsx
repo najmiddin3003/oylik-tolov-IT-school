@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowUpRight, CalendarDays, Download, Info, Plus, UserCheck, UserRound, Users, Wallet } from "lucide-react";
 import { PaidCell, StudentCell } from "@/components/cells";
-import { SyncAlert } from "@/components/ShellParts";
+import { ReminderBanner, SyncAlert } from "@/components/ShellParts";
 import {
   btn,
   Card,
@@ -21,9 +21,8 @@ import {
   td,
   th,
 } from "@/components/ui";
-import { pageGuard } from "@/lib/auth";
-import { shareOf, sharePercent } from "@/lib/share";
-import { getMonthOverview, listGroups } from "@/lib/data";
+import { ownerGuard } from "@/lib/auth";
+import { getMonthOverview, getShareSummary, listGroups } from "@/lib/data";
 import { currentMonth, formatMoney, formatNumber, isValidMonth, monthLabel } from "@/lib/time";
 
 const PAGE_SIZE = 10;
@@ -37,12 +36,15 @@ export default function DashboardPage({ searchParams }: PageProps<"/">) {
 }
 
 async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
-  await pageGuard();
+  await ownerGuard();
   const sp = await searchParams;
   const month = isValidMonth(sp.month) ? sp.month : currentMonth();
   const group = typeof sp.group === "string" ? sp.group : "";
   const page = Math.max(1, Number(sp.page) || 1);
   const [{ debtors, totals }, groups] = await Promise.all([getMonthOverview(month, group), listGroups()]);
+  // Ulush butun tushumdan hisoblanadi (guruh filtridan qat'i nazar)
+  const all = group ? (await getMonthOverview(month)).totals : totals;
+  const share = await getShareSummary(month, all.collected);
 
   const planDone = totals.expected - totals.debt;
   const planPct = totals.expected ? Math.round((planDone / totals.expected) * 100) : 0;
@@ -61,9 +63,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
         subtitle={`${monthLabel(month)} uchun to‘lovlar holati va asosiy ko‘rsatkichlar${group ? ` · ${group}` : ""}.`}
         actions={
           <>
-            <a href={`/api/export/hisobot?${qs({})}`} className={btn.outline}>
-              <Download className="size-[18px]" strokeWidth={1.8} aria-hidden />
-              Hisobotni yuklash
+            <a href={`/api/export/hisobot?${qs({})}`} className={cx(btn.outline, "group")}>
+              <span className="inline-flex size-6 items-center justify-center rounded-md bg-emerald-600 text-white" aria-hidden>
+                <Download className="icon-wiggle size-3.5" strokeWidth={2.4} />
+              </span>
+              Hisobot (Excel)
             </a>
             <Link href={`/payments?${qs({})}#yangi-tolov`} className={btn.primary}>
               <Plus className="size-[18px]" strokeWidth={2.2} aria-hidden />
@@ -75,6 +79,9 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
 
       <Suspense fallback={null}>
         <SyncAlert />
+      </Suspense>
+      <Suspense fallback={null}>
+        <ReminderBanner />
       </Suspense>
 
       {groups.length > 1 ? (
@@ -99,7 +106,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
           label="Jami tushum"
           value={formatNumber(totals.collected)}
           unit="so‘m"
-          share={{ label: `Tushumning ${sharePercent()}%`, value: formatMoney(shareOf(totals.collected)) }}
+          share={[
+            { label: `Tushumning ${share.percent}%`, value: formatMoney(share.share) },
+            { label: "Olindi (oylik/avans)", value: `− ${formatMoney(share.taken)}` },
+            { label: "Qoldi", value: formatMoney(share.left), strong: true, negative: share.left < 0 },
+          ]}
           badge={`${planPct}%`}
           hint={`${totals.paymentCount} ta to‘lov qabul qilindi`}
           icon={Wallet}
@@ -109,6 +120,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
           value={totals.students}
           hint={totals.groups ? `${totals.groups} ta guruhda tahsil olmoqda` : "guruh belgilanmagan"}
           icon={Users}
+          tone="violet"
         />
         <KpiCard
           label="To‘liq to‘laganlar"
