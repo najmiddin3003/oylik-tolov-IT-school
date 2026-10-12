@@ -43,7 +43,9 @@ async function SyncView() {
       <PageHeader
         eyebrow="Integratsiya"
         title="Google Sheets"
-        subtitle={`Tizim har kuni soat ${hour}:00 da (Toshkent vaqti) Sheets’dagi to‘lovlar jadvalini saytdagi ma’lumotlar bilan solishtiradi.`}
+        subtitle={`Tizim har kuni soat ${hour}:00 da (Toshkent vaqti) Sheets’dagi to‘lovlar jadvalini saytdagi ma’lumotlar bilan solishtiradi.${
+          settings.autoImport ? " Sheets’da bor, saytda yo‘q to‘lovlar avtomatik qo‘shiladi." : ""
+        }`}
         actions={<RunSyncButton disabled={!settings.sheetUrl} />}
       />
 
@@ -67,7 +69,7 @@ async function SyncView() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card id="sozlamalar" className="scroll-mt-24 p-6">
           <h2 className="mb-5 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Sozlamalar</h2>
-          <SheetSettingsForm sheetUrl={settings.sheetUrl} columns={settings.columns} courseFilter={settings.courseFilter} />
+          <SheetSettingsForm sheetUrl={settings.sheetUrl} columns={settings.columns} courseFilter={settings.courseFilter} autoImport={settings.autoImport} />
         </Card>
 
         <Card className="self-start">
@@ -81,7 +83,10 @@ async function SyncView() {
                     <span className="num text-ink-700">
                       {formatDateTime(r.startedAt)} <span className="text-ink-400">· {TRIGGER[r.trigger]}</span>
                     </span>
-                    {r.ok ? open ? <Tag tone="amber">{open} ta farq</Tag> : <Tag tone="emerald">Bir xil ✓</Tag> : <Tag tone="rose">Xato</Tag>}
+                    <span className="flex flex-wrap justify-end gap-1.5">
+                      {r.autoImported ? <Tag tone="brand">+{r.autoImported} qo‘shildi</Tag> : null}
+                      {r.ok ? open ? <Tag tone="amber">{open} ta farq</Tag> : <Tag tone="emerald">Bir xil ✓</Tag> : <Tag tone="rose">Xato</Tag>}
+                    </span>
                   </li>
                 );
               })}
@@ -127,6 +132,16 @@ function LastRun({ run }: { run: SyncRunView }) {
         <MiniStat label="Mos keldi" value={run.matchedCount} icon={CircleCheck} tone="emerald" />
         <MiniStat label={resolved ? `Farqlar (${resolved} tasi hal qilingan)` : "Farqlar"} value={open.length} icon={TriangleAlert} tone={open.length ? "amber" : "emerald"} />
       </div>
+      {run.autoImported ? (
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-emerald-200/80 bg-emerald-50/70 px-4 py-3 text-sm sm:px-5" role="status">
+          <CircleCheck className="size-[18px] shrink-0 text-emerald-600" aria-hidden />
+          <span className="font-semibold text-emerald-900">Sheets’dan {run.autoImported} ta to‘lov avtomatik saytga qo‘shildi</span>
+          <span className="text-emerald-800/75">— Sheets’da bor, saytda yo‘q edi</span>
+          <Link href="/payments" className="ml-auto inline-flex items-center gap-1 font-semibold text-emerald-800 hover:text-emerald-950">
+            To‘lovlarni ko‘rish →
+          </Link>
+        </div>
+      ) : null}
       <p className="mb-6 flex items-start gap-2 text-xs leading-relaxed text-ink-400">
         <Info className="mt-px size-3.5 shrink-0" aria-hidden />
         <span>

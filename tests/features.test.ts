@@ -4,7 +4,7 @@ import { allocateAmount } from "../lib/allocate";
 import { formatUzPhone, normalizeUzPhone } from "../lib/eskiz";
 import { applyFeeFrom, applyPercentFrom, changesAfter, feeFor, percentFor } from "../lib/fees";
 import { fingerprint, hashPassword, safeEqualText, verifyPassword } from "../lib/passwords";
-import { dayLabel, daysInMonth, daysLeftInMonth, monthEndReminderActive, renderSmsText, smsCandidateMonths, templateHasCount } from "../lib/reminders";
+import { dayLabel, daysInMonth, daysLeftInMonth, monthEndReminderActive, normalizeStartDay, renderSmsText, smsCandidateMonths, templateHasCount } from "../lib/reminders";
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-123";
 
@@ -99,9 +99,20 @@ test("oy oxiri eslatmasi va SMS oynasi", () => {
   assert.equal(monthEndReminderActive("2026-10-20"), false);
   assert.equal(monthEndReminderActive("2026-10-21"), true);
   assert.equal(monthEndReminderActive("2026-11-20"), true); // noyabr — 30 kun
-  assert.deepEqual(smsCandidateMonths("2026-10-24"), ["2026-08", "2026-09"]);
-  assert.deepEqual(smsCandidateMonths("2026-10-25"), ["2026-08", "2026-09", "2026-10"]);
-  assert.deepEqual(smsCandidateMonths("2027-01-03"), ["2026-11", "2026-12"]);
+  // 25-sanadan sozlansa
+  assert.deepEqual(smsCandidateMonths("2026-10-24", 2, 25), ["2026-08", "2026-09"]);
+  assert.deepEqual(smsCandidateMonths("2026-10-25", 2, 25), ["2026-08", "2026-09", "2026-10"]);
+  assert.deepEqual(smsCandidateMonths("2027-01-03", 2, 25), ["2026-11", "2026-12"]);
+  // standart — 1-sanadan: joriy oy har kuni sanaladi
+  assert.deepEqual(smsCandidateMonths("2026-10-01"), ["2026-08", "2026-09", "2026-10"]);
+  assert.deepEqual(smsCandidateMonths("2026-10-12"), ["2026-08", "2026-09", "2026-10"]);
+  assert.equal(normalizeStartDay("10"), 10);
+  assert.equal(normalizeStartDay(25), 25);
+  assert.equal(normalizeStartDay(undefined), 1);
+  assert.equal(normalizeStartDay(null), 1);
+  assert.equal(normalizeStartDay("0"), 1);
+  assert.equal(normalizeStartDay(29), 1);
+  assert.equal(normalizeStartDay("abc"), 1);
 });
 
 test("SMS matni va kun nomi", () => {

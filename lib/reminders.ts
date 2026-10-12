@@ -23,13 +23,22 @@ export function monthEndReminderActive(todayIso: string, threshold = 10): boolea
   return daysLeftInMonth(todayIso) <= threshold;
 }
 
-export const SMS_START_DAY = 25;
+/** Joriy oy qarzdorlari SMS'da shu sanadan boshlab sanaladi. Standart — 1: oy boshidan, har kuni. */
+export const DEFAULT_SMS_START_DAY = 1;
+/** Sozlamalarda tanlanadigan sanalar */
+export const SMS_START_DAY_OPTIONS = [1, 5, 10, 15, 20, 25] as const;
+
+/** Saqlangan qiymat: 1–28 butun son, aks holda standart. */
+export function normalizeStartDay(v: unknown): number {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  return Number.isInteger(n) && n >= 1 && n <= 28 ? n : DEFAULT_SMS_START_DAY;
+}
 
 /**
- * Bugun qaysi oylar bo'yicha qarzdorlar SMS'da tekshiriladi:
- * joriy oy — 25-sanadan boshlab; oldingi `lookback` oy — qarzdorlar qolgan bo'lsa (hamma to'laguncha).
+ * Bugun qaysi oylar bo'yicha qarzdorlar SMS'da sanaladi:
+ * joriy oy — `startDay`-sanadan boshlab; oldingi `lookback` oy — qarzdorlar qolgan bo'lsa (hamma to'laguncha).
  */
-export function smsCandidateMonths(todayIso: string, lookback = 2, startDay = SMS_START_DAY): string[] {
+export function smsCandidateMonths(todayIso: string, lookback = 2, startDay = DEFAULT_SMS_START_DAY): string[] {
   const current = todayIso.slice(0, 7);
   const months: string[] = [];
   for (let i = lookback; i >= 1; i--) months.push(shiftMonth(current, -i));

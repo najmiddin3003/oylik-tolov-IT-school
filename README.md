@@ -37,8 +37,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   sahifalarda: «10 ta o‘quvchi to‘lov qilmadi» — bosilsa ism-familiyalar ro‘yxati.
 - **Sozlamalar** (rahbar): oylik to‘lov narxi (tanlangan oydan boshlab, o‘tgan oylar o‘zgarmaydi; hamma yoki faqat ma’lum narxdagilar),
   tushum ulushi foizi (oydan boshlab), **oylik va avanslar** (oy ulushidan ayiriladi: 40% − olingan = qoldi), parollar, SMS, markaz nomi.
-- **SMS eslatma (Eskiz)** — har oyning 25-sanasidan boshlab, har kuni kechqurun (20:00) belgilangan raqamga to‘lamaganlar soni;
-  hamma to‘laguncha davom etadi, kuniga bitta SMS.
+- **SMS eslatma (Eskiz)** — har kuni kechqurun (20:00) belgilangan raqamga shu oy to‘lamaganlarning jami soni (oldingi oylardan
+  qolganlari ham); hamma to‘laguncha davom etadi, kuniga bitta SMS. Sozlamalarda «qachondan boshlab» tanlanadi (standart — oy boshidan,
+  masalan faqat 25-sanadan ham qilsa bo‘ladi). SMS’dan oldin Google Sheets’dagi yangi to‘lovlar olib kelinadi.
+- **Avtomatik qo‘shish** — Sheets’da bor, saytda yo‘q to‘lovlar har tekshiruvda o‘zi saytga yoziladi (Google Sheets sozlamalarida
+  o‘chirsa bo‘ladi); saytda yo‘q yangi o‘quvchilar va summa farqlari tugma bilan tasdiqlanadi.
 - **Dars jadvali** — har o‘quvchining dars kunlari va vaqti: «Toq kunlar» (Du·Ch·Ju), «Juft kunlar» (Se·Pa·Sh), «Har kuni»
   yoki o‘zingiz tanlagan kunlar; boshlanish — tugash vaqti (tugashi avtomatik +2 soat, o‘zgartirsa bo‘ladi), kerak bo‘lsa
   har kunga alohida vaqt. O‘quvchi formasida yoki «O‘quvchilar» ro‘yxatida bir nechtasini belgilab «Dars vaqti» tugmasi bilan

@@ -3,6 +3,7 @@ import { DEFAULT_COLUMNS, DEFAULT_COURSE_FILTER, type ColumnNames } from "./comp
 import { connectDB } from "./db";
 import { feeFor, type FeeChange, type PercentChange } from "./fees";
 import { Setting } from "./models";
+import { normalizeStartDay } from "./reminders";
 
 export const DEFAULT_FEE = 300_000;
 // Eskiz'da tasdiqlangan shablon bilan harfma-harf bir xil bo'lishi kerak (oxirida nuqta yo'q).
@@ -15,6 +16,8 @@ export type AppSettings = {
   sheetUrl: string;
   columns: ColumnNames;
   courseFilter: string;
+  /** Sheets'da bor, saytda yo'q to'lovlar tekshiruvda o'zi saytga qo'shiladi */
+  autoImport: boolean;
   centerName: string;
   /** Standart narx (asosiy) — null bo'lsa hali belgilanmagan */
   defaultFee: number | null;
@@ -24,7 +27,8 @@ export type AppSettings = {
   shareHistory: PercentChange[];
   ownerPasswordHash: string | null;
   adminPasswordHash: string | null;
-  sms: { enabled: boolean; phone: string; sender: string; template: string };
+  /** startDay — joriy oy qarzdorlari shu sanadan boshlab sanaladi (1 — har kuni) */
+  sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number };
 };
 
 const TTL_MS = 15_000;
@@ -34,6 +38,7 @@ type Doc = Record<string, unknown> & {
   sheetUrl?: string;
   columns?: Partial<Record<keyof ColumnNames, string | null>>;
   courseFilter?: string;
+  autoImport?: boolean;
   centerName?: string;
   defaultFee?: number;
   feeSchedule?: { from?: string; fee?: number }[];
@@ -41,7 +46,7 @@ type Doc = Record<string, unknown> & {
   shareHistory?: { from?: string; percent?: number }[];
   ownerPasswordHash?: string | null;
   adminPasswordHash?: string | null;
-  sms?: { enabled?: boolean; phone?: string; sender?: string; template?: string };
+  sms?: { enabled?: boolean; phone?: string; sender?: string; template?: string; startDay?: number };
 };
 
 function toAppSettings(doc: Doc | null): AppSettings {
@@ -55,6 +60,7 @@ function toAppSettings(doc: Doc | null): AppSettings {
     columns,
     // Eski hujjatlarda maydon yo'q bo'lsa — standart; ataylab bo'sh qoldirilgan bo'lsa — filtrsiz
     courseFilter: typeof doc?.courseFilter === "string" ? doc.courseFilter : DEFAULT_COURSE_FILTER,
+    autoImport: doc?.autoImport !== false,
     centerName: doc?.centerName || process.env.CENTER_NAME || "Asosiy markaz",
     defaultFee: typeof doc?.defaultFee === "number" ? doc.defaultFee : null,
     feeSchedule: (doc?.feeSchedule ?? [])
@@ -76,6 +82,7 @@ function toAppSettings(doc: Doc | null): AppSettings {
       phone: doc?.sms?.phone || "998336263006",
       sender: doc?.sms?.sender || "4546",
       template: doc?.sms?.template && !LEGACY_SMS_TEMPLATES.has(doc.sms.template) ? doc.sms.template : DEFAULT_SMS_TEMPLATE,
+      startDay: normalizeStartDay(doc?.sms?.startDay),
     },
   };
 }

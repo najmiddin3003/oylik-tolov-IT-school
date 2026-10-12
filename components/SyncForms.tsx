@@ -46,10 +46,12 @@ export function SheetSettingsForm({
   sheetUrl,
   columns,
   courseFilter,
+  autoImport,
 }: {
   sheetUrl: string;
   columns: ColumnNames;
   courseFilter: string;
+  autoImport: boolean;
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(saveSheetSettings, {});
   const fe = state.fieldErrors ?? {};
@@ -87,6 +89,21 @@ export function SheetSettingsForm({
         <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
           «Kurs» ustunida shu nom bor qatorlargina solishtiriladi, qolganlari e’tiborsiz qoldiriladi. Bir nechta kurs — vergul bilan.
         </p>
+      </div>
+
+      <div>
+        <input type="hidden" name="autoImportShown" value="1" />
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 transition hover:bg-slate-50/60">
+          <input type="checkbox" name="autoImport" defaultChecked={autoImport} className="mt-0.5 size-4 shrink-0 rounded accent-brand-600" />
+          <span>
+            <span className="block text-sm font-semibold text-ink-900">Sheets’dagi to‘lovlarni avtomatik saytga qo‘shish</span>
+            <span className="mt-1 block text-xs leading-relaxed text-ink-500">
+              Har tekshiruvda (har kuni ertalab, kechki SMS oldidan va «Hozir tekshirish»da) Sheets’da bor, saytda yo‘q to‘lovlar o‘zi
+              saytga yoziladi — sanasi, summasi va naqd/plastik bilan. Saytda yo‘q yangi o‘quvchilar va summa farqlari — avvalgidek tugma
+              bilan tasdiqlanadi.
+            </span>
+          </span>
+        </label>
       </div>
 
       <details className="group rounded-xl border border-line">

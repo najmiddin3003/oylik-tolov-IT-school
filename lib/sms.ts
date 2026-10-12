@@ -1,10 +1,12 @@
-// Qarzdorlar haqida kunlik SMS (Eskiz): har oyning 25-sanasidan boshlab, hamma to'laguncha kuniga bir marta.
+// Qarzdorlar haqida kunlik SMS (Eskiz): har oyning tanlangan sanasidan (standart — 1-sana, ya'ni har kuni)
+// kechqurun, hamma to'laguncha kuniga bir marta. SMS'dan oldin Google Sheets'dagi yangi to'lovlar olib kelinadi.
 import { connectDB } from "./db";
 import { eskizConfigured, EskizError, normalizeUzPhone, sendSms } from "./eskiz";
 import { loadStudents, monthRows, sortDebtors } from "./ledger";
-import { Setting, SmsLog } from "./models";
-import { renderSmsText, SMS_START_DAY, smsCandidateMonths } from "./reminders";
-import { getSettings } from "./settings";
+import { Setting, SmsLog, SyncRun } from "./models";
+import { DEFAULT_SMS_START_DAY, renderSmsText, smsCandidateMonths } from "./reminders";
+import { getSettings, type AppSettings } from "./settings";
+import { runSync, type SyncTrigger } from "./sync";
 import { MONTH_NAMES, todayISO } from "./time";
 
 export type SmsTrigger = "cron" | "auto" | "test";
@@ -19,8 +21,8 @@ export function smsHour(): number {
 }
 
 /** Hozirgi holat bo'yicha: qaysi oylar uchun nechta (takrorlanmas) o'quvchi to'lamagan va SMS matni. */
-export async function buildDebtSms(template: string, today = todayISO()) {
-  const months = smsCandidateMonths(today);
+export async function buildDebtSms(template: string, today = todayISO(), startDay = DEFAULT_SMS_START_DAY) {
+  const months = smsCandidateMonths(today, 2, startDay);
   const students = await loadStudents();
   const lists = await Promise.all(months.map((m) => monthRows(m, students)));
   const ids = new Set<string>();
@@ -59,6 +61,20 @@ async function logSkip(day: string, trigger: SmsTrigger, reason: string) {
   );
 }
 
+/**
+ * SMS'dan oldin Google Sheets'dagi so'nggi to'lovlarni olib kelish (avtomatik qo'shish yoqilgan bo'lsa):
+ * kun davomida jadvalga yozilgan to'lovlar ham hisobga olinsin. Yarim soat ichida tekshiruv bo'lgan bo'lsa — shart emas.
+ */
+async function refreshFromSheets(settings: AppSettings, trigger: SyncTrigger): Promise<void> {
+  if (!settings.sheetUrl || !settings.autoImport) return;
+  if (await SyncRun.exists({ ok: true, startedAt: { $gt: new Date(Date.now() - 30 * 60_000) } })) return;
+  try {
+    await runSync(trigger);
+  } catch (err) {
+    console.error("[sms] Sheets tekshiruvi:", err);
+  }
+}
+
 /** Kunlik SMS: bugun yuborilmagan bo'lsa va to'lamaganlar bo'lsa — yuboradi. */
 export async function runDailySms(trigger: "cron" | "auto"): Promise<SmsOutcome> {
   await connectDB();
@@ -84,11 +100,13 @@ export async function runDailySms(trigger: "cron" | "auto"): Promise<SmsOutcome>
       return { status: "skipped", message: "Yaqinda xato bo‘ldi — bir soatdan keyin qayta uriniladi" };
     }
 
-    const { months, count, text } = await buildDebtSms(settings.sms.template, today);
+    await refreshFromSheets(settings, trigger);
+    const startDay = settings.sms.startDay;
+    const { months, count, text } = await buildDebtSms(settings.sms.template, today, startDay);
     if (!count) {
       const reason =
-        Number(today.slice(8, 10)) < SMS_START_DAY
-          ? `To‘lamaganlar yo‘q — joriy oy ${SMS_START_DAY}-sanadan tekshiriladi`
+        Number(today.slice(8, 10)) < startDay
+          ? `To‘lamaganlar yo‘q — joriy oy ${startDay}-sanadan sanaladi`
           : "Hamma to‘lagan — SMS kerak emas";
       await logSkip(today, trigger, reason);
       return { status: "skipped", message: reason };
@@ -122,8 +140,9 @@ export async function sendTestSms(): Promise<SmsOutcome> {
   if (!(await acquireLock("smsTestLockUntil", 60_000))) {
     return { status: "skipped", message: "Sinov SMS’ni daqiqada bir marta yuborish mumkin" };
   }
+  await refreshFromSheets(settings, "manual");
   const today = todayISO();
-  const built = await buildDebtSms(settings.sms.template, today);
+  const built = await buildDebtSms(settings.sms.template, today, settings.sms.startDay);
   const months = built.count ? built.months : [today.slice(0, 7)];
   const text = built.count ? built.text : renderSmsText(settings.sms.template, months, 0, monthName);
   return deliver({ trigger: "test", day: today, phone, sender: settings.sms.sender, months, count: built.count, text });

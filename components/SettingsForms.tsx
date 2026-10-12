@@ -13,7 +13,7 @@ import {
   setAdminPassword,
 } from "@/app/actions/settings";
 import type { FormState } from "@/app/actions/types";
-import { renderSmsText } from "@/lib/reminders";
+import { renderSmsText, SMS_START_DAY_OPTIONS } from "@/lib/reminders";
 import { formatNumber, MONTH_NAMES, monthLabel } from "@/lib/time";
 import { DatePicker, MonthPicker, Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
@@ -285,12 +285,16 @@ export function SmsForm({
   sms,
   month,
 }: {
-  sms: { enabled: boolean; phone: string; sender: string; template: string };
+  sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number };
   month: string;
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(saveSmsSettings, {});
   const [enabled, setEnabled] = useState(sms.enabled);
   const [template, setTemplate] = useState(sms.template);
+  const [startDay, setStartDay] = useState(String(sms.startDay));
+  const dayOptions = [...new Set<number>([...SMS_START_DAY_OPTIONS, sms.startDay])]
+    .sort((a, b) => a - b)
+    .map((d) => ({ value: String(d), label: d === 1 ? "Har kuni (oy boshidan)" : `Har oyning ${d}-sanasidan` }));
   const fe = state.fieldErrors ?? {};
   const preview = renderSmsText(template, [month], 10, monthName);
   const length = preview.length;
@@ -311,10 +315,17 @@ export function SmsForm({
         <span>
           <span className="block text-[15px] font-semibold text-ink-900">Kunlik SMS eslatma {enabled ? "yoqilgan" : "o‘chirilgan"}</span>
           <span className="mt-0.5 block text-sm leading-relaxed text-ink-500">
-            Har oyning 25-sanasidan boshlab, har kuni kechqurun (20:00) to‘lov qilmaganlar soni SMS qilib yuboriladi. Hamma to‘laganda SMS to‘xtaydi.
+            {startDay === "1" ? "Har kuni" : `Har oyning ${startDay}-sanasidan boshlab, har kuni`} kechqurun (20:00) shu oy to‘lov qilmaganlarning jami soni SMS
+            qilib yuboriladi. Hamma to‘laganda SMS to‘xtaydi.
           </span>
         </span>
       </label>
+
+      <div className="max-w-sm">
+        <span className={labelCls}>Qachondan boshlab</span>
+        <Select name="startDay" value={startDay} onChange={setStartDay} options={dayOptions} aria-label="Qachondan boshlab" />
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-400">Oldingi oylardan to‘lamaganlar qolgan bo‘lsa — ular ham jami songa qo‘shiladi.</p>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

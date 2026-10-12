@@ -1,10 +1,11 @@
 // Google Sheets bilan saytdagi to'lovlarni solishtirish va natijani bazaga yozish.
 import { compareRecords, parseSheet, type MismatchResult, type SheetWindow } from "./compare";
+import { importFromRun } from "./importer";
 import { LIVE } from "./ledger";
 import { Payment, Setting, Student, SyncRun } from "./models";
 import { getSettings } from "./settings";
 import { fetchSheetRows, SheetError } from "./sheets";
-import { dateToISO, isoToDate, lastScheduledTime, todayISO } from "./time";
+import { dateToISO, isoToDate, lastScheduledTime, shiftMonth, todayISO } from "./time";
 
 export type SyncTrigger = "auto" | "cron" | "manual";
 
@@ -48,8 +49,30 @@ async function loadSitePayments(window: SheetWindow | null) {
   }));
 }
 
-/** Tekshiruvni hozir ishga tushiradi. Boshqa tekshiruv ketayotgan bo'lsa — null qaytaradi. */
-export async function runSync(trigger: SyncTrigger): Promise<{ id: string; ok: boolean; error: string; mismatches: number } | null> {
+/** O'quvchining shu oyga tegishli (oy maydoni yoki to'langan sanasi bo'yicha) hisobdagi to'lovi bormi. */
+async function hasOtherPaymentInMonth(studentId: string, month: string): Promise<boolean> {
+  const from = isoToDate(`${month}-01`);
+  const to = isoToDate(`${shiftMonth(month, 1)}-01`);
+  if (!from || !to) return false;
+  const found = await Payment.exists({ ...LIVE, student: studentId, $or: [{ month }, { paidAt: { $gte: from, $lt: to } }] });
+  return Boolean(found);
+}
+
+export type SyncOutcome = {
+  id: string;
+  ok: boolean;
+  error: string;
+  /** Hal qilinmay qolgan farqlar */
+  mismatches: number;
+  /** Sheets'dan avtomatik qo'shilgan to'lov qatorlari */
+  imported: number;
+};
+
+/**
+ * Tekshiruvni hozir ishga tushiradi. Boshqa tekshiruv ketayotgan bo'lsa — null qaytaradi.
+ * Avtomatik qo'shish yoqilgan bo'lsa — «Saytda yo'q» to'lovlar (o'quvchisi saytda bor) darhol saytga yoziladi.
+ */
+export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null> {
   const settings = await getSettings({ fresh: true });
   if (!(await acquireLock())) return null;
 
@@ -142,11 +165,42 @@ export async function runSync(trigger: SyncTrigger): Promise<{ id: string; ok: b
 
     const run = await SyncRun.create({ trigger, startedAt, finishedAt: new Date(), ...result });
 
+    // Sheets'da bor, saytda yo'q to'lovlar — avtomatik saytga. Yangi o'quvchilar va summa farqlari — qo'lda tasdiqlanadi.
+    let imported = 0;
+    let resolved = 0;
+    if (result.ok && settings.autoImport) {
+      const ids: string[] = [];
+      for (const m of run.mismatches) {
+        if (m.kind !== "missing_on_site" || !m.studentId) continue;
+        // Ehtiyot: saytda shu o'quvchining shu oyga tegishli to'lovi jadval oralig'idan tashqarida bo'lsa
+        // (masalan, saytga boshqa kuni kiritilgan) — ikki marta yozilmasligi uchun avtomatik qo'shilmaydi.
+        if (await hasOtherPaymentInMonth(String(m.studentId), m.month)) {
+          const extra = "Saytda shu oy uchun boshqa sanada to‘lov bor — avtomatik qo‘shilmadi, tekshirib ko‘ring";
+          await SyncRun.updateOne(
+            { _id: run._id, "mismatches._id": m._id },
+            { $set: { "mismatches.$.note": m.note ? `${m.note}. ${extra}` : extra } },
+          );
+          continue;
+        }
+        ids.push(String(m._id));
+      }
+      if (ids.length) {
+        try {
+          const res = await importFromRun(String(run._id), ids);
+          imported = res?.rows ?? 0;
+          resolved = res?.resolved ?? 0;
+          if (imported) await SyncRun.updateOne({ _id: run._id }, { $set: { autoImported: imported } });
+        } catch (err) {
+          console.error("[sync] avtomatik qo'shish:", err);
+        }
+      }
+    }
+
     // Eski natijalarni tozalash
     const old = await SyncRun.find({}, { _id: 1 }).sort({ startedAt: -1 }).skip(KEEP_RUNS).lean();
     if (old.length) await SyncRun.deleteMany({ _id: { $in: old.map((o) => o._id) } });
 
-    return { id: String(run._id), ok: result.ok, error: result.error, mismatches: result.mismatches.length };
+    return { id: String(run._id), ok: result.ok, error: result.error, mismatches: result.mismatches.length - resolved, imported };
   } finally {
     await releaseLock();
   }

@@ -23,12 +23,14 @@ export async function saveSheetSettings(_prev: FormState, formData: FormData): P
   }
 
   const current = await getSettings({ fresh: true });
+  // Belgi faqat formada bo'lsa o'qiladi (eski ochiq sahifadan yuborilsa — o'zgarmaydi)
+  const autoImport = formData.has("autoImportShown") ? formData.get("autoImport") === "on" : current.autoImport;
   const columns = { ...current.columns };
   for (const f of COLUMN_FIELDS) {
     const v = String(formData.get(`col_${f}`) ?? "").trim().slice(0, 60);
     if (v) columns[f] = v;
   }
-  await updateSettings({ $set: { sheetUrl, columns, courseFilter } });
+  await updateSettings({ $set: { sheetUrl, columns, courseFilter, autoImport } });
   refresh();
   return { ok: true, message: "Sozlamalar saqlandi" };
 }
@@ -40,10 +42,11 @@ export async function runSyncNow(): Promise<FormState> {
   refresh();
   if (!res) return { error: "Hozir boshqa tekshiruv ketmoqda, birozdan keyin urinib ko'ring" };
   if (!res.ok) return { error: res.error };
-  return {
-    ok: true,
-    message: res.mismatches ? `Tekshirildi: ${res.mismatches} ta farq topildi` : "Tekshirildi: hammasi bir xil ✓",
-  };
+  const parts = [
+    res.imported ? `${res.imported} ta to‘lov Sheets’dan saytga qo‘shildi` : "",
+    res.mismatches ? `${res.mismatches} ta farq topildi` : "",
+  ].filter(Boolean);
+  return { ok: true, message: parts.length ? `Tekshirildi: ${parts.join(", ")}` : "Tekshirildi: hammasi bir xil ✓" };
 }
 
 /** Bitta «Saytda yo'q» / «Noma'lum o'quvchi» farqini saytga qo'shadi. */

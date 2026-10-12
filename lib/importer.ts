@@ -8,7 +8,8 @@ import { nameKey } from "./normalize";
 import { nextStudentSeq } from "./seq";
 import { isoToDate, monthOfDate } from "./time";
 
-export type ImportResult = { students: number; payments: number; resolved: number; skipped: string[] };
+/** rows — saytga qo'shilgan Sheets qatorlari (bitta qator naqd+plastik bo'lsa ham bitta) */
+export type ImportResult = { students: number; payments: number; resolved: number; rows: number; skipped: string[] };
 
 type Part = { row: number; date: string; amount: number; cash: number; card: number };
 
@@ -53,7 +54,7 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
       ids.includes(String(m._id)) ||
       (m.kind === "unknown_student" && chosenNames.has(nameKey(m.studentName))),
   );
-  const result: ImportResult = { students: 0, payments: 0, resolved: 0, skipped: [] };
+  const result: ImportResult = { students: 0, payments: 0, resolved: 0, rows: 0, skipped: [] };
   if (!targets.length) return result;
 
   // 1) Har bir farq uchun saytdagi o'quvchini aniqlash (yo'q bo'lsa — yaratish)
@@ -132,6 +133,7 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
   for (const { m, studentId, p } of items) {
     const st = info.get(studentId);
     if (!st) continue;
+    result.rows++;
     const payMonth = partMonth(m, p);
     const from = basis === "date" ? importFromMonth(payMonth, st.startMonth) : m.month;
     for (const chunk of splitByMethod(p)) {

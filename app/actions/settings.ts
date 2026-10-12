@@ -10,7 +10,7 @@ import { applyFeeFrom, applyPercentFrom, feeFor, type FeeChange } from "@/lib/fe
 import { feeHistoryOf, studentFee, type StudentLean } from "@/lib/ledger";
 import { Salary, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
-import { templateHasCount } from "@/lib/reminders";
+import { normalizeStartDay, templateHasCount } from "@/lib/reminders";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/passwords";
 import { createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
@@ -234,6 +234,7 @@ export async function saveSmsSettings(_prev: FormState, fd: FormData): Promise<F
   const phone = normalizeUzPhone(str(fd, "phone", 40));
   const template = str(fd, "template", 400).replace(/\s+/g, " ");
   const sender = str(fd, "sender", 20) || "4546";
+  const startDay = normalizeStartDay(fd.get("startDay"));
 
   const fieldErrors: Record<string, string> = {};
   if (!phone) fieldErrors.phone = "Raqamni to‘liq kiriting, masalan: 33 626 30 06";
@@ -241,7 +242,7 @@ export async function saveSmsSettings(_prev: FormState, fd: FormData): Promise<F
   if (!/^[\w.-]{2,11}$/.test(sender)) fieldErrors.sender = "Jo‘natuvchi nomi noto‘g‘ri (odatda 4546)";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
-  await updateSettings({ $set: { "sms.enabled": enabled, "sms.phone": phone, "sms.template": template, "sms.sender": sender } });
+  await updateSettings({ $set: { "sms.enabled": enabled, "sms.phone": phone, "sms.template": template, "sms.sender": sender, "sms.startDay": startDay } });
   refresh();
   return { ok: true, message: enabled ? "Saqlandi — SMS eslatma yoqilgan" : "Saqlandi — SMS eslatma o‘chirilgan", nonce: Date.now() };
 }

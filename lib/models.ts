@@ -76,6 +76,8 @@ const settingSchema = new Schema(
     },
     /** Faqat shu kurs(lar) qatorlari solishtiriladi; bo'sh — hammasi */
     courseFilter: { type: String },
+    /** Sheets'da bor, saytda yo'q to'lovlarni tekshiruvda avtomatik saytga qo'shish (maydon yo'q — yoqilgan) */
+    autoImport: { type: Boolean },
     /** Markaz nomi (yon menyuda) */
     centerName: { type: String },
     /** Markazning standart oylik narxi (yangi o'quvchilar uchun) va uning "falon oydan" o'zgarishlari */
@@ -94,6 +96,8 @@ const settingSchema = new Schema(
       phone: { type: String, default: "998336263006" },
       sender: { type: String, default: "4546" },
       template: { type: String },
+      /** Joriy oy qarzdorlari shu sanadan boshlab sanaladi (1 — har kuni) */
+      startDay: { type: Number },
     },
     /** Bir vaqtda ikkita tekshiruv ishlab ketmasligi uchun qulf */
     syncLockedUntil: { type: Date, default: null },
@@ -166,6 +170,8 @@ const syncRunSchema = new Schema(
     filteredOut: { type: Number, default: 0 },
     skipped: { type: [{ row: Number, reason: String, _id: false }], default: [] },
     mismatches: { type: [mismatchSchema], default: [] },
+    /** Shu tekshiruvda Sheets'dan avtomatik qo'shilgan to'lov qatorlari soni */
+    autoImported: { type: Number, default: 0 },
   },
   { timestamps: false },
 );

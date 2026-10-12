@@ -141,6 +141,8 @@ export type SyncRunView = {
   filteredOut: number;
   skipped: { row: number; reason: string }[];
   mismatches: MismatchRow[];
+  /** Sheets'dan avtomatik qo'shilgan to'lov qatorlari */
+  autoImported: number;
 };
 
 export type SyncState = "ok" | "warn" | "error" | "off";
@@ -639,6 +641,7 @@ function toRunView(r: Awaited<ReturnType<typeof findRuns>>[number]): SyncRunView
     courseFilter: r.courseFilter ?? "",
     filteredOut: r.filteredOut ?? 0,
     skipped: (r.skipped ?? []).map((s) => ({ row: s.row ?? 0, reason: s.reason ?? "" })),
+    autoImported: r.autoImported ?? 0,
     mismatches: (r.mismatches ?? []).map((m) => ({
       id: String(m._id),
       kind: m.kind as MismatchKind,
@@ -674,7 +677,7 @@ export async function getSyncPageData() {
   await connectDB();
   const [settings, runs] = await Promise.all([getSettings({ fresh: true }), findRuns(10)]);
   return {
-    settings: { sheetUrl: settings.sheetUrl, columns: settings.columns, courseFilter: settings.courseFilter },
+    settings: { sheetUrl: settings.sheetUrl, columns: settings.columns, courseFilter: settings.courseFilter, autoImport: settings.autoImport },
     runs: runs.map(toRunView),
   };
 }
