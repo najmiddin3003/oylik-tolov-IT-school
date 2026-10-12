@@ -9,6 +9,7 @@ import { applyFeeFrom, changesAfter } from "@/lib/fees";
 import { feeHistoryOf, studentFee, type StudentLean } from "@/lib/ledger";
 import { Payment, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { parseLessons } from "@/lib/schedule";
 import { nextStudentSeq } from "@/lib/seq";
 import { getSettings, standardFee } from "@/lib/settings";
 import { currentMonth, isoToDate, isValidMonth, monthOfDate } from "@/lib/time";
@@ -35,6 +36,9 @@ export async function saveStudent(
   const startRaw = str(formData, "startDate");
   const note = str(formData, "note").slice(0, 1000);
   const active = str(formData, "active") !== "false";
+  // Jadval maydoni yo'q bo'lsa (masalan, eski ochiq sahifadan yuborilgan forma) — mavjud jadvalga tegilmaydi
+  const hasSchedule = formData.has("schedule");
+  const schedule = parseLessons(str(formData, "schedule"));
 
   const fieldErrors: Record<string, string> = {};
   if (fullName.length < 3) fieldErrors.fullName = "Ism-familiyani to‘liq kiriting";
@@ -47,10 +51,12 @@ export async function saveStudent(
   const startDate = isoToDate(startRaw);
   if (!startDate) fieldErrors.startDate = "Boshlagan sanani tanlang";
   const feeFrom = isValidMonth(feeFromRaw) ? feeFromRaw : currentMonth();
+  if ("error" in schedule) fieldErrors.schedule = schedule.error;
   if (Object.keys(fieldErrors).length) return { fieldErrors };
+  const lessons = "lessons" in schedule ? schedule.lessons : [];
 
   await connectDB();
-  const base = { fullName, phone, parentPhone, group, startDate: startDate!, note, active };
+  const base = { fullName, phone, parentPhone, group, startDate: startDate!, note, active, ...(hasSchedule ? { lessons } : {}) };
 
   let savedId: string;
   if (id) {
@@ -100,4 +106,18 @@ export async function bulkStudents(action: "activate" | "deactivate" | "delete",
     await Student.updateMany({ _id: { $in: valid } }, { $set: { active: action === "activate" } });
   }
   refresh();
+}
+
+/** Tanlangan o'quvchilarga bir xil dars jadvali qo'yish (bo'sh jadval — tozalash). */
+export async function setLessonsBulk(ids: string[], schedule: string): Promise<{ error?: string; count?: number }> {
+  await requireOwner({ fresh: true });
+  if (!Array.isArray(ids) || typeof schedule !== "string") return { error: "Noto‘g‘ri so‘rov" };
+  const valid = ids.filter(isId).slice(0, 1000);
+  if (!valid.length) return { error: "O‘quvchi tanlanmagan" };
+  const parsed = parseLessons(schedule);
+  if ("error" in parsed) return { error: parsed.error };
+  await connectDB();
+  const res = await Student.updateMany({ _id: { $in: valid } }, { $set: { lessons: parsed.lessons } }, { runValidators: true });
+  refresh();
+  return { count: res.matchedCount };
 }

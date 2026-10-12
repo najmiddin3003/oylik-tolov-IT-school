@@ -21,10 +21,21 @@ import {
 import { Payment, Salary, SmsLog, Student, SyncRun, type MismatchKind, type PaymentMethod } from "./models";
 import { normalizeText } from "./normalize";
 import { daysLeftInMonth, monthEndReminderActive } from "./reminders";
+import {
+  filterWeekday,
+  lessonOn,
+  matchesDayFilter,
+  normalizeLessons,
+  popularSchedules,
+  tashkentClock,
+  toMinutes,
+  type DayFilter,
+  type Lesson,
+} from "./schedule";
 import { getSettings, standardFee } from "./settings";
 import { sharePercent } from "./share";
 import type { Role } from "./session";
-import { compareMonths, currentMonth, isoToDate, monthOfDate, shiftMonth, todayISO } from "./time";
+import { compareMonths, currentMonth, isoToDate, monthOfDate, nowMs, shiftMonth, todayISO } from "./time";
 
 export type { PayStatus, StudentRow } from "./ledger";
 
@@ -45,6 +56,8 @@ export type StudentDetail = {
   startDate: string; // ISO
   active: boolean;
   note: string;
+  /** Dars jadvali (kunlar va vaqt) */
+  lessons: Lesson[];
 };
 
 export type PaymentRow = {
@@ -80,6 +93,8 @@ export type UnpaidStudent = {
   paid: number;
   debt: number;
   status: PayStatus;
+  /** Dars jadvali — to'lovni o'quvchi kelgan vaqtda yig'ish uchun */
+  lessons: Lesson[];
 };
 
 export type Reminder = {
@@ -187,7 +202,7 @@ function findPayments(filter: Record<string, unknown>, sort: Record<string, 1 | 
 }
 
 function toUnpaid(r: StudentRow): UnpaidStudent {
-  return { id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status };
+  return { id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status, lessons: r.lessons };
 }
 
 // ---------- Umumiy ----------
@@ -344,6 +359,8 @@ export type StudentSort = "name" | "-name" | "debt";
 export async function listStudents(opts: {
   q: string;
   group: string;
+  /** Dars kuni: bugun / hafta kuni / jadvalsiz */
+  day: DayFilter;
   status: "active" | "inactive" | "all";
   month: string;
   tab: StudentTab;
@@ -365,12 +382,20 @@ export async function listStudents(opts: {
     totalDebt: current.reduce((s, r) => s + r.debt, 0),
   };
 
+  const today = tashkentClock(nowMs()).weekday;
   const filtered = all.filter(
     (r) =>
       (opts.status === "all" || (opts.status === "active" ? r.active : !r.active)) &&
       (!opts.group || r.group === opts.group) &&
+      matchesDayFilter(r.lessons, opts.day, today) &&
       matchesQuery(r, opts.q),
   );
+  // Kun tanlansa — o'sha kungi dars vaqti bo'yicha (ism bo'yicha saralashda)
+  const weekday = filterWeekday(opts.day, today);
+  const startOf = (r: StudentRow) => {
+    const l = weekday ? lessonOn(r.lessons, weekday) : undefined;
+    return l ? toMinutes(l.start) : Number.POSITIVE_INFINITY;
+  };
   const isDebtor = (r: StudentRow) => r.active && r.started && r.status !== "paid";
   const isPaid = (r: StudentRow) => r.active && r.started && r.status === "paid";
   const counts = { all: filtered.length, debt: filtered.filter(isDebtor).length, paid: filtered.filter(isPaid).length };
@@ -378,6 +403,7 @@ export async function listStudents(opts: {
   const tabRows = opts.tab === "debt" ? filtered.filter(isDebtor) : opts.tab === "paid" ? filtered.filter(isPaid) : filtered;
   const sorted = [...tabRows].sort((a, b) => {
     if (opts.sort === "debt") return b.debt - a.debt || a.fullName.localeCompare(b.fullName);
+    if (weekday && opts.sort === "name") return startOf(a) - startOf(b) || a.fullName.localeCompare(b.fullName);
     const cmp = a.fullName.localeCompare(b.fullName);
     return opts.sort === "-name" ? -cmp : cmp;
   });
@@ -433,7 +459,16 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
     startDate: s.startDate.toISOString(),
     active: s.active ?? true,
     note: s.note ?? "",
+    lessons: normalizeLessons(s.lessons),
   };
+}
+
+/** Faol o'quvchilarda ko'p uchraydigan dars jadvallari (formada bir bosishda qo'yish uchun). */
+export async function listScheduleTemplates(): Promise<Lesson[][]> {
+  await requireOwner();
+  await connectDB();
+  const students = await loadStudents();
+  return popularSchedules(students.filter((s) => s.active ?? true).map((s) => normalizeLessons(s.lessons))).map((t) => t.lessons);
 }
 
 /** O'quvchining barcha to'lovlari va boshlagan oyidan joriy oygacha har oy holati. */

@@ -8,8 +8,9 @@ import { SyncAlert } from "@/components/ShellParts";
 import { StudentsTable } from "@/components/StudentsTable";
 import { btn, Card, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Pagination } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
-import { listGroups, listStudents, type StudentSort, type StudentTab } from "@/lib/data";
-import { currentMonth, formatNumber, isValidMonth, monthLabel } from "@/lib/time";
+import { listGroups, listScheduleTemplates, listStudents, type StudentSort, type StudentTab } from "@/lib/data";
+import { parseDayFilter, tashkentClock, WEEKDAY_NAMES } from "@/lib/schedule";
+import { currentMonth, formatNumber, isValidMonth, monthLabel, nowMs } from "@/lib/time";
 
 export const metadata: Metadata = { title: "O‘quvchilar" };
 
@@ -35,19 +36,23 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
   const month = isValidMonth(sp.month) ? sp.month : currentMonth();
   const q = str("q").slice(0, 100);
   const group = str("group");
+  const day = parseDayFilter(str("day"));
   const status = str("status") === "inactive" || str("status") === "all" ? (str("status") as "inactive" | "all") : "active";
   const tab: StudentTab = str("tab") === "debt" || str("tab") === "paid" ? (str("tab") as StudentTab) : "all";
   const sort: StudentSort = SORTS.some((s) => s.key === str("sort")) ? (str("sort") as StudentSort) : "name";
   const page = Math.max(1, Number(str("page")) || 1);
 
-  const [data, groups] = await Promise.all([
-    listStudents({ q, group, status, month, tab, sort, page, pageSize: PAGE_SIZE }),
+  const [data, groups, templates] = await Promise.all([
+    listStudents({ q, group, day, status, month, tab, sort, page, pageSize: PAGE_SIZE }),
     listGroups(),
+    listScheduleTemplates(),
   ]);
   const { rows, counts, stats } = data;
-  const filtered = Boolean(q || group || tab !== "all" || status !== "active");
+  const filtered = Boolean(q || group || day || tab !== "all" || status !== "active");
+  const serverNow = nowMs();
+  const todayName = WEEKDAY_NAMES[tashkentClock(serverNow).weekday - 1].toLowerCase();
 
-  const base = { month, ...(q ? { q } : {}), ...(group ? { group } : {}), ...(status !== "active" ? { status } : {}) };
+  const base = { month, ...(q ? { q } : {}), ...(group ? { group } : {}), ...(day ? { day } : {}), ...(status !== "active" ? { status } : {}) };
   const href = (extra: Record<string, string>) => `/students?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}), ...(sort !== "name" ? { sort } : {}), ...extra })}`;
   const tabHref = (t: StudentTab) => `/students?${new URLSearchParams({ ...base, ...(t !== "all" ? { tab: t } : {}), ...(sort !== "name" ? { sort } : {}) })}`;
   const nextSort = SORTS[(SORTS.findIndex((s) => s.key === sort) + 1) % SORTS.length];
@@ -134,6 +139,20 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
             options={[{ value: "", label: "Barcha guruhlar" }, ...groups.map((g) => ({ value: g, label: g }))]}
           />
           <Select
+            name="day"
+            defaultValue={day}
+            autoSubmit
+            searchable={false}
+            aria-label="Dars kuni"
+            wrapperClassName="w-full sm:w-52"
+            options={[
+              { value: "", label: "Barcha dars kunlari" },
+              { value: "today", label: "Bugun keladiganlar", hint: todayName },
+              ...WEEKDAY_NAMES.map((n, i) => ({ value: String(i + 1), label: n })),
+              { value: "none", label: "Dars vaqti kiritilmagan" },
+            ]}
+          />
+          <Select
             name="status"
             defaultValue={status}
             autoSubmit
@@ -175,7 +194,7 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
             </EmptyState>
           </div>
         ) : (
-          <StudentsTable rows={rows} month={month} monthTitle={monthLabel(month)} />
+          <StudentsTable rows={rows} month={month} monthTitle={monthLabel(month)} templates={templates} serverNow={serverNow} showGroup={groups.length > 1} />
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-6 py-4 text-[13px] text-ink-400">

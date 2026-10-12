@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowUpRight, CalendarDays, Download, Info, Plus, UserCheck, UserRound, Users, Wallet } from "lucide-react";
 import { PaidCell, StudentCell } from "@/components/cells";
+import { NextLessonCell } from "@/components/Lessons";
 import { ReminderBanner, SyncAlert } from "@/components/ShellParts";
 import {
   btn,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
 import { getMonthOverview, getShareSummary, listGroups } from "@/lib/data";
-import { currentMonth, formatMoney, formatNumber, isValidMonth, monthLabel } from "@/lib/time";
+import { currentMonth, formatMoney, formatNumber, isValidMonth, monthLabel, nowMs } from "@/lib/time";
 
 const PAGE_SIZE = 10;
 
@@ -54,6 +55,9 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
   const current = Math.min(page, pages);
   const pageRows = debtors.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
   const qs = (extra: Record<string, string>) => new URLSearchParams({ month, ...(group ? { group } : {}), ...extra }).toString();
+  const serverNow = nowMs();
+  // Hamma o'quvchi bitta guruhda bo'lsa — «Guruh» ustuni hech narsa bildirmaydi
+  const showGroup = groups.length > 1;
 
   return (
     <>
@@ -214,11 +218,12 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
           </div>
         ) : (
           <div className="relative overflow-x-auto border-t border-line-soft">
-            <table className="w-full min-w-[880px]">
+            <table className={cx("w-full", showGroup ? "min-w-[1080px]" : "min-w-[900px]")}>
               <thead className="bg-slate-50/70">
                 <tr>
                   <th className={th}>O‘quvchi</th>
-                  <th className={th}>Guruh</th>
+                  {showGroup ? <th className={th}>Guruh</th> : null}
+                  <th className={th}>Keyingi dars</th>
                   <th className={th}>To‘landi / oylik</th>
                   <th className={`${th} text-right`}>Qolgan to‘lov</th>
                   <th className={th}>Holat</th>
@@ -231,8 +236,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
                     <td className={td}>
                       <StudentCell id={r.id} name={r.fullName} seq={r.seq} phone={r.phone} href={`/students/${r.id}?month=${month}`} />
                     </td>
+                    {showGroup ? (
+                      <td className={td}>
+                        <GroupChip name={r.group} />
+                      </td>
+                    ) : null}
                     <td className={td}>
-                      <GroupChip name={r.group} />
+                      <NextLessonCell lessons={r.lessons} serverNow={serverNow} />
                     </td>
                     <td className={td}>
                       <PaidCell paid={r.paid} fee={r.monthlyFee} />

@@ -8,6 +8,7 @@ import {
   type StudentSort,
   type StudentTab,
 } from "@/lib/data";
+import { parseDayFilter, scheduleLabel } from "@/lib/schedule";
 import { blank, day, headerRow, int, money, text, totalRow, xlsxResponse, type XlsxSheet } from "@/lib/xlsx";
 import { currentMonth, dateToISO, isoToDate, isValidMonth, monthLabel } from "@/lib/time";
 
@@ -104,11 +105,12 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
       {
         sheet: "O‘quvchilar",
         data: [
-          headerRow(["№", "Ism Familiya", "Guruh", "Telefon", "Oylik to‘lov", "To‘landi", "Qarz", "Holat"]),
+          headerRow(["№", "Ism Familiya", "Guruh", "Dars vaqti", "Telefon", "Oylik to‘lov", "To‘landi", "Qarz", "Holat"]),
           ...rows.map((r) => [
             text(code(r.seq)),
             text(r.fullName),
             text(r.group),
+            text(scheduleLabel(r.lessons)),
             text(r.phone),
             money(r.monthlyFee),
             money(r.paid),
@@ -120,13 +122,14 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
             text(`${rows.length} ta o‘quvchi`),
             blank(),
             blank(),
+            blank(),
             money(rows.reduce((s, r) => s + r.monthlyFee, 0)),
             money(rows.reduce((s, r) => s + r.paid, 0)),
             money(rows.reduce((s, r) => s + r.debt, 0)),
             blank(),
           ]),
         ],
-        columns: [{ width: 7 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 13 }],
+        columns: [{ width: 7 }, { width: 30 }, { width: 18 }, { width: 28 }, { width: 18 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 13 }],
         stickyRowsCount: 1,
       },
     ];
@@ -139,6 +142,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
     const { rows } = await listStudents({
       q: p("q"),
       group: p("group"),
+      day: parseDayFilter(p("day")),
       status,
       month,
       tab,
@@ -150,19 +154,20 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
       {
         sheet: "O‘quvchilar",
         data: [
-          headerRow(["№", "Ism Familiya", "Telefon", "Guruh", "Oylik to‘lov", `${monthLabel(month)}: to‘landi`, "Qarz", "Holat"]),
+          headerRow(["№", "Ism Familiya", "Telefon", "Guruh", "Dars vaqti", "Oylik to‘lov", `${monthLabel(month)}: to‘landi`, "Qarz", "Holat"]),
           ...rows.map((r) => [
             text(code(r.seq)),
             text(r.fullName),
             text(r.phone),
             text(r.group),
+            text(scheduleLabel(r.lessons)),
             money(r.monthlyFee),
             money(r.paid),
             money(r.active && r.started ? r.debt : 0),
             text(!r.active ? "Nofaol" : !r.started ? "Hali boshlamagan" : STATUS[r.status]),
           ]),
         ],
-        columns: [{ width: 7 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 14 }, { width: 20 }, { width: 14 }, { width: 17 }],
+        columns: [{ width: 7 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 28 }, { width: 14 }, { width: 20 }, { width: 14 }, { width: 17 }],
         stickyRowsCount: 1,
       },
     ];

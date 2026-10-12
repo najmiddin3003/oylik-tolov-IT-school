@@ -7,8 +7,10 @@ import { saveStudent } from "@/app/actions/students";
 import type { FormState } from "@/app/actions/types";
 import type { StudentDetail } from "@/lib/data";
 import { feeFor, type FeeChange } from "@/lib/fees";
+import type { Lesson } from "@/lib/schedule";
 import { dateToISO, formatNumber } from "@/lib/time";
 import { DatePicker, MonthPicker, Select, SuggestInput } from "./pickers";
+import { ScheduleField } from "./ScheduleField";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
 
@@ -16,14 +18,14 @@ function FieldError({ msg }: { msg?: string }) {
   return msg ? <p className="mt-1.5 text-xs text-rose-600">{msg}</p> : null;
 }
 
-function Section({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+function Section({ title, hint, children, wide = false }: { title: string; hint: string; children: ReactNode; wide?: boolean }) {
   return (
     <div className="grid gap-5 border-b border-line-soft px-6 py-6 last:border-b-0 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-10">
       <div>
         <h2 className="text-[15px] font-semibold text-ink-900">{title}</h2>
         <p className="mt-1 text-sm leading-relaxed text-ink-500">{hint}</p>
       </div>
-      <div className="grid gap-5 sm:grid-cols-2">{children}</div>
+      <div className={cx("grid gap-5", !wide && "sm:grid-cols-2")}>{children}</div>
     </div>
   );
 }
@@ -34,9 +36,12 @@ export function StudentForm({
   today,
   month,
   standard,
+  templates = [],
 }: {
   student?: StudentDetail;
   groups: string[];
+  /** Boshqa o'quvchilarda ko'p uchraydigan dars jadvallari */
+  templates?: Lesson[][];
   today: string;
   /** Joriy oy — narx o'zgarsa, standart holatda shu oydan boshlab qo'llanadi */
   month: string;
@@ -163,6 +168,14 @@ export function StudentForm({
           </label>
           <textarea id="note" name="note" rows={3} defaultValue={student?.note} className={cx(inputCls, "h-auto py-2.5")} placeholder="Chegirma, kelishuv va h.k." />
         </div>
+      </Section>
+
+      <Section
+        title="Dars jadvali"
+        hint="Qaysi kunlari, soat nechida darsga keladi. To‘lovlar sahifasida «Bugun darsga keladi» ro‘yxatida ko‘rinadi — to‘lovni shu vaqtda yig‘ish qulay."
+        wide
+      >
+        <ScheduleField name="schedule" defaultValue={student?.lessons ?? []} templates={templates} error={fe.schedule} />
       </Section>
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line px-6 py-5">

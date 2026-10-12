@@ -58,6 +58,11 @@ export function monthLabel(month: string): string {
   return `${MONTH_NAMES[m - 1]} ${y}`;
 }
 
+/** Hozirgi vaqt (ms). Sahifada "hozir"ni bir marta olib, brauzerdagi soatga boshlang'ich qiymat qilib berish uchun. */
+export function nowMs(): number {
+  return Date.now();
+}
+
 /** "YYYY-MM-DD" (Toshkent vaqti bo'yicha bugun). */
 export function todayISO(): string {
   return tashkentWall().toISOString().slice(0, 10);

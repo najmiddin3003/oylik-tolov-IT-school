@@ -1,11 +1,12 @@
 "use client";
 
-// Qo'lda yasalgan tanlagichlar: Select (ro'yxat), DatePicker (sana), MonthPicker (oy).
+// Qo'lda yasalgan tanlagichlar: Select (ro'yxat), DatePicker (sana), MonthPicker (oy), TimePicker (soat).
 // Brauzerning standart <select>, <input type="date|month"> lari o'rniga — hamma qurilmada bir xil ko'rinadi.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Search, X } from "lucide-react";
 import { normalizeText } from "@/lib/normalize";
+import { isTime, toMinutes } from "@/lib/schedule";
 import { MONTH_NAMES, todayISO } from "@/lib/time";
 import { cx } from "./ui";
 
@@ -821,6 +822,225 @@ export function MonthPicker({
               className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-brand-600 transition hover:bg-brand-50 disabled:opacity-40"
             >
               Joriy oy
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------- TimePicker ----------
+
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 06 … 23
+const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // 00, 05 … 55
+const TIME_PANEL = { width: 288, height: 336 };
+
+/** Tugmalar to'ri ichida strelkalar bilan yurish (fokus faqat yoqilgan tugmalarga). */
+function gridArrows(e: KeyboardEvent<HTMLDivElement>, cols: number) {
+  const step: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols };
+  if (!(e.key in step)) return;
+  const buttons = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+  const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  if (i < 0) return;
+  e.preventDefault();
+  for (let j = i + step[e.key]; j >= 0 && j < buttons.length; j += step[e.key]) {
+    if (!buttons[j].disabled) {
+      buttons[j].focus();
+      return;
+    }
+  }
+}
+
+type FixedPos = { left: number; top?: number; bottom?: number };
+
+/**
+ * Soat tanlagich: avval soat, keyin daqiqa (5 daqiqa qadam). `after` berilsa — undan oldingi
+ * (va teng) vaqtlarni tanlab bo'lmaydi (masalan, dars tugashi boshlanishidan keyin).
+ * Oyna ekranga nisbatan joylashadi (position: fixed) — aylantiriladigan modal oyna ichida ham kesilmaydi;
+ * sahifa aylantirilsa yopiladi.
+ */
+export function TimePicker({
+  value,
+  onChange,
+  placeholder = "--:--",
+  after,
+  invalid,
+  id,
+  className,
+  wrapperClassName,
+  compact = false,
+  "aria-label": ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  after?: string;
+  /** Tor joyda (telefonda) soat belgisi yashiriladi — vaqt to'liq ko'rinsin */
+  compact?: boolean;
+  invalid?: boolean;
+  id?: string;
+  className?: string;
+  wrapperClassName?: string;
+  "aria-label"?: string;
+}) {
+  const [pos, setPos] = useState<FixedPos | null>(null);
+  const open = pos !== null;
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const hour = isTime(value) ? Number(value.slice(0, 2)) : null;
+  const minute = isTime(value) ? Number(value.slice(3, 5)) : null;
+  const floor = after && isTime(after) ? toMinutes(after) : -1;
+  const allowed = (h: number, m: number) => h * 60 + m > floor;
+
+  const openPanel = () => {
+    const r = triggerRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    const width = Math.min(TIME_PANEL.width, vw - 16);
+    const left = Math.round(Math.min(Math.max(8, r.left), vw - 8 - width));
+    const up = vh - r.bottom < TIME_PANEL.height + 16 && r.top > TIME_PANEL.height + 16;
+    setPos(up ? { left, bottom: Math.round(vh - r.top + 8) } : { left, top: Math.round(r.bottom + 8) });
+  };
+  const close = useCallback((focusTrigger = true) => {
+    setPos(null);
+    if (focusTrigger) triggerRef.current?.focus();
+  }, []);
+
+  // Tashqariga bosilsa, sahifa (yoki oyna) aylantirilsa yoki o'lchami o'zgarsa — yopiladi
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) close(false);
+    };
+    const onScroll = (e: Event) => {
+      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
+      close(false);
+    };
+    const onResize = () => close(false);
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open, close]);
+
+  useEffect(() => {
+    if (!open) return;
+    const p = panelRef.current;
+    // preventScroll: fokus sahifani surmasin (surilsa — oyna yopilib qoladi)
+    (p?.querySelector<HTMLButtonElement>('[data-hour][aria-pressed="true"]') ?? p?.querySelector<HTMLButtonElement>("[data-hour]:not(:disabled)"))?.focus({ preventScroll: true });
+  }, [open]);
+
+  const pickHour = (h: number) => {
+    // Daqiqa avval tanlangan bo'lsa — saqlanadi; bu soatda ruxsat etilmasa — birinchi ruxsat etilgani
+    const m = minute !== null && allowed(h, minute) ? minute : (MINUTES.find((x) => allowed(h, x)) ?? 0);
+    onChange(`${pad(h)}:${pad(m)}`);
+  };
+  const pickMinute = (m: number) => {
+    const h = hour ?? HOURS.find((x) => allowed(x, m)) ?? 9;
+    onChange(`${pad(h)}:${pad(m)}`);
+    close();
+  };
+
+  const cell = (selected: boolean, disabled: boolean) =>
+    cx(
+      "num inline-flex h-10 items-center justify-center rounded-xl text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
+      selected ? "bg-brand-600 font-semibold text-white shadow-brand" : disabled ? "cursor-not-allowed text-ink-300/60" : "text-ink-700 hover:bg-brand-50 hover:text-brand-700",
+    );
+
+  return (
+    <div
+      ref={rootRef}
+      className={cx("relative", wrapperClassName)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.preventDefault();
+          e.stopPropagation();
+          close();
+        }
+      }}
+    >
+      <button
+        ref={triggerRef}
+        id={id}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={ariaLabel ? `${ariaLabel}${isTime(value) ? `: ${value}` : ""}` : undefined}
+        onClick={() => (open ? close(false) : openPanel())}
+        onKeyDown={(e) => {
+          if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            openPanel();
+          }
+        }}
+        className={triggerCls({ open, invalid, className })}
+      >
+        <Clock3 className={cx("size-[18px] shrink-0 text-ink-400", compact && "hidden sm:block")} strokeWidth={1.8} aria-hidden />
+        <span className={cx("num min-w-0 flex-1 truncate", isTime(value) ? "font-medium text-ink-900" : "text-ink-400")}>{isTime(value) ? value : placeholder}</span>
+        <ChevronDown className={cx("size-4 shrink-0 text-ink-400 transition-transform duration-200", open && "rotate-180")} aria-hidden />
+      </button>
+
+      {pos ? (
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-label="Vaqt tanlash"
+          className={cx(
+            "pop-in fixed z-50 w-[288px] max-w-[calc(100vw-1rem)] rounded-2xl border border-line bg-white p-3 shadow-pop",
+            pos.bottom !== undefined ? "origin-bottom" : "origin-top",
+          )}
+          style={pos}
+        >
+          <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Soat</p>
+          <div className="grid grid-cols-6 gap-1" onKeyDown={(e) => gridArrows(e, 6)}>
+            {HOURS.map((h) => {
+              const disabled = !MINUTES.some((m) => allowed(h, m));
+              return (
+                <button
+                  key={h}
+                  type="button"
+                  data-hour={h}
+                  disabled={disabled}
+                  aria-pressed={h === hour}
+                  aria-label={`Soat ${pad(h)}`}
+                  onClick={() => pickHour(h)}
+                  className={cell(h === hour, disabled)}
+                >
+                  {pad(h)}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mb-1.5 mt-3 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Daqiqa</p>
+          <div className="grid grid-cols-6 gap-1" onKeyDown={(e) => gridArrows(e, 6)}>
+            {MINUTES.map((m) => {
+              const disabled = hour !== null && !allowed(hour, m);
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={disabled}
+                  aria-pressed={m === minute}
+                  aria-label={`${pad(m)} daqiqa`}
+                  onClick={() => pickMinute(m)}
+                  className={cell(m === minute, disabled)}
+                >
+                  {pad(m)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft px-1 pt-2.5">
+            <span className="num text-[15px] font-semibold text-ink-900">{isTime(value) ? value : "--:--"}</span>
+            <button type="button" onClick={() => close()} className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-brand-600 transition hover:bg-brand-50">
+              Tayyor
             </button>
           </div>
         </div>

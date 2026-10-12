@@ -3,12 +3,15 @@
 // Oy oxiri eslatmalari: to'lamaganlar ro'yxati oynasi va yuqoridagi qo'ng'iroqcha.
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, BellRing, FileSpreadsheet, Phone, Plus, X } from "lucide-react";
+import { Bell, BellRing, CalendarClock, FileSpreadsheet, Phone, Plus, X } from "lucide-react";
 import type { Reminder, UnpaidStudent } from "@/lib/data";
 import { reminderTitle } from "@/lib/reminders";
+import { minutesUntil, nextLesson, nextLessonLabel, scheduleLabel, tashkentClock } from "@/lib/schedule";
 import type { Role } from "@/lib/session";
 import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
+import { LiveDot } from "./Lessons";
 import { Avatar, btn, cx, IconTile } from "./ui";
+import { useNow } from "./useNow";
 
 /** To'lov qilmagan o'quvchilar ro'yxati (modal oyna). */
 export function UnpaidDialog({
@@ -61,43 +64,7 @@ export function UnpaidDialog({
             </button>
           </div>
 
-          <ul className="min-h-0 flex-1 divide-y divide-line-soft overflow-y-auto overscroll-contain">
-            {students.map((s, i) => (
-              <li key={s.id} className="flex items-center gap-3 px-5 py-3 sm:px-6">
-                <span className="num w-5 shrink-0 text-right text-xs text-ink-300">{i + 1}</span>
-                <Avatar name={s.name} />
-                <div className="min-w-0 flex-1">
-                  {role === "owner" ? (
-                    <Link href={`/students/${s.id}?month=${month}`} onClick={onClose} className="block truncate text-[15px] font-medium text-ink-900 hover:text-brand-600">
-                      {s.name}
-                    </Link>
-                  ) : (
-                    <span className="block truncate text-[15px] font-medium text-ink-900">{s.name}</span>
-                  )}
-                  <p className="num mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-ink-400">
-                    {s.phone ? (
-                      <a href={`tel:${s.phone.replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1 hover:text-brand-600">
-                        <Phone className="size-3" aria-hidden />
-                        {s.phone}
-                      </a>
-                    ) : null}
-                    {s.status === "partial" ? <span className="text-brand-600">to‘ladi {formatNumber(s.paid)}</span> : null}
-                  </p>
-                </div>
-                <span className="num shrink-0 text-right text-[15px] font-semibold text-ink-900">{formatNumber(s.debt)}</span>
-                <Link
-                  href={`/payments?${new URLSearchParams({ month, student: s.id })}#yangi-tolov`}
-                  onClick={onClose}
-                  className={cx(btn.sm, "shrink-0 px-2.5")}
-                  aria-label={`${s.name}: to‘lov kiritish`}
-                  title="To‘lov kiritish"
-                >
-                  <Plus className="size-4" aria-hidden />
-                  <span className="hidden sm:inline">To‘lov</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <UnpaidList students={students} month={month} role={role} onClose={onClose} />
 
           <div className="flex items-center justify-between gap-3 border-t border-line-soft bg-slate-50/60 px-5 py-3 sm:px-6">
             <p className="text-xs text-ink-400">Qarz miqdori — shu oy uchun qolgan summa (so‘m).</p>
@@ -108,6 +75,70 @@ export function UnpaidDialog({
         </div>
       ) : null}
     </dialog>
+  );
+}
+
+/**
+ * Ro'yxat qatorlari. Dars jadvali kiritilganlar — keyingi darsi yaqinligi bo'yicha (hozir darsdagilar birinchi):
+ * to'lovni o'quvchi kelgan vaqtda yig'ish uchun. Jadvalsizlar — oxirida, avvalgi tartibda.
+ */
+function UnpaidList({ students, month, role, onClose }: { students: UnpaidStudent[]; month: string; role: Role; onClose: () => void }) {
+  const now = useNow();
+  const clock = tashkentClock(now);
+  const rows = students
+    .map((s, i) => {
+      const next = nextLesson(s.lessons, clock);
+      return { s, i, next, wait: minutesUntil(next, clock) };
+    })
+    .sort((a, b) => a.wait - b.wait || a.i - b.i);
+
+  return (
+    <ul className="min-h-0 flex-1 divide-y divide-line-soft overflow-y-auto overscroll-contain">
+      {rows.map(({ s, next }, i) => (
+        <li key={s.id} className="flex items-center gap-3 px-5 py-3 sm:px-6">
+          <span className="num w-5 shrink-0 text-right text-xs text-ink-300">{i + 1}</span>
+          <Avatar name={s.name} />
+          <div className="min-w-0 flex-1">
+            {role === "owner" ? (
+              <Link href={`/students/${s.id}?month=${month}`} onClick={onClose} className="block truncate text-[15px] font-medium text-ink-900 hover:text-brand-600">
+                {s.name}
+              </Link>
+            ) : (
+              <span className="block truncate text-[15px] font-medium text-ink-900">{s.name}</span>
+            )}
+            <p className="num mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[13px] text-ink-400">
+              {next ? (
+                <span
+                  className={cx("inline-flex items-center gap-1 font-medium", next.now ? "text-emerald-700" : next.inDays === 0 ? "text-brand-700" : "text-ink-600")}
+                  title={scheduleLabel(s.lessons)}
+                >
+                  {next.now ? <LiveDot /> : <CalendarClock className="size-3" aria-hidden />}
+                  {nextLessonLabel(next)}
+                </span>
+              ) : null}
+              {s.phone ? (
+                <a href={`tel:${s.phone.replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1 hover:text-brand-600">
+                  <Phone className="size-3" aria-hidden />
+                  {s.phone}
+                </a>
+              ) : null}
+              {s.status === "partial" ? <span className="text-brand-600">to‘ladi {formatNumber(s.paid)}</span> : null}
+            </p>
+          </div>
+          <span className="num shrink-0 text-right text-[15px] font-semibold text-ink-900">{formatNumber(s.debt)}</span>
+          <Link
+            href={`/payments?${new URLSearchParams({ month, student: s.id })}#yangi-tolov`}
+            onClick={onClose}
+            className={cx(btn.sm, "shrink-0 px-2.5")}
+            aria-label={`${s.name}: to‘lov kiritish`}
+            title="To‘lov kiritish"
+          >
+            <Plus className="size-4" aria-hidden />
+            <span className="hidden sm:inline">To‘lov</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

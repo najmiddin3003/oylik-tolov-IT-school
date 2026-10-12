@@ -15,6 +15,11 @@ const studentSchema = new Schema(
     seq: { type: Number, default: null },
     /** Narx tarixi: "from" oyidan boshlab narx = fee (o'tgan oylar hisobi o'zgarmaydi) */
     feeHistory: { type: [{ from: String, fee: Number, _id: false }], default: [] },
+    /** Dars jadvali: hafta kuni (1 = dushanba … 7 = yakshanba) va vaqt "HH:MM" (Toshkent). Har kunda bittadan. */
+    lessons: {
+      type: [{ day: { type: Number, min: 1, max: 7 }, start: String, end: String, _id: false }],
+      default: [],
+    },
   },
   { timestamps: true },
 );

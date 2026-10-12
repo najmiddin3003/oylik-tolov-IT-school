@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { archivePayment, purgePayment, restorePayment } from "@/app/actions/payments";
 import { FilterForm, SearchInput } from "@/components/FilterForm";
+import { TodayLessons } from "@/components/Lessons";
 import { UnpaidButton } from "@/components/Notifications";
 import { PaymentForm } from "@/components/PaymentForm";
 import { DatePicker, Select } from "@/components/pickers";
@@ -43,7 +44,7 @@ import {
 import type { PaymentMethod } from "@/lib/models";
 import { dayLabel } from "@/lib/reminders";
 import type { Role } from "@/lib/session";
-import { currentMonth, dateToISO, formatDate, formatDateTime, formatMoney, formatNumber, isoToDate, isValidMonth, MONTH_NAMES, monthLabel, todayISO } from "@/lib/time";
+import { currentMonth, dateToISO, formatDate, formatDateTime, formatMoney, formatNumber, isoToDate, isValidMonth, MONTH_NAMES, monthLabel, nowMs, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "To‘lovlar" };
 
@@ -85,6 +86,11 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
   ]);
   const { totals, debtors } = overview;
   const preselect = students.some((s) => s.id === str("student")) ? str("student") : undefined;
+  // «Bugun darsga keladi»: jadvali bor o'quvchilar (tanlangan oy bo'yicha holati bilan)
+  const scheduled = overview.rows
+    .filter((r) => r.lessons.length)
+    .map((r) => ({ id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status, lessons: r.lessons }));
+  const unscheduled = debtors.filter((r) => !r.lessons.length).length;
   const planDone = totals.expected - totals.debt;
   const exportQs = new URLSearchParams({ month, ...(q ? { q } : {}), ...(method ? { method } : {}), ...(day ? { day } : {}) });
 
@@ -165,6 +171,8 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
           </div>
         </MoneyCard>
       </div>
+
+      <TodayLessons students={scheduled} month={month} serverNow={nowMs()} role={role} unscheduled={unscheduled} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
         <Card className="min-w-0 self-start">

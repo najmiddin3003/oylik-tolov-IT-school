@@ -39,7 +39,16 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   tushum ulushi foizi (oydan boshlab), **oylik va avanslar** (oy ulushidan ayiriladi: 40% − olingan = qoldi), parollar, SMS, markaz nomi.
 - **SMS eslatma (Eskiz)** — har oyning 25-sanasidan boshlab, har kuni kechqurun (20:00) belgilangan raqamga to‘lamaganlar soni;
   hamma to‘laguncha davom etadi, kuniga bitta SMS.
-- **Excel (.xlsx) eksport** — oylik hisobot, o‘quvchilar va to‘lovlar (+ «Xulosa» varag‘i).
+- **Dars jadvali** — har o‘quvchining dars kunlari va vaqti: «Toq kunlar» (Du·Ch·Ju), «Juft kunlar» (Se·Pa·Sh), «Har kuni»
+  yoki o‘zingiz tanlagan kunlar; boshlanish — tugash vaqti (tugashi avtomatik +2 soat, o‘zgartirsa bo‘ladi), kerak bo‘lsa
+  har kunga alohida vaqt. O‘quvchi formasida yoki «O‘quvchilar» ro‘yxatida bir nechtasini belgilab «Dars vaqti» tugmasi bilan
+  hammasiga birdan qo‘yiladi; boshqa o‘quvchilardagi jadvallar bir bosishda tanlanadi.
+  - **To‘lovlar** sahifasidagi **«Bugun darsga keladi»** bloki: bugun keladigan to‘lamaganlar dars vaqti bo‘yicha guruhlab —
+    «Hozir darsda», «40 daqiqadan keyin», «Dars tugadi» (sahifa ochiq tursa ham o‘zi yangilanadi), qarzi va «To‘lov» tugmasi bilan.
+    To‘lovni o‘quvchi kelgan vaqtda kirib yig‘ish uchun; administrator ham ko‘radi.
+  - Ro‘yxatlarda «keyingi dars» (bugun, 14:00 / ertaga / chorshanba…), to‘lamaganlar oynasi keyingi darsi yaqinligi bo‘yicha
+    saralanadi; «O‘quvchilar»da **Dars kuni** filtri (bugun keladiganlar, hafta kuni, jadvali kiritilmaganlar).
+- **Excel (.xlsx) eksport** — oylik hisobot, o‘quvchilar (dars vaqti bilan) va to‘lovlar (+ «Xulosa» varag‘i).
 - **Yon menyu** — chetidan surib kengligini o‘zgartirish, ixcham (faqat ikonkalar) rejim yoki to‘liq yopish (`Ctrl+B`); holat eslab qolinadi.
 
 ## Ishga tushirish
@@ -125,11 +134,14 @@ app/(app)/            sahifalar: bosh sahifa, students, payments, settings, sync
 app/actions/          server action'lar (login, o'quvchi, to'lov, sozlamalar, Sheets, qidiruv)
 app/api/cron/         kunlik tekshiruv va SMS endpoint'lari (CRON_SECRET bilan)
 app/api/export/       Excel eksport
-components/pickers.tsx  Select, DatePicker, MonthPicker (o'z dizayni)
+components/pickers.tsx  Select, DatePicker, MonthPicker, TimePicker (o'z dizayni)
+components/Lessons.tsx  «Bugun darsga keladi» va «keyingi dars» (jonli, useNow soati bilan)
+components/ScheduleField.tsx  dars jadvalini kiritish (forma va ommaviy oyna)
 lib/auth.ts, session.ts  rollar (rahbar / administrator), sessiya va parol barmoq izi
 lib/ledger.ts         to'lov holati hisoblari (arxivlanganlar hisobga olinmaydi)
 lib/fees.ts           oylik narx va ulush foizi tarixi ("falon oydan boshlab")
 lib/reminders.ts      oy oxiri eslatmasi va SMS oynasi
+lib/schedule.ts       dars jadvali: tekshirish, nomlar, keyingi dars, Toshkent vaqti (sof funksiyalar, testlangan)
 lib/sms.ts, eskiz.ts  kunlik SMS va Eskiz API
 lib/compare.ts        Sheets qatorlarini o'qish va solishtirish (sof funksiyalar, testlangan)
 lib/allocate.ts       to'lovni oylarga taqsimlash

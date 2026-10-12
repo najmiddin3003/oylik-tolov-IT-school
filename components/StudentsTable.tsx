@@ -2,17 +2,37 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { Eye, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
-import { bulkStudents, deleteStudent } from "@/app/actions/students";
+import { CalendarClock, Eye, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
+import { bulkStudents, deleteStudent, setLessonsBulk } from "@/app/actions/students";
 import type { StudentRow } from "@/lib/data";
+import { lessonsKey, type Lesson } from "@/lib/schedule";
 import { formatMoney } from "@/lib/time";
 import { StudentCell } from "./cells";
+import { NextLessonCell } from "./Lessons";
+import { ScheduleDialog } from "./ScheduleField";
 import { ConfirmAction } from "./SubmitButton";
 import { btn, cx, GroupChip, StatusBadge, Tag, td, th } from "./ui";
 
-export function StudentsTable({ rows, month, monthTitle }: { rows: StudentRow[]; month: string; monthTitle: string }) {
+export function StudentsTable({
+  rows,
+  month,
+  monthTitle,
+  templates,
+  serverNow,
+  showGroup,
+}: {
+  rows: StudentRow[];
+  month: string;
+  monthTitle: string;
+  /** Ko'p uchraydigan dars jadvallari (bir bosishda qo'yish uchun) */
+  templates: Lesson[][];
+  serverNow: number;
+  /** Bitta guruh bo'lsa — «Guruh» ustuni ko'rsatilmaydi */
+  showGroup: boolean;
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
   const visibleSelected = ids.filter((id) => selected.has(id));
   const allChecked = ids.length > 0 && visibleSelected.length === ids.length;
@@ -36,11 +56,19 @@ export function StudentsTable({ rows, month, monthTitle }: { rows: StudentRow[];
 
   const checkbox = "size-[18px] cursor-pointer rounded-[5px] border-line accent-brand-600";
 
+  // Tanlanganlarning hammasida bir xil jadval bo'lsa — oynada o'sha ko'rsatiladi
+  const chosen = rows.filter((r) => selected.has(r.id));
+  const commonLessons = chosen.length && chosen.every((r) => lessonsKey(r.lessons) === lessonsKey(chosen[0].lessons)) ? chosen[0].lessons : [];
+
   return (
     <>
       {visibleSelected.length ? (
         <div className="flex flex-wrap items-center gap-2 border-t border-brand-100 bg-brand-50/60 px-6 py-3 text-sm">
           <span className="mr-2 font-semibold text-brand-800">{visibleSelected.length} ta tanlandi</span>
+          <button type="button" disabled={pending} onClick={() => setScheduleOpen(true)} className={btn.sm}>
+            <CalendarClock className="size-4" aria-hidden />
+            Dars vaqti
+          </button>
           <button type="button" disabled={pending} onClick={() => run("deactivate")} className={btn.sm}>
             <UserX className="size-4" aria-hidden />
             Nofaol qilish
@@ -59,8 +87,22 @@ export function StudentsTable({ rows, month, monthTitle }: { rows: StudentRow[];
         </div>
       ) : null}
 
+      <ScheduleDialog
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        count={visibleSelected.length}
+        initial={commonLessons}
+        templates={templates}
+        onSave={async (lessons) => {
+          const res = await setLessonsBulk(visibleSelected, JSON.stringify(lessons));
+          if (res.error) return res.error;
+          setSelected(new Set());
+          return null;
+        }}
+      />
+
       <div className="relative overflow-x-auto border-t border-line-soft">
-        <table className="w-full min-w-[920px]">
+        <table className={cx("w-full", showGroup ? "min-w-[1120px]" : "min-w-[940px]")}>
           <thead className="bg-slate-50/70">
             <tr>
               <th className={cx(th, "w-12 pr-0")}>
@@ -73,11 +115,12 @@ export function StudentsTable({ rows, month, monthTitle }: { rows: StudentRow[];
                 />
               </th>
               <th className={cx(th, "pl-3")}>O‘quvchi</th>
-              <th className={th}>Guruh</th>
+              {showGroup ? <th className={th}>Guruh</th> : null}
+              <th className={th}>Dars vaqti</th>
               <th className={cx(th, "text-right")}>Oylik to‘lov</th>
               <th className={cx(th, "text-right")}>Qolgan to‘lov</th>
               <th className={th}>{monthTitle}</th>
-              <th className={cx(th, "text-right")}>Amallar</th>
+              <th className={cx(th, "pl-2 text-right")}>Amallar</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
@@ -91,8 +134,13 @@ export function StudentsTable({ rows, month, monthTitle }: { rows: StudentRow[];
                   <td className={cx(td, "pl-3")}>
                     <StudentCell id={r.id} name={r.fullName} seq={r.seq} phone={r.phone} href={`/students/${r.id}?month=${month}`} muted={!r.active} />
                   </td>
+                  {showGroup ? (
+                    <td className={td}>
+                      <GroupChip name={r.group} />
+                    </td>
+                  ) : null}
                   <td className={td}>
-                    <GroupChip name={r.group} />
+                    <NextLessonCell lessons={r.lessons} serverNow={serverNow} muted={!r.active} />
                   </td>
                   <td className={cx(td, "num whitespace-nowrap text-right text-[15px] font-medium text-ink-900")}>{formatMoney(r.monthlyFee)}</td>
                   <td className={cx(td, "num whitespace-nowrap text-right text-[15px] font-medium", r.active && r.started && r.debt ? "text-ink-900" : "text-ink-300")}>
@@ -101,7 +149,7 @@ export function StudentsTable({ rows, month, monthTitle }: { rows: StudentRow[];
                   <td className={td}>
                     {!r.active ? <Tag>Nofaol</Tag> : !r.started ? <Tag tone="brand">Hali boshlamagan</Tag> : <StatusBadge status={r.status} />}
                   </td>
-                  <td className={cx(td, "text-right")}>
+                  <td className={cx(td, "pl-2 text-right")}>
                     <div className="flex items-center justify-end gap-0.5">
                       <Link href={`/students/${r.id}?month=${month}`} className={btn.icon} aria-label="Ko‘rish" title="Ko‘rish">
                         <Eye className="size-[18px]" strokeWidth={1.8} aria-hidden />

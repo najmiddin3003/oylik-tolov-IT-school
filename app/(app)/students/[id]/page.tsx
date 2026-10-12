@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { Banknote, CalendarDays, CreditCard, HandCoins, Hourglass, Landmark, Pencil, Plus, Trash2, Wallet, type LucideIcon } from "lucide-react";
+import { Banknote, CalendarClock, CalendarDays, CreditCard, HandCoins, Hourglass, Landmark, Pencil, Plus, Trash2, Wallet, type LucideIcon } from "lucide-react";
 import { archivePayment } from "@/app/actions/payments";
 import { deleteStudent } from "@/app/actions/students";
 import { PaidCell } from "@/components/cells";
+import { NextLessonCell } from "@/components/Lessons";
 import { PaymentForm } from "@/components/PaymentForm";
 import { ConfirmAction } from "@/components/SubmitButton";
 import {
@@ -29,7 +30,8 @@ import {
 import { ownerGuard } from "@/lib/auth";
 import { getStudent, getStudentPayments } from "@/lib/data";
 import type { PaymentMethod } from "@/lib/models";
-import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, todayISO } from "@/lib/time";
+import { scheduleLabel } from "@/lib/schedule";
+import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, nowMs, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "O‘quvchi profili" };
 
@@ -88,6 +90,12 @@ async function StudentView({
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-ink-500">
               {code ? <span className="num font-medium text-ink-400">{code}</span> : null}
               <GroupChip name={student.group} />
+              {student.lessons.length ? (
+                <span className="num inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50/70 px-2.5 text-[13px] font-medium text-sky-800">
+                  <CalendarClock className="size-3.5 shrink-0 text-sky-500" aria-hidden />
+                  <span className="truncate">{scheduleLabel(student.lessons)}</span>
+                </span>
+              ) : null}
               {student.active ? <Tag tone="emerald">Faol</Tag> : <Tag>Nofaol</Tag>}
             </div>
           </div>
@@ -252,6 +260,18 @@ async function StudentView({
               <Info label="Telefon" value={student.phone ? <Phone value={student.phone} /> : "—"} />
               <Info label="Ota-ona telefoni" value={student.parentPhone ? <Phone value={student.parentPhone} /> : "—"} />
               <Info label="Guruh" value={student.group || "—"} />
+              <Info
+                label="Dars vaqti"
+                value={
+                  student.lessons.length ? (
+                    <NextLessonCell lessons={student.lessons} serverNow={nowMs()} muted={!student.active} />
+                  ) : (
+                    <Link href={`/students/${student.id}/edit`} className="font-medium text-brand-600 hover:underline">
+                      Kiritish
+                    </Link>
+                  )
+                }
+              />
               <Info label="Boshlagan sana" value={formatDate(student.startDate)} />
               <Info
                 label="Oylik narx"
