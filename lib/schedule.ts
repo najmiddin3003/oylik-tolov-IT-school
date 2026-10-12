@@ -19,7 +19,7 @@ export const DAY_PRESETS = [
 export const DEFAULT_LESSON_MINUTES = 120;
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const LAST_MINUTE = 23 * 60 + 55;
+const LAST_MINUTE = 23 * 60 + 59;
 
 export function isTime(v: unknown): v is string {
   return typeof v === "string" && TIME_RE.test(v);

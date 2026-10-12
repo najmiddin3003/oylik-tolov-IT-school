@@ -175,7 +175,7 @@ export function StudentForm({
         hint="Qaysi kunlari, soat nechida darsga keladi. To‘lovlar sahifasida «Bugun darsga keladi» ro‘yxatida ko‘rinadi — to‘lovni shu vaqtda yig‘ish qulay."
         wide
       >
-        <ScheduleField name="schedule" defaultValue={student?.lessons ?? []} templates={templates} error={fe.schedule} />
+        <ScheduleField name="schedule" defaultValue={student?.lessons ?? []} templates={templates} error={fe.schedule} errorStamp={state.fieldErrors} />
       </Section>
 
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line px-6 py-5">

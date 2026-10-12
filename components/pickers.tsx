@@ -2,7 +2,7 @@
 
 // Qo'lda yasalgan tanlagichlar: Select (ro'yxat), DatePicker (sana), MonthPicker (oy), TimePicker (soat).
 // Brauzerning standart <select>, <input type="date|month"> lari o'rniga — hamma qurilmada bir xil ko'rinadi.
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Search, X } from "lucide-react";
 import { normalizeText } from "@/lib/normalize";
@@ -855,10 +855,10 @@ function gridArrows(e: KeyboardEvent<HTMLDivElement>, cols: number) {
 type FixedPos = { left: number; top?: number; bottom?: number };
 
 /**
- * Soat tanlagich: avval soat, keyin daqiqa (5 daqiqa qadam). `after` berilsa — undan oldingi
- * (va teng) vaqtlarni tanlab bo'lmaydi (masalan, dars tugashi boshlanishidan keyin).
- * Oyna ekranga nisbatan joylashadi (position: fixed) — aylantiriladigan modal oyna ichida ham kesilmaydi;
- * sahifa aylantirilsa yopiladi.
+ * Soat tanlagich: avval soat, keyin daqiqa (5 daqiqa qadam). Qiymat bir marta o'zgaradi — daqiqa
+ * tanlanganda (yoki faqat soat tanlanib, oyna «Tayyor»/tashqariga bosib yopilganda). `after` berilsa —
+ * undan oldingi (va teng) vaqtlarni tanlab bo'lmaydi (masalan, dars tugashi boshlanishidan keyin).
+ * Oyna ekranga nisbatan joylashadi (position: fixed) — aylantiriladigan modal oyna ichida ham kesilmaydi.
  */
 export function TimePicker({
   value,
@@ -876,23 +876,29 @@ export function TimePicker({
   onChange: (value: string) => void;
   placeholder?: string;
   after?: string;
-  /** Tor joyda (telefonda) soat belgisi yashiriladi — vaqt to'liq ko'rinsin */
-  compact?: boolean;
   invalid?: boolean;
   id?: string;
   className?: string;
   wrapperClassName?: string;
+  /** Tor joyda (telefonda) soat belgisi yashiriladi — vaqt to'liq ko'rinsin */
+  compact?: boolean;
   "aria-label"?: string;
 }) {
   const [pos, setPos] = useState<FixedPos | null>(null);
+  // Tanlangan, lekin hali qiymatga yozilmagan soat (daqiqa tanlanguncha)
+  const [draftHour, setDraftHour] = useState<number | null>(null);
   const open = pos !== null;
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const hour = isTime(value) ? Number(value.slice(0, 2)) : null;
+  const openWidth = useRef(0);
+  const valueHour = isTime(value) ? Number(value.slice(0, 2)) : null;
   const minute = isTime(value) ? Number(value.slice(3, 5)) : null;
+  const hour = draftHour ?? valueHour;
   const floor = after && isTime(after) ? toMinutes(after) : -1;
   const allowed = (h: number, m: number) => h * 60 + m > floor;
+  const firstMinute = (h: number) => MINUTES.find((m) => allowed(h, m));
+  const shown = hour === null ? "--:--" : `${pad(hour)}:${pad(minute !== null && allowed(hour, minute) ? minute : (firstMinute(hour) ?? 0))}`;
 
   const openPanel = () => {
     const r = triggerRef.current?.getBoundingClientRect();
@@ -902,24 +908,37 @@ export function TimePicker({
     const width = Math.min(TIME_PANEL.width, vw - 16);
     const left = Math.round(Math.min(Math.max(8, r.left), vw - 8 - width));
     const up = vh - r.bottom < TIME_PANEL.height + 16 && r.top > TIME_PANEL.height + 16;
+    openWidth.current = window.innerWidth;
+    setDraftHour(null);
     setPos(up ? { left, bottom: Math.round(vh - r.top + 8) } : { left, top: Math.round(r.bottom + 8) });
   };
-  const close = useCallback((focusTrigger = true) => {
+
+  /** Yopish. `commit` — faqat soat tanlangan bo'lsa ham qiymatga yozish (Escape'da — yozilmaydi). */
+  const finish = (commit: boolean, focusTrigger: boolean) => {
+    if (commit && draftHour !== null && draftHour !== valueHour) {
+      const m = minute !== null && allowed(draftHour, minute) ? minute : firstMinute(draftHour);
+      if (m !== undefined) onChange(`${pad(draftHour)}:${pad(m)}`);
+    }
+    setDraftHour(null);
     setPos(null);
     if (focusTrigger) triggerRef.current?.focus();
-  }, []);
+  };
+  const finishFromEvent = useEffectEvent((commit: boolean) => finish(commit, false));
 
-  // Tashqariga bosilsa, sahifa (yoki oyna) aylantirilsa yoki o'lchami o'zgarsa — yopiladi
+  // Tashqariga bosilsa, sahifa (yoki oyna) aylantirilsa yoki eni o'zgarsa — yopiladi.
+  // Faqat balandlik o'zgarsa (telefonda klaviatura yoki manzil qatori) — yopilmaydi.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) close(false);
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) finishFromEvent(true);
     };
     const onScroll = (e: Event) => {
       if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
-      close(false);
+      finishFromEvent(true);
     };
-    const onResize = () => close(false);
+    const onResize = () => {
+      if (window.innerWidth !== openWidth.current) finishFromEvent(true);
+    };
     document.addEventListener("pointerdown", onDown);
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onResize);
@@ -928,7 +947,7 @@ export function TimePicker({
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
     };
-  }, [open, close]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -937,15 +956,12 @@ export function TimePicker({
     (p?.querySelector<HTMLButtonElement>('[data-hour][aria-pressed="true"]') ?? p?.querySelector<HTMLButtonElement>("[data-hour]:not(:disabled)"))?.focus({ preventScroll: true });
   }, [open]);
 
-  const pickHour = (h: number) => {
-    // Daqiqa avval tanlangan bo'lsa — saqlanadi; bu soatda ruxsat etilmasa — birinchi ruxsat etilgani
-    const m = minute !== null && allowed(h, minute) ? minute : (MINUTES.find((x) => allowed(h, x)) ?? 0);
-    onChange(`${pad(h)}:${pad(m)}`);
-  };
   const pickMinute = (m: number) => {
-    const h = hour ?? HOURS.find((x) => allowed(x, m)) ?? 9;
-    onChange(`${pad(h)}:${pad(m)}`);
-    close();
+    if (hour === null || !allowed(hour, m)) return;
+    onChange(`${pad(hour)}:${pad(m)}`);
+    setDraftHour(null);
+    setPos(null);
+    triggerRef.current?.focus();
   };
 
   const cell = (selected: boolean, disabled: boolean) =>
@@ -962,7 +978,7 @@ export function TimePicker({
         if (e.key === "Escape" && open) {
           e.preventDefault();
           e.stopPropagation();
-          close();
+          finish(false, true);
         }
       }}
     >
@@ -973,7 +989,7 @@ export function TimePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={ariaLabel ? `${ariaLabel}${isTime(value) ? `: ${value}` : ""}` : undefined}
-        onClick={() => (open ? close(false) : openPanel())}
+        onClick={() => (open ? finish(true, false) : openPanel())}
         onKeyDown={(e) => {
           if (!open && (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
@@ -1001,7 +1017,7 @@ export function TimePicker({
           <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Soat</p>
           <div className="grid grid-cols-6 gap-1" onKeyDown={(e) => gridArrows(e, 6)}>
             {HOURS.map((h) => {
-              const disabled = !MINUTES.some((m) => allowed(h, m));
+              const disabled = firstMinute(h) === undefined;
               return (
                 <button
                   key={h}
@@ -1010,7 +1026,7 @@ export function TimePicker({
                   disabled={disabled}
                   aria-pressed={h === hour}
                   aria-label={`Soat ${pad(h)}`}
-                  onClick={() => pickHour(h)}
+                  onClick={() => setDraftHour(h)}
                   className={cell(h === hour, disabled)}
                 >
                   {pad(h)}
@@ -1018,19 +1034,21 @@ export function TimePicker({
               );
             })}
           </div>
-          <p className="mb-1.5 mt-3 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Daqiqa</p>
+          <p className="mb-1.5 mt-3 px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+            Daqiqa{hour === null ? <span className="ml-1.5 normal-case tracking-normal text-ink-300">— avval soatni tanlang</span> : null}
+          </p>
           <div className="grid grid-cols-6 gap-1" onKeyDown={(e) => gridArrows(e, 6)}>
             {MINUTES.map((m) => {
-              const disabled = hour !== null && !allowed(hour, m);
+              const disabled = hour === null || !allowed(hour, m);
               return (
                 <button
                   key={m}
                   type="button"
                   disabled={disabled}
-                  aria-pressed={m === minute}
+                  aria-pressed={hour === valueHour && m === minute}
                   aria-label={`${pad(m)} daqiqa`}
                   onClick={() => pickMinute(m)}
-                  className={cell(m === minute, disabled)}
+                  className={cell(hour === valueHour && m === minute, disabled)}
                 >
                   {pad(m)}
                 </button>
@@ -1038,8 +1056,8 @@ export function TimePicker({
             })}
           </div>
           <div className="mt-3 flex items-center justify-between gap-2 border-t border-line-soft px-1 pt-2.5">
-            <span className="num text-[15px] font-semibold text-ink-900">{isTime(value) ? value : "--:--"}</span>
-            <button type="button" onClick={() => close()} className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-brand-600 transition hover:bg-brand-50">
+            <span className={cx("num text-[15px] font-semibold", hour === null ? "text-ink-300" : "text-ink-900")}>{shown}</span>
+            <button type="button" onClick={() => finish(true, true)} className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-brand-600 transition hover:bg-brand-50">
               Tayyor
             </button>
           </div>

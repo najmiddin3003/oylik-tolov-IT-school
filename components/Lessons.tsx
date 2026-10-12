@@ -131,7 +131,10 @@ export function TodayLessons({
     return l ? [{ s, l }] : [];
   });
   const debtorsToday = today.filter((x) => x.s.status !== "paid");
-  const visible = showAll ? today : debtorsToday;
+  // «Hammasi» faqat qarzdorlar ham, to'laganlar ham bo'lsa ma'noli (hamma to'lab bo'lsa — 🎉 xabari)
+  const canToggle = debtorsToday.length > 0 && today.length > debtorsToday.length;
+  const all = showAll && canToggle;
+  const visible = all ? today : debtorsToday;
   const debtorsTomorrow = students.filter((s) => s.status !== "paid" && lessonOn(s.lessons, tomorrow)).length;
 
   // Bir xil vaqtdagi darslar — bitta blok; hozirgisi birinchi, tugaganlari oxirida
@@ -161,7 +164,7 @@ export function TodayLessons({
             </p>
           </div>
         </div>
-        {today.length > debtorsToday.length && debtorsToday.length ? (
+        {canToggle ? (
           <div className="flex rounded-xl bg-slate-100 p-1 text-[13px] font-semibold" role="group" aria-label="Ko‘rinish">
             {[
               { v: false, label: "Qarzdorlar", n: debtorsToday.length },
@@ -170,9 +173,9 @@ export function TodayLessons({
               <button
                 key={o.label}
                 type="button"
-                aria-pressed={showAll === o.v}
+                aria-pressed={all === o.v}
                 onClick={() => setShowAll(o.v)}
-                className={cx("num rounded-lg px-3 py-1.5 transition", showAll === o.v ? "bg-white text-ink-900 shadow-card" : "text-ink-500 hover:text-ink-800")}
+                className={cx("num rounded-lg px-3 py-1.5 transition", all === o.v ? "bg-white text-ink-900 shadow-card" : "text-ink-500 hover:text-ink-800")}
               >
                 {o.label} {o.n}
               </button>

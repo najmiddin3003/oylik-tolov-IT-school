@@ -58,6 +58,7 @@ export function ScheduleField({
   onChange,
   templates = [],
   error,
+  errorStamp,
 }: {
   /** Forma ichida — shu nomli yashirin maydon (JSON) */
   name?: string;
@@ -65,9 +66,20 @@ export function ScheduleField({
   onChange?: (lessons: Lesson[], problem: string | null) => void;
   /** Boshqa o'quvchilarda ko'p uchraydigan jadvallar — bir bosishda qo'yish uchun */
   templates?: Lesson[][];
+  /** Serverdan kelgan xato — foydalanuvchi jadvalni o'zgartirsa, keyingi yuborishgacha yashiriladi */
   error?: string;
+  /** Har yangi yuborish natijasida o'zgaradigan qiymat (bir xil xato qaytsa ham qayta ko'rsatish uchun) */
+  errorStamp?: unknown;
 }) {
   const [state, setState] = useState<State>(() => fromLessons(defaultValue));
+  const [dirty, setDirty] = useState(false);
+  const stamp = errorStamp === undefined ? error : errorStamp;
+  const [seenStamp, setSeenStamp] = useState(stamp);
+  if (seenStamp !== stamp) {
+    setSeenStamp(stamp);
+    setDirty(false);
+  }
+  const shownError = dirty ? undefined : error;
   const lessons = toLessons(state);
   const problem = problemOf(lessons);
   const currentKey = problem ? "" : lessonsKey(lessons);
@@ -75,6 +87,7 @@ export function ScheduleField({
 
   const update = (next: State) => {
     setState(next);
+    setDirty(true);
     if (onChange) {
       const ls = toLessons(next);
       onChange(ls, problemOf(ls));
@@ -83,19 +96,26 @@ export function ScheduleField({
 
   const setDays = (days: number[]) => {
     const sorted = [...new Set(days)].sort((a, b) => a - b);
-    // Alohida vaqt rejimida yangi qo'shilgan kun — birinchi kunning vaqti bilan
-    const base = state.custom[state.days[0]] ?? state.common;
+    // Yangi qo'shilgan kun: alohida vaqt rejimida — birinchi kunning vaqti, aks holda — umumiy vaqt
+    const base = state.perDay ? (state.custom[state.days[0]] ?? state.common) : state.common;
     const custom = { ...state.custom };
     for (const d of sorted) if (!state.days.includes(d)) custom[d] = base;
-    update({ ...state, days: sorted, custom, perDay: state.perDay && sorted.length > 1 });
+    const perDay = state.perDay && sorted.length > 1;
+    // Alohida vaqt rejimidan bitta kunga tushsa — o'sha kunning o'z vaqti umumiy vaqt bo'ladi
+    const common = state.perDay && !perDay && sorted.length ? (state.custom[sorted[0]] ?? state.common) : state.common;
+    update({ ...state, days: sorted, custom, perDay, common });
   };
   const toggleDay = (d: number) => setDays(state.days.includes(d) ? state.days.filter((x) => x !== d) : [...state.days, d]);
-  const setPerDay = (on: boolean) =>
-    update(
-      on
-        ? { ...state, perDay: true, custom: Object.fromEntries(state.days.map((d) => [d, state.common])) }
-        : { ...state, perDay: false, common: state.custom[state.days[0]] ?? state.common },
-    );
+  const setPerDay = (on: boolean) => {
+    if (!on) {
+      update({ ...state, perDay: false, common: state.custom[state.days[0]] ?? state.common });
+      return;
+    }
+    // Umumiy vaqt o'zgartirilmagan bo'lsa — avvalgi alohida vaqtlar qaytadi, aks holda hamma kunga umumiy vaqt
+    const first = state.custom[state.days[0]];
+    const untouched = first !== undefined && first.start === state.common.start && first.end === state.common.end;
+    update({ ...state, perDay: true, custom: Object.fromEntries(state.days.map((d) => [d, (untouched && state.custom[d]) || state.common])) });
+  };
 
   return (
     <div className="grid gap-5">
@@ -179,7 +199,7 @@ export function ScheduleField({
                 value={state.common.start}
                 onChange={(v) => update({ ...state, common: withStart(state.common, v) })}
                 placeholder="Boshlanishi"
-                invalid={Boolean(error) && !isTime(state.common.start)}
+                invalid={Boolean(shownError) && !isTime(state.common.start)}
                 aria-label="Dars boshlanishi"
               />
               <span className="text-ink-300" aria-hidden>
@@ -232,9 +252,9 @@ export function ScheduleField({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-        {error ? (
+        {shownError ? (
           <p className="text-rose-600" role="alert">
-            {error}
+            {shownError}
           </p>
         ) : !state.days.length ? (
           <p className="text-ink-400">Ixtiyoriy. Kiritilsa, to‘lovlar sahifasida o‘quvchi qaysi kuni, soat nechida kelishi ko‘rinadi.</p>

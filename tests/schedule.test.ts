@@ -68,7 +68,8 @@ test("jadval: nomlar", () => {
 test("jadval: tugash vaqti boshlanish bilan suriladi", () => {
   assert.equal(shiftEnd("", "", "14:00"), "16:00"); // standart — 2 soat
   assert.equal(shiftEnd("14:00", "15:30", "15:00"), "16:30"); // davomiylik saqlanadi
-  assert.equal(shiftEnd("14:00", "16:00", "23:00"), "23:55"); // kun chegarasidan chiqmaydi
+  assert.equal(shiftEnd("14:00", "16:00", "23:00"), "23:59"); // kun chegarasidan chiqmaydi
+  assert.equal(shiftEnd("", "", "23:55"), "23:59"); // eng kech boshlanishda ham tugash boshlanishdan keyin
 });
 
 test("jadval: Toshkent vaqti va hafta kuni", () => {
