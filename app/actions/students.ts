@@ -2,21 +2,30 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireOwner } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
+import { requireOwner, requireRole } from "@/lib/auth";
+import { cleanCourseName } from "@/lib/courses";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
 import { applyFeeFrom, changesAfter } from "@/lib/fees";
 import { feeHistoryOf, studentFee, type StudentLean } from "@/lib/ledger";
-import { Payment, Student } from "@/lib/models";
+import { Payment, Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 import { parseLessons } from "@/lib/schedule";
 import { nextStudentSeq } from "@/lib/seq";
 import { getSettings, standardFee } from "@/lib/settings";
-import { currentMonth, isoToDate, isValidMonth, monthOfDate } from "@/lib/time";
+import { currentMonth, formatMoney, isoToDate, isValidMonth, monthOfDate } from "@/lib/time";
 import type { FormState } from "./types";
 
 function str(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
+}
+
+/** O'zbekiston raqami bo'lsa — bir xil ko'rinishda ("+998 90 123 45 67"), aks holda yozilganicha. */
+function cleanPhone(raw: string): string {
+  const uz = normalizeUzPhone(raw);
+  return uz ? formatUzPhone(uz) : raw.slice(0, 40);
 }
 
 export async function saveStudent(
@@ -24,13 +33,13 @@ export async function saveStudent(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (id !== null && !isId(id)) return { error: "O‘quvchi topilmadi" };
 
   const fullName = str(formData, "fullName").replace(/\s+/g, " ");
-  const phone = str(formData, "phone");
-  const parentPhone = str(formData, "parentPhone");
-  const group = str(formData, "group").slice(0, 80);
+  const phone = cleanPhone(str(formData, "phone"));
+  const parentPhone = cleanPhone(str(formData, "parentPhone"));
+  const group = cleanCourseName(str(formData, "group"));
   const feeRaw = str(formData, "monthlyFee");
   const feeFromRaw = str(formData, "feeFrom");
   const startRaw = str(formData, "startDate");
@@ -38,6 +47,9 @@ export async function saveStudent(
   const active = str(formData, "active") !== "false";
   // Jadval maydoni yo'q bo'lsa (masalan, eski ochiq sahifadan yuborilgan forma) — mavjud jadvalga tegilmaydi
   const hasSchedule = formData.has("schedule");
+  // O'qituvchi: forma maydoni bo'lsa o'qiladi ("" — biriktirilmagan)
+  const hasTeacher = formData.has("teacher");
+  const teacherRaw = str(formData, "teacher");
   const schedule = parseLessons(str(formData, "schedule"));
 
   const fieldErrors: Record<string, string> = {};
@@ -56,7 +68,22 @@ export async function saveStudent(
   const lessons = "lessons" in schedule ? schedule.lessons : [];
 
   await connectDB();
-  const base = { fullName, phone, parentPhone, group, startDate: startDate!, note, active, ...(hasSchedule ? { lessons } : {}) };
+  let teacher: string | null = null;
+  if (hasTeacher && teacherRaw) {
+    if (!isId(teacherRaw) || !(await Staff.exists({ _id: teacherRaw, role: "teacher" }))) return { fieldErrors: { teacher: "O‘qituvchi topilmadi" } };
+    teacher = teacherRaw;
+  }
+  const base = {
+    fullName,
+    phone,
+    parentPhone,
+    group,
+    startDate: startDate!,
+    note,
+    active,
+    ...(hasSchedule ? { lessons } : {}),
+    ...(hasTeacher ? { teacher } : {}),
+  };
 
   let savedId: string;
   if (id) {
@@ -69,6 +96,7 @@ export async function saveStudent(
     }
     await Student.updateOne({ _id: id }, { $set: { ...base, ...fees } }, { runValidators: true });
     savedId = id;
+    await logActivity(session, "student.edit", `O‘quvchi ma’lumotlari o‘zgartirildi: ${fullName}`);
   } else {
     // Standart narx bilan qo'shilsa — rejalashtirilgan o'zgarishlar (masalan, "dekabrdan 350 000") unga ham qo'llanadi
     const settings = await getSettings();
@@ -76,17 +104,19 @@ export async function saveStudent(
     const feeHistory = standardFee(settings, startMonth) === monthlyFee ? changesAfter(settings.feeSchedule, startMonth) : [];
     const created = await Student.create({ ...base, monthlyFee: monthlyFee!, feeHistory, seq: await nextStudentSeq() });
     savedId = String(created._id);
+    await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName}${group ? ` (${group})` : ""}, oylik ${formatMoney(monthlyFee!)}`);
   }
   redirect(`/students/${savedId}`);
 }
 
 /** O'quvchini va uning barcha to'lovlarini (arxivdagilari bilan) o'chiradi. */
 export async function deleteStudent(id: string, redirectTo: string | null): Promise<void> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (!isId(id)) return;
   await connectDB();
-  await Payment.deleteMany({ student: id });
-  await Student.findByIdAndDelete(id);
+  const removed = await Student.findByIdAndDelete(id).lean();
+  const payments = await Payment.deleteMany({ student: id });
+  if (removed) await logActivity(session, "student.delete", `O‘chirildi: ${removed.fullName} (${payments.deletedCount} ta to‘lovi bilan)`);
   // Faqat o'quvchilar ro'yxatiga qaytariladi (boshqa manzilga yo'naltirib bo'lmaydi)
   if (redirectTo === "/students") redirect("/students");
   refresh();
@@ -94,7 +124,7 @@ export async function deleteStudent(id: string, redirectTo: string | null): Prom
 
 /** Tanlangan o'quvchilar ustida amal: faol/nofaol qilish yoki o'chirish (to'lovlari bilan). */
 export async function bulkStudents(action: "activate" | "deactivate" | "delete", ids: string[]): Promise<void> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (!["activate", "deactivate", "delete"].includes(action) || !Array.isArray(ids)) return;
   const valid = ids.filter(isId).slice(0, 1000);
   if (!valid.length) return;
@@ -105,12 +135,14 @@ export async function bulkStudents(action: "activate" | "deactivate" | "delete",
   } else {
     await Student.updateMany({ _id: { $in: valid } }, { $set: { active: action === "activate" } });
   }
+  const verb = action === "delete" ? "o‘chirildi (to‘lovlari bilan)" : action === "activate" ? "faol qilindi" : "nofaol qilindi";
+  await logActivity(session, "student.bulk", `${valid.length} ta o‘quvchi ${verb}`);
   refresh();
 }
 
 /** Tanlangan o'quvchilarga bir xil dars jadvali qo'yish (bo'sh jadval — tozalash). */
 export async function setLessonsBulk(ids: string[], schedule: string): Promise<{ error?: string; count?: number }> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (!Array.isArray(ids) || typeof schedule !== "string") return { error: "Noto‘g‘ri so‘rov" };
   const valid = ids.filter(isId).slice(0, 1000);
   if (!valid.length) return { error: "O‘quvchi tanlanmagan" };
@@ -118,6 +150,82 @@ export async function setLessonsBulk(ids: string[], schedule: string): Promise<{
   if ("error" in parsed) return { error: parsed.error };
   await connectDB();
   const res = await Student.updateMany({ _id: { $in: valid } }, { $set: { lessons: parsed.lessons } }, { runValidators: true });
+  await logActivity(session, "student.lessons", `${res.matchedCount} ta o‘quvchiga dars jadvali ${parsed.lessons.length ? "qo‘yildi" : "tozalandi"}`);
   refresh();
   return { count: res.matchedCount };
+}
+
+/** Tanlangan o'quvchilarga o'qituvchi biriktirish ("" — biriktirilmagan holatga qaytarish). */
+export async function setTeacherBulk(ids: string[], teacherId: string): Promise<{ error?: string; count?: number }> {
+  const session = await requireOwner({ fresh: true });
+  if (!Array.isArray(ids) || typeof teacherId !== "string") return { error: "Noto‘g‘ri so‘rov" };
+  const valid = ids.filter(isId).slice(0, 1000);
+  if (!valid.length) return { error: "O‘quvchi tanlanmagan" };
+  await connectDB();
+  if (teacherId && (!isId(teacherId) || !(await Staff.exists({ _id: teacherId, role: "teacher" })))) return { error: "O‘qituvchi topilmadi" };
+  const res = await Student.updateMany({ _id: { $in: valid } }, { $set: { teacher: teacherId || null } });
+  const teacher = teacherId ? await Staff.findById(teacherId, { name: 1 }).lean() : null;
+  await logActivity(session, "student.teacher", `${res.matchedCount} ta o‘quvchi ${teacher ? `${teacher.name}ga biriktirildi` : "o‘qituvchisiz qoldirildi"}`);
+  refresh();
+  return { count: res.matchedCount };
+}
+
+/**
+ * Tezkor qo'shish oynasi (administrator va rahbar, «To'lovlar» sahifasida): ism, telefon, kurs, oylik to'lov,
+ * boshlagan sana, kerak bo'lsa o'qituvchi va dars jadvali. Saqlangach oyna yopiladi (sahifadan chiqilmaydi).
+ */
+export async function addStudentQuick(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireRole(["owner", "admin"], { fresh: true });
+  const fullName = str(formData, "fullName").replace(/\s+/g, " ");
+  const phone = cleanPhone(str(formData, "phone"));
+  const group = cleanCourseName(str(formData, "group"));
+  const monthlyFee = parseAmount(str(formData, "monthlyFee"));
+  const startDate = isoToDate(str(formData, "startDate"));
+  const teacherRaw = str(formData, "teacher");
+  const schedule = parseLessons(str(formData, "schedule"));
+
+  const fieldErrors: Record<string, string> = {};
+  if (fullName.length < 3) fieldErrors.fullName = "Ism-familiyani to‘liq kiriting";
+  else if (fullName.length > 120) fieldErrors.fullName = "Juda uzun";
+  if (phone && phone.replace(/\D/g, "").length < 9) fieldErrors.phone = "Telefon raqam noto‘g‘ri";
+  if (!group) fieldErrors.group = "Kursni tanlang";
+  if (monthlyFee === null || monthlyFee <= 0) fieldErrors.monthlyFee = "Oylik to‘lov summasini kiriting";
+  else if (monthlyFee > 100_000_000) fieldErrors.monthlyFee = "Summa juda katta — tekshirib ko‘ring";
+  if (!startDate) fieldErrors.startDate = "Boshlagan sanani tanlang";
+  if ("error" in schedule) fieldErrors.schedule = schedule.error;
+  if (Object.keys(fieldErrors).length) return { fieldErrors };
+
+  await connectDB();
+  let teacher: string | null = null;
+  if (teacherRaw) {
+    if (!isId(teacherRaw) || !(await Staff.exists({ _id: teacherRaw, role: "teacher", status: { $ne: "disabled" } }))) {
+      return { fieldErrors: { teacher: "O‘qituvchi topilmadi" } };
+    }
+    teacher = teacherRaw;
+  }
+  // Bir xil ismli faol o'quvchi bo'lsa — ogohlantirish (ikki marta qo'shilmasin)
+  const dup = await Student.exists({ fullName: new RegExp(`^${fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), active: true });
+  if (dup && str(formData, "confirmDuplicate") !== "1") {
+    return { error: `«${fullName}» ismli faol o‘quvchi allaqachon bor. Baribir qo‘shish uchun yana bir marta «Saqlash»ni bosing.`, fieldErrors: { confirmDuplicate: "1" } };
+  }
+  const settings = await getSettings();
+  const startMonth = monthOfDate(startDate!);
+  const feeHistory = standardFee(settings, startMonth) === monthlyFee ? changesAfter(settings.feeSchedule, startMonth) : [];
+  await Student.create({
+    fullName,
+    phone,
+    parentPhone: "",
+    group,
+    monthlyFee: monthlyFee!,
+    feeHistory,
+    startDate: startDate!,
+    active: true,
+    note: "",
+    lessons: "lessons" in schedule ? schedule.lessons : [],
+    teacher,
+    seq: await nextStudentSeq(),
+  });
+  await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${group}), oylik ${formatMoney(monthlyFee!)}`);
+  refresh();
+  return { ok: true, message: `${fullName} qo‘shildi (${group}, oylik ${formatMoney(monthlyFee!)})`, nonce: Date.now() };
 }

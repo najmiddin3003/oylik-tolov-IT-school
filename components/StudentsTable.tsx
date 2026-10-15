@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { CalendarClock, Eye, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
-import { bulkStudents, deleteStudent, setLessonsBulk } from "@/app/actions/students";
+import { CalendarClock, Check, Eye, GraduationCap, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
+import { bulkStudents, deleteStudent, setLessonsBulk, setTeacherBulk } from "@/app/actions/students";
 import type { StudentRow } from "@/lib/data";
 import { lessonsKey, type Lesson } from "@/lib/schedule";
 import { formatMoney } from "@/lib/time";
 import { StudentCell } from "./cells";
 import { NextLessonCell } from "./Lessons";
+import { useDialog } from "./Modal";
+import { Select } from "./pickers";
 import { ScheduleDialog } from "./ScheduleField";
 import { ConfirmAction } from "./SubmitButton";
-import { btn, cx, GroupChip, StatusBadge, Tag, td, th } from "./ui";
+import { btn, cx, GroupChip, IconTile, StatusBadge, Tag, td, th } from "./ui";
+
+type TeacherOption = { id: string; name: string; status: string };
 
 export function StudentsTable({
   rows,
@@ -20,6 +24,8 @@ export function StudentsTable({
   templates,
   serverNow,
   showGroup,
+  readOnly = false,
+  teachers = [],
 }: {
   rows: StudentRow[];
   month: string;
@@ -29,13 +35,20 @@ export function StudentsTable({
   serverNow: number;
   /** Bitta guruh bo'lsa — «Guruh» ustuni ko'rsatilmaydi */
   showGroup: boolean;
+  /** O'qituvchi: faqat ko'rish (belgilash, tahrirlash va o'chirish yo'q) */
+  readOnly?: boolean;
+  /** Rahbar: o'qituvchilar (ustun va biriktirish uchun) */
+  teachers?: TeacherOption[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [teacherOpen, setTeacherOpen] = useState(false);
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
   const visibleSelected = ids.filter((id) => selected.has(id));
   const allChecked = ids.length > 0 && visibleSelected.length === ids.length;
+  const teacherName = useMemo(() => new Map(teachers.map((t) => [t.id, t.name])), [teachers]);
+  const showTeacher = !readOnly && teachers.length > 0;
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -59,12 +72,19 @@ export function StudentsTable({
   // Tanlanganlarning hammasida bir xil jadval bo'lsa — oynada o'sha ko'rsatiladi
   const chosen = rows.filter((r) => selected.has(r.id));
   const commonLessons = chosen.length && chosen.every((r) => lessonsKey(r.lessons) === lessonsKey(chosen[0].lessons)) ? chosen[0].lessons : [];
+  const commonTeacher = chosen.length && chosen.every((r) => r.teacherId === chosen[0].teacherId) ? (chosen[0].teacherId ?? "") : "";
 
   return (
     <>
-      {visibleSelected.length ? (
+      {!readOnly && visibleSelected.length ? (
         <div className="flex flex-wrap items-center gap-2 border-t border-brand-100 bg-brand-50/60 px-6 py-3 text-sm">
           <span className="mr-2 font-semibold text-brand-800">{visibleSelected.length} ta tanlandi</span>
+          {teachers.length ? (
+            <button type="button" disabled={pending} onClick={() => setTeacherOpen(true)} className={btn.sm}>
+              <GraduationCap className="size-4" aria-hidden />
+              O‘qituvchi
+            </button>
+          ) : null}
           <button type="button" disabled={pending} onClick={() => setScheduleOpen(true)} className={btn.sm}>
             <CalendarClock className="size-4" aria-hidden />
             Dars vaqti
@@ -87,40 +107,60 @@ export function StudentsTable({
         </div>
       ) : null}
 
-      <ScheduleDialog
-        open={scheduleOpen}
-        onClose={() => setScheduleOpen(false)}
-        count={visibleSelected.length}
-        initial={commonLessons}
-        templates={templates}
-        onSave={async (lessons) => {
-          const res = await setLessonsBulk(visibleSelected, JSON.stringify(lessons));
-          if (res.error) return res.error;
-          setSelected(new Set());
-          return null;
-        }}
-      />
+      {!readOnly ? (
+        <>
+          <ScheduleDialog
+            open={scheduleOpen}
+            onClose={() => setScheduleOpen(false)}
+            count={visibleSelected.length}
+            initial={commonLessons}
+            templates={templates}
+            onSave={async (lessons) => {
+              const res = await setLessonsBulk(visibleSelected, JSON.stringify(lessons));
+              if (res.error) return res.error;
+              setSelected(new Set());
+              return null;
+            }}
+          />
+          <AssignTeacherDialog
+            open={teacherOpen}
+            onClose={() => setTeacherOpen(false)}
+            count={visibleSelected.length}
+            initial={commonTeacher}
+            teachers={teachers}
+            onSave={async (teacherId) => {
+              const res = await setTeacherBulk(visibleSelected, teacherId);
+              if (res.error) return res.error;
+              setSelected(new Set());
+              return null;
+            }}
+          />
+        </>
+      ) : null}
 
       <div className="relative overflow-x-auto border-t border-line-soft">
-        <table className={cx("w-full", showGroup ? "min-w-[1120px]" : "min-w-[940px]")}>
+        <table className={cx("w-full", showGroup || showTeacher ? "min-w-[1120px]" : readOnly ? "min-w-[860px]" : "min-w-[940px]")}>
           <thead className="bg-slate-50/70">
             <tr>
-              <th className={cx(th, "w-12 pr-0")}>
-                <input
-                  type="checkbox"
-                  className={checkbox}
-                  checked={allChecked}
-                  onChange={() => setSelected(allChecked ? new Set() : new Set(ids))}
-                  aria-label="Hammasini tanlash"
-                />
-              </th>
-              <th className={cx(th, "pl-3")}>O‘quvchi</th>
-              {showGroup ? <th className={th}>Guruh</th> : null}
+              {readOnly ? null : (
+                <th className={cx(th, "w-12 pr-0")}>
+                  <input
+                    type="checkbox"
+                    className={checkbox}
+                    checked={allChecked}
+                    onChange={() => setSelected(allChecked ? new Set() : new Set(ids))}
+                    aria-label="Hammasini tanlash"
+                  />
+                </th>
+              )}
+              <th className={cx(th, !readOnly && "pl-3")}>O‘quvchi</th>
+              {showTeacher ? <th className={th}>O‘qituvchi</th> : null}
+              {showGroup ? <th className={th}>Kurs</th> : null}
               <th className={th}>Dars vaqti</th>
               <th className={cx(th, "text-right")}>Oylik to‘lov</th>
               <th className={cx(th, "text-right")}>Qolgan to‘lov</th>
               <th className={th}>{monthTitle}</th>
-              <th className={cx(th, "pl-2 text-right")}>Amallar</th>
+              <th className={cx(th, "pl-2 text-right")}>{readOnly ? <span className="sr-only">Ko‘rish</span> : "Amallar"}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
@@ -128,12 +168,26 @@ export function StudentsTable({
               const isSel = selected.has(r.id);
               return (
                 <tr key={r.id} className={cx("transition", isSel ? "bg-brand-50/40" : "hover:bg-slate-50/50")}>
-                  <td className={cx(td, "w-12 pr-0")}>
-                    <input type="checkbox" className={checkbox} checked={isSel} onChange={() => toggle(r.id)} aria-label={`${r.fullName}ni tanlash`} />
-                  </td>
-                  <td className={cx(td, "pl-3")}>
+                  {readOnly ? null : (
+                    <td className={cx(td, "w-12 pr-0")}>
+                      <input type="checkbox" className={checkbox} checked={isSel} onChange={() => toggle(r.id)} aria-label={`${r.fullName}ni tanlash`} />
+                    </td>
+                  )}
+                  <td className={cx(td, !readOnly && "pl-3")}>
                     <StudentCell id={r.id} name={r.fullName} seq={r.seq} phone={r.phone} href={`/students/${r.id}?month=${month}`} muted={!r.active} />
                   </td>
+                  {showTeacher ? (
+                    <td className={cx(td, "max-w-[160px]")}>
+                      {r.teacherId ? (
+                        <span className="flex min-w-0 items-center gap-1.5 font-medium text-ink-700" title={teacherName.get(r.teacherId) ?? ""}>
+                          <GraduationCap className="size-3.5 shrink-0 text-brand-500" aria-hidden />
+                          <span className="truncate">{teacherName.get(r.teacherId) ?? "—"}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[13px] text-ink-300">biriktirilmagan</span>
+                      )}
+                    </td>
+                  ) : null}
                   {showGroup ? (
                     <td className={td}>
                       <GroupChip name={r.group} />
@@ -154,18 +208,22 @@ export function StudentsTable({
                       <Link href={`/students/${r.id}?month=${month}`} className={btn.icon} aria-label="Ko‘rish" title="Ko‘rish">
                         <Eye className="size-[18px]" strokeWidth={1.8} aria-hidden />
                       </Link>
-                      <Link href={`/students/${r.id}/edit`} className={btn.icon} aria-label="Tahrirlash" title="Tahrirlash">
-                        <Pencil className="size-[17px]" strokeWidth={1.8} aria-hidden />
-                      </Link>
-                      <ConfirmAction
-                        action={deleteStudent.bind(null, r.id, null)}
-                        confirmText={`${r.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
-                        className={btn.iconDanger}
-                        pendingText="…"
-                        title="O‘chirish"
-                      >
-                        <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
-                      </ConfirmAction>
+                      {readOnly ? null : (
+                        <>
+                          <Link href={`/students/${r.id}/edit`} className={btn.icon} aria-label="Tahrirlash" title="Tahrirlash">
+                            <Pencil className="size-[17px]" strokeWidth={1.8} aria-hidden />
+                          </Link>
+                          <ConfirmAction
+                            action={deleteStudent.bind(null, r.id, null)}
+                            confirmText={`${r.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
+                            className={btn.iconDanger}
+                            pendingText="…"
+                            title="O‘chirish"
+                          >
+                            <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
+                          </ConfirmAction>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -175,5 +233,111 @@ export function StudentsTable({
         </table>
       </div>
     </>
+  );
+}
+
+/** Tanlangan o'quvchilarga o'qituvchi biriktirish oynasi. */
+function AssignTeacherDialog({
+  open,
+  onClose,
+  count,
+  initial,
+  teachers,
+  onSave,
+}: {
+  open: boolean;
+  onClose: () => void;
+  count: number;
+  initial: string;
+  teachers: TeacherOption[];
+  onSave: (teacherId: string) => Promise<string | null>;
+}) {
+  const { ref, present } = useDialog(open);
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      onClick={(e) => {
+        if (e.target === ref.current) onClose();
+      }}
+      aria-labelledby="teacher-dialog-title"
+      className="m-auto w-[calc(100%-2rem)] max-w-md overflow-visible rounded-2xl border border-line bg-surface p-0 text-ink-700 shadow-pop"
+    >
+      {present ? <AssignTeacherBody count={count} initial={initial} teachers={teachers} onSave={onSave} onClose={onClose} /> : null}
+    </dialog>
+  );
+}
+
+function AssignTeacherBody({
+  count,
+  initial,
+  teachers,
+  onSave,
+  onClose,
+}: {
+  count: number;
+  initial: string;
+  teachers: TeacherOption[];
+  onSave: (teacherId: string) => Promise<string | null>;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(initial || teachers[0]?.id || "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  return (
+    <div>
+      <div className="group flex items-start gap-3.5 border-b border-line-soft px-5 py-4 sm:px-6">
+        <IconTile icon={GraduationCap} tone="brand" variant="solid" />
+        <div className="min-w-0 flex-1">
+          <h2 id="teacher-dialog-title" className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">
+            O‘qituvchini biriktirish
+          </h2>
+          <p className="num mt-0.5 text-sm text-ink-500">{count} ta o‘quvchi uchun</p>
+        </div>
+        <button type="button" onClick={onClose} className={btn.icon} aria-label="Yopish">
+          <X className="size-5" aria-hidden />
+        </button>
+      </div>
+      <div className="px-5 py-5 sm:px-6">
+        <span className="mb-2 block text-sm font-medium text-ink-700">O‘qituvchi</span>
+        <Select
+          value={value}
+          onChange={setValue}
+          aria-label="O‘qituvchi"
+          searchable={false}
+          options={[
+            ...teachers.map((t) => ({ value: t.id, label: t.name, hint: t.status === "invited" ? "ro‘yxatdan o‘tmagan" : undefined })),
+            { value: "", label: "Biriktirilmagan (o‘qituvchisiz)" },
+          ]}
+        />
+        <p className="mt-2 text-xs leading-relaxed text-ink-400">O‘qituvchi o‘z profilida shu o‘quvchilarni, ularning to‘lovlarini ko‘radi va ularning to‘lovlaridan oyligi hisoblanadi.</p>
+        {error ? (
+          <p className="mt-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line-soft bg-slate-50/60 px-5 py-3 sm:px-6">
+        <button type="button" onClick={onClose} className={cx(btn.outline, "h-10")}>
+          Bekor qilish
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const err = await onSave(value);
+              if (err) setError(err);
+              else onClose();
+            })
+          }
+          className={cx(btn.primary, "h-10")}
+        >
+          <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          {pending ? "Saqlanmoqda…" : "Saqlash"}
+        </button>
+      </div>
+    </div>
   );
 }

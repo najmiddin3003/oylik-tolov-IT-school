@@ -1,21 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { adminCanAccess, homeFor, readSessionToken, SESSION_COOKIE } from "./lib/session";
+import { canAccess, homeFor, readSessionToken, SESSION_COOKIE } from "./lib/session";
 
-// Tezkor tekshiruv: kirmagan foydalanuvchini /login ga, administratorni faqat to'lovlar sahifasiga yo'naltiradi.
-// To'liq tekshiruv (parol almashganmi va h.k.) baribir har bir sahifa va server action ichida (lib/auth.ts).
+// Tezkor tekshiruv: kirmagan foydalanuvchini /login ga, har bir rolni faqat o'ziga ruxsat etilgan sahifalarga yo'naltiradi.
+// To'liq tekshiruv (parol almashganmi, xodim o'chirilganmi va h.k.) baribir har bir sahifa va server action ichida (lib/auth.ts).
+const PUBLIC = new Set(["/login", "/register"]);
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname === "/logout") return NextResponse.next();
 
   const session = await readSessionToken(request.cookies.get(SESSION_COOKIE)?.value);
-  if (pathname === "/login") {
+  if (PUBLIC.has(pathname)) {
     return session ? NextResponse.redirect(new URL(homeFor(session.role), request.url)) : NextResponse.next();
   }
   if (!session) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (session.role === "admin" && !adminCanAccess(pathname)) {
-    return NextResponse.redirect(new URL("/payments", request.url));
+  if (!canAccess(session.role, pathname)) {
+    return NextResponse.redirect(new URL(homeFor(session.role), request.url));
   }
   return NextResponse.next();
 }

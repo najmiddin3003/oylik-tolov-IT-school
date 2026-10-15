@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { RefreshCw } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Check, RefreshCw } from "lucide-react";
 import { runSyncNow, saveSheetSettings } from "@/app/actions/sync";
 import type { FormState } from "@/app/actions/types";
 import type { ColumnNames } from "@/lib/compare";
@@ -47,14 +47,25 @@ export function SheetSettingsForm({
   columns,
   courseFilter,
   autoImport,
+  courses = [],
 }: {
   sheetUrl: string;
   columns: ColumnNames;
   courseFilter: string;
   autoImport: boolean;
+  /** Sozlamalardagi kurslar — qaysilari solishtirilishini belgilash uchun */
+  courses?: string[];
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(saveSheetSettings, {});
   const fe = state.fieldErrors ?? {};
+  // Filtrdagi nomlar: ro'yxatdagi kurslar + ro'yxatda yo'q (qo'lda yozilgan) nomlar
+  const initial = courseFilter
+    .split(/[,;]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const options = [...courses, ...initial.filter((t) => !courses.some((c) => c.toLowerCase() === t.toLowerCase()))];
+  const [picked, setPicked] = useState<string[]>(() => options.filter((o) => initial.some((t) => t.toLowerCase() === o.toLowerCase())));
+  const all = picked.length === 0;
 
   return (
     <form onSubmit={onSubmit} className="grid gap-6">
@@ -81,15 +92,47 @@ export function SheetSettingsForm({
         )}
       </div>
 
-      <div>
-        <label htmlFor="courseFilter" className={labelCls}>
-          Faqat shu kurs
-        </label>
-        <input id="courseFilter" name="courseFilter" defaultValue={courseFilter} className={inputCls} placeholder="Bo‘sh — barcha kurslar" />
-        <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
-          «Kurs» ustunida shu nom bor qatorlargina solishtiriladi, qolganlari e’tiborsiz qoldiriladi. Bir nechta kurs — vergul bilan.
+      <fieldset>
+        <legend className={labelCls}>Qaysi kurslar solishtiriladi</legend>
+        <input type="hidden" name="courseFilter" value={picked.join(", ")} />
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setPicked([])}
+            aria-pressed={all}
+            className={cx(
+              "inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium ring-1 ring-inset transition",
+              all ? "bg-ink-900 text-surface ring-ink-900" : "bg-surface text-ink-600 ring-line hover:bg-slate-50",
+            )}
+          >
+            Barcha kurslar
+          </button>
+          {options.map((o) => {
+            const on = picked.includes(o);
+            return (
+              <button
+                key={o}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setPicked((list) => (on ? list.filter((x) => x !== o) : [...list, o]))}
+                className={cx(
+                  "inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium ring-1 ring-inset transition",
+                  on ? "bg-brand-600 text-white ring-brand-600" : "bg-surface text-ink-600 ring-line hover:bg-slate-50",
+                )}
+              >
+                {on ? <Check className="size-3.5" strokeWidth={2.6} aria-hidden /> : null}
+                {o}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-ink-400">
+          {all
+            ? "Jadvaldagi hamma qatorlar solishtiriladi. Saytda yo‘q kurs o‘quvchilari «Saytda yo‘q o‘quvchi» bo‘lib chiqadi."
+            : `Faqat «Kurs» ustunida ${picked.join(", ")} bo‘lgan qatorlar solishtiriladi, qolganlari e’tiborsiz qoldiriladi.`}{" "}
+          Kurslar ro‘yxati — Sozlamalar → Kurslar.
         </p>
-      </div>
+      </fieldset>
 
       <div>
         <input type="hidden" name="autoImportShown" value="1" />

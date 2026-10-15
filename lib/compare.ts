@@ -139,7 +139,20 @@ export type ParsedSheet = {
   window: SheetWindow | null;
   /** Kurs filtriga mos kelmagani uchun e'tiborsiz qoldirilgan qatorlar */
   filteredOut: number;
+  /** Kurslar bo'yicha: solishtirilgan qatorlar va filtr tufayli e'tiborsiz qolganlari (kurs nomi -> son) */
+  rowsByCourse: Record<string, number>;
+  filteredByCourse: Record<string, number>;
 };
+
+/** Kurs nomi (kurslar bo'yicha statistika uchun): bo'sh bo'lsa — "Kursi yozilmagan". */
+export function courseLabel(raw: string): string {
+  const v = raw.replace(/\s+/g, " ").trim();
+  return v || "Kursi yozilmagan";
+}
+
+function bump(map: Record<string, number>, key: string) {
+  map[key] = (map[key] ?? 0) + 1;
+}
 
 export type ParseOptions = {
   fallbackYear: number;
@@ -157,6 +170,8 @@ export function parseSheet(rows: string[][], columns: ColumnNames, opts: ParseOp
     basis,
     window: null,
     filteredOut: 0,
+    rowsByCourse: {},
+    filteredByCourse: {},
   });
 
   // Sarlavha qatori: birinchi 10 qatordan ism va summa (yoki naqd/plastik) ustuni topilgan birinchisi
@@ -187,6 +202,8 @@ export function parseSheet(rows: string[][], columns: ColumnNames, opts: ParseOp
 
   const records: SheetRecord[] = [];
   let filteredOut = 0;
+  const rowsByCourse: Record<string, number> = {};
+  const filteredByCourse: Record<string, number> = {};
   let minKey = ""; // davr: basis=date — sana, basis=month — oy
   let maxKey = "";
 
@@ -212,7 +229,10 @@ export function parseSheet(rows: string[][], columns: ColumnNames, opts: ParseOp
 
     const name = cell(idx.name);
     if (tokens.length && !matchesCourse(cell(idx.course), tokens)) {
-      if (name) filteredOut++;
+      if (name) {
+        filteredOut++;
+        bump(filteredByCourse, courseLabel(cell(idx.course)));
+      }
       continue;
     }
 
@@ -246,6 +266,7 @@ export function parseSheet(rows: string[][], columns: ColumnNames, opts: ParseOp
     }
 
     const fee = parseAmount(cell(idx.fee));
+    bump(rowsByCourse, courseLabel(cell(idx.course)));
     records.push({
       row: rowNo,
       name,
@@ -271,7 +292,7 @@ export function parseSheet(rows: string[][], columns: ColumnNames, opts: ParseOp
     }
   }
 
-  return { records, skipped, missingColumns, basis, window, filteredOut };
+  return { records, skipped, missingColumns, basis, window, filteredOut, rowsByCourse, filteredByCourse };
 }
 
 // ---------- Solishtirish ----------
@@ -299,6 +320,8 @@ export type MismatchResult = {
 export type CompareResult = {
   mismatches: MismatchResult[];
   matchedCount: number;
+  /** Mos kelganlar kurslar bo'yicha (Sheets'dagi kurs nomi) */
+  matchedByCourse: Record<string, number>;
 };
 
 export function compareRecords(
@@ -308,7 +331,7 @@ export function compareRecords(
   opts: { window: SheetWindow | null; courseFilter?: string },
 ): CompareResult {
   const { window } = opts;
-  if (!window) return { mismatches: [], matchedCount: 0 };
+  if (!window) return { mismatches: [], matchedCount: 0, matchedByCourse: {} };
   const tokens = courseFilterTokens(opts.courseFilter);
 
   // O'quvchini topish indekslari
@@ -394,6 +417,7 @@ export function compareRecords(
 
   const mismatches: MismatchResult[] = [];
   let matchedCount = 0;
+  const matchedByCourse: Record<string, number> = {};
   const fromSheet = (kind: MismatchKind, s: SheetAgg, siteAmount: number, note = ""): MismatchResult => ({
     kind,
     studentId: s.student?.id ?? null,
@@ -418,7 +442,10 @@ export function compareRecords(
     const siteAmount = siteAgg.get(key);
     if (siteAmount === undefined) mismatches.push(fromSheet("missing_on_site", s, 0));
     else if (siteAmount !== s.amount) mismatches.push(fromSheet("amount_diff", s, siteAmount));
-    else matchedCount++;
+    else {
+      matchedCount++;
+      bump(matchedByCourse, courseLabel(s.group));
+    }
     siteAgg.delete(key);
   }
 
@@ -445,5 +472,5 @@ export function compareRecords(
   mismatches.sort(
     (a, b) => compareMonths(b.month, a.month) || a.studentName.localeCompare(b.studentName),
   );
-  return { mismatches, matchedCount };
+  return { mismatches, matchedCount, matchedByCourse };
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { Banknote, CalendarClock, CalendarDays, CreditCard, HandCoins, Hourglass, Landmark, Pencil, Plus, Trash2, Wallet, type LucideIcon } from "lucide-react";
+import { Banknote, CalendarClock, CalendarDays, CreditCard, GraduationCap, HandCoins, Hourglass, Landmark, Pencil, Plus, Trash2, Wallet, type LucideIcon } from "lucide-react";
 import { archivePayment } from "@/app/actions/payments";
 import { deleteStudent } from "@/app/actions/students";
 import { PaidCell } from "@/components/cells";
@@ -27,8 +27,8 @@ import {
   td,
   th,
 } from "@/components/ui";
-import { ownerGuard } from "@/lib/auth";
-import { getStudent, getStudentPayments } from "@/lib/data";
+import { roleGuard } from "@/lib/auth";
+import { canPickPaymentDate, getStudent, getStudentPayments } from "@/lib/data";
 import type { PaymentMethod } from "@/lib/models";
 import { scheduleLabel } from "@/lib/schedule";
 import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, nowMs, todayISO } from "@/lib/time";
@@ -56,11 +56,13 @@ async function StudentView({
   params: PageProps<"/students/[id]">["params"];
   searchParams: PageProps<"/students/[id]">["searchParams"];
 }) {
-  await ownerGuard();
+  const { role } = await roleGuard(["owner", "teacher"]);
+  // O'qituvchi — faqat o'z o'quvchisini ko'radi (o'zgartirish, to'lov kiritish va o'chirish yo'q)
+  const readOnly = role !== "owner";
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const student = await getStudent(id);
   if (!student) notFound();
-  const { payments, months, totalDebt, totalPaid } = await getStudentPayments(student);
+  const [{ payments, months, totalDebt, totalPaid }, pickDate] = await Promise.all([getStudentPayments(student), canPickPaymentDate(role)]);
 
   const now = currentMonth();
   // To'lov formasi uchun standart oy: URL dagi oy, bo'lmasa eng eski qarzdor oy, bo'lmasa joriy oy
@@ -69,6 +71,7 @@ async function StudentView({
   const option = {
     id: student.id,
     name: student.fullName,
+    group: student.group,
     monthlyFee: student.monthlyFee,
     feeHistory: student.feeHistory,
     paid: Object.fromEntries(months.map((m) => [m.month, m.paid])),
@@ -90,6 +93,12 @@ async function StudentView({
             <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-ink-500">
               {code ? <span className="num font-medium text-ink-400">{code}</span> : null}
               <GroupChip name={student.group} />
+              {student.teacherName ? (
+                <span className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-brand-100 bg-brand-50/70 px-2.5 text-[13px] font-medium text-brand-800">
+                  <GraduationCap className="size-3.5 shrink-0 text-brand-500" aria-hidden />
+                  <span className="truncate">{student.teacherName}</span>
+                </span>
+              ) : null}
               {student.lessons.length ? (
                 <span className="num inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50/70 px-2.5 text-[13px] font-medium text-sky-800">
                   <CalendarClock className="size-3.5 shrink-0 text-sky-500" aria-hidden />
@@ -100,6 +109,7 @@ async function StudentView({
             </div>
           </div>
         </div>
+        {readOnly ? null : (
         <div className="flex flex-wrap items-center gap-3">
           <Link href={`/students/${student.id}/edit`} className={btn.outline}>
             <Pencil className="size-[17px]" strokeWidth={1.8} aria-hidden />
@@ -115,6 +125,7 @@ async function StudentView({
             O‘chirish
           </ConfirmAction>
         </div>
+        )}
       </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
@@ -214,6 +225,7 @@ async function StudentView({
                             <NoteCell note={p.note} source={p.source} />
                           </td>
                           <td className={cx(td, "text-right")}>
+                            {readOnly ? null : (
                             <ConfirmAction
                               action={archivePayment.bind(null, p.id)}
                               confirmText={`${monthLabel(p.month)} uchun ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, «To‘lovlar → Arxiv» dan qaytarish mumkin.`}
@@ -223,6 +235,7 @@ async function StudentView({
                             >
                               <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
                             </ConfirmAction>
+                            )}
                           </td>
                         </tr>
                       );
@@ -235,6 +248,7 @@ async function StudentView({
         </div>
 
         <div className="order-first flex min-w-0 flex-col gap-6 xl:order-none">
+          {readOnly ? null : (
           <Card id="tolov" className="scroll-mt-24 p-6">
             <div className="group mb-6 flex items-center gap-3.5">
               <IconTile icon={Plus} tone="brand" variant="solid" />
@@ -250,16 +264,18 @@ async function StudentView({
               fixedStudentId={student.id}
               defaultMonth={formMonth}
               today={todayISO()}
-              canPickDate
+              canPickDate={pickDate}
             />
           </Card>
+          )}
 
           <Card className="p-6">
             <h2 className="mb-4 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Ma’lumotlar</h2>
             <dl className="grid gap-3.5 text-sm">
               <Info label="Telefon" value={student.phone ? <Phone value={student.phone} /> : "—"} />
               <Info label="Ota-ona telefoni" value={student.parentPhone ? <Phone value={student.parentPhone} /> : "—"} />
-              <Info label="Guruh" value={student.group || "—"} />
+              <Info label="Kurs" value={student.group || "—"} />
+              <Info label="O‘qituvchisi" value={student.teacherName || "—"} />
               <Info
                 label="Dars vaqti"
                 value={

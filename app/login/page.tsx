@@ -1,33 +1,50 @@
 import type { Metadata } from "next";
-import { ShieldCheck } from "lucide-react";
-import { BrandName, LogoMark } from "@/components/ui";
+import Link from "next/link";
+import { connection } from "next/server";
+import { Suspense } from "react";
+import { UserPlus } from "lucide-react";
+import { AuthShell } from "@/components/AuthShell";
+import { activeStaffRoles } from "@/lib/staff";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = { title: "Kirish" };
 
 export default function LoginPage() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
-      <span className="pointer-events-none absolute -left-40 -top-40 size-[480px] rounded-full bg-brand-100/50 blur-3xl" aria-hidden />
-      <span className="pointer-events-none absolute -bottom-48 -right-32 size-[420px] rounded-full bg-brand-50 blur-3xl" aria-hidden />
-      <div className="relative w-full max-w-[400px]">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <LogoMark className="size-14 rounded-2xl" />
-          <h1 className="mt-5 text-2xl">
-            <BrandName />
-          </h1>
-          <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-ink-400">O‘quv markazi</p>
-        </div>
-        <div className="rounded-2xl border border-line bg-white p-7 shadow-card">
-          <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink-900">Tizimga kirish</h2>
-          <p className="mb-6 mt-1 text-sm text-ink-500">Davom etish uchun parolingizni kiriting. Bir marta kirsangiz, brauzer 30 kun eslab qoladi.</p>
-          <LoginForm />
-        </div>
-        <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-ink-400">
-          <ShieldCheck className="size-3.5" aria-hidden />
-          Ma’lumotlar xavfsiz bazada saqlanadi
-        </p>
-      </div>
-    </main>
+    <AuthShell
+      title="Tizimga kirish"
+      subtitle="Telefon raqamingiz va parolingizni kiriting. Bir marta kirsangiz, brauzer 30 kun eslab qoladi."
+      footer={
+        <Link
+          href="/register"
+          className="group flex items-center gap-3 rounded-2xl border border-line bg-surface/80 px-4 py-3 text-sm shadow-card transition hover:bg-surface"
+        >
+          <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+            <UserPlus className="icon-wiggle size-[18px]" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-ink-900">Ro‘yxatdan o‘tish</span>
+            <span className="block text-[13px] text-ink-500">Xodimlar uchun: SMS kod orqali parol yaratish</span>
+          </span>
+        </Link>
+      }
+    >
+      <Suspense fallback={<LoginForm legacyHint={false} />}>
+        <LoginFormWithHint />
+      </Suspense>
+    </AuthShell>
   );
+}
+
+async function LoginFormWithHint() {
+  await connection();
+  let legacyHint = false;
+  try {
+    // Rahbar yoki administrator profili hali faollashmagan bo'lsa — eski umumiy parol ham ishlaydi
+    const roles = await activeStaffRoles();
+    legacyHint = !roles.has("owner") || !roles.has("admin");
+  } catch {
+    legacyHint = false;
+  }
+  return <LoginForm legacyHint={legacyHint} />;
 }

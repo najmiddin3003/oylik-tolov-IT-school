@@ -9,7 +9,8 @@ import type { StudentDetail } from "@/lib/data";
 import { feeFor, type FeeChange } from "@/lib/fees";
 import type { Lesson } from "@/lib/schedule";
 import { dateToISO, formatNumber } from "@/lib/time";
-import { DatePicker, MonthPicker, Select, SuggestInput } from "./pickers";
+import { MoneyInput, PhoneInput } from "./inputs";
+import { DatePicker, MonthPicker, Select } from "./pickers";
 import { ScheduleField } from "./ScheduleField";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
@@ -32,14 +33,18 @@ function Section({ title, hint, children, wide = false }: { title: string; hint:
 
 export function StudentForm({
   student,
-  groups,
+  courses,
   today,
   month,
   standard,
   templates = [],
+  teachers = [],
 }: {
   student?: StudentDetail;
-  groups: string[];
+  /** Kurslar (Sozlamalar → Kurslar) va ularning standart oylik narxi */
+  courses: { name: string; fee: number | null }[];
+  /** O'qituvchilar (biriktirish uchun) */
+  teachers?: { id: string; name: string; status: string }[];
   /** Boshqa o'quvchilarda ko'p uchraydigan dars jadvallari */
   templates?: Lesson[][];
   today: string;
@@ -57,6 +62,7 @@ export function StudentForm({
   const initialFee = student ? student.currentFee : standardAt(today);
   const [fee, setFee] = useState(initialFee !== null ? formatNumber(initialFee) : "");
   const [feeTouched, setFeeTouched] = useState(false);
+  const [group, setGroup] = useState(student?.group ?? "");
   const feeChanged = student !== undefined && feeAtFrom !== null && Number(fee.replace(/\D/g, "")) !== feeAtFrom;
 
   return (
@@ -79,14 +85,14 @@ export function StudentForm({
           <label htmlFor="phone" className={labelCls}>
             Telefon
           </label>
-          <input id="phone" name="phone" type="tel" inputMode="tel" defaultValue={student?.phone} className={cx(inputCls, "num")} placeholder="+998 90 123 45 67" aria-invalid={!!fe.phone} />
+          <PhoneInput id="phone" name="phone" defaultValue={student?.phone} placeholder="90 123 45 67" invalid={!!fe.phone} />
           <FieldError msg={fe.phone} />
         </div>
         <div>
           <label htmlFor="parentPhone" className={labelCls}>
             Ota-ona telefoni
           </label>
-          <input id="parentPhone" name="parentPhone" type="tel" inputMode="tel" defaultValue={student?.parentPhone} className={cx(inputCls, "num")} placeholder="+998 ..." aria-invalid={!!fe.parentPhone} />
+          <PhoneInput id="parentPhone" name="parentPhone" defaultValue={student?.parentPhone} placeholder="90 123 45 67" invalid={!!fe.parentPhone} />
           <FieldError msg={fe.parentPhone} />
         </div>
       </Section>
@@ -94,28 +100,43 @@ export function StudentForm({
       <Section title="O‘qish va to‘lov" hint="Oylik to‘lov qarzni hisoblash uchun, boshlagan sana — qaysi oydan to‘lov kutilishini bilish uchun kerak.">
         <div>
           <label htmlFor="group" className={labelCls}>
-            Guruh / kurs
+            Kurs
           </label>
-          <SuggestInput id="group" name="group" defaultValue={student?.group} suggestions={groups} className={inputCls} placeholder="Masalan: Web dasturlash" />
+          <Select
+            id="group"
+            name="group"
+            value={group}
+            onChange={(v) => {
+              setGroup(v);
+              // Yangi o'quvchida narx hali o'zgartirilmagan bo'lsa — kursning standart narxi qo'yiladi
+              const courseFee = courses.find((c) => c.name === v)?.fee;
+              if (!student && !feeTouched && courseFee) setFee(formatNumber(courseFee));
+            }}
+            options={[
+              { value: "", label: "Kurs tanlanmagan" },
+              ...courses.map((c) => ({ value: c.name, label: c.name, hint: c.fee ? `${formatNumber(c.fee)} so‘m` : undefined })),
+            ]}
+            searchable={false}
+            aria-label="Kurs"
+          />
+          <p className="mt-1.5 text-xs text-ink-400">Ro‘yxatda yo‘q kurs — Sozlamalar → Kurslar bo‘limida qo‘shiladi.</p>
         </div>
         <div>
           <label htmlFor="monthlyFee" className={labelCls}>
             Oylik to‘lov (so‘m) <span className="text-brand-600">*</span>
           </label>
-          <input
+          <MoneyInput
             id="monthlyFee"
             name="monthlyFee"
-            inputMode="numeric"
             required
             value={fee}
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
-              setFee(digits ? formatNumber(Number(digits)) : "");
+            onValueChange={(_, formatted) => {
+              setFee(formatted);
               setFeeTouched(true);
             }}
-            className={cx(inputCls, "num")}
+            maxDigits={10}
             placeholder="300 000"
-            aria-invalid={!!fe.monthlyFee}
+            invalid={!!fe.monthlyFee}
           />
           <FieldError msg={fe.monthlyFee} />
         </div>
@@ -150,6 +171,23 @@ export function StudentForm({
           />
           <FieldError msg={fe.startDate} />
         </div>
+        {teachers.length ? (
+          <div>
+            <span className={labelCls}>O‘qituvchisi</span>
+            <Select
+              name="teacher"
+              defaultValue={student?.teacherId ?? (teachers.length === 1 ? teachers[0].id : "")}
+              aria-label="O‘qituvchisi"
+              searchable={false}
+              invalid={!!fe.teacher}
+              options={[
+                { value: "", label: "Biriktirilmagan" },
+                ...teachers.map((t) => ({ value: t.id, label: t.name, hint: t.status === "invited" ? "ro‘yxatdan o‘tmagan" : undefined })),
+              ]}
+            />
+            <FieldError msg={fe.teacher} />
+          </div>
+        ) : null}
         <div>
           <span className={labelCls}>Holati</span>
           <Select

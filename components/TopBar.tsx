@@ -3,45 +3,51 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, CornerDownLeft, House, LoaderCircle, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, CornerDownLeft, History, House, LayoutDashboard, LoaderCircle, Search } from "lucide-react";
 import { quickSearch } from "@/app/actions/search";
 import { shiftMonth } from "@/lib/time";
-import { pageTitle } from "./nav";
+import type { Role } from "@/lib/session";
+import { isActivePath, navFor, NAV, pageTitle } from "./nav";
 import { MonthPicker } from "./pickers";
-import { Avatar, cx, studentCode } from "./ui";
+import { Avatar, cx, IconTile, studentCode } from "./ui";
 
-export function Breadcrumb() {
+/** Yuqori panel chap qismi: bo'lim ikonkasi, yo'l (Ish maydoni › Bo'lim) va sahifa nomi. */
+export function Breadcrumb({ role }: { role?: Role }) {
   const pathname = usePathname();
-  const t = pageTitle(pathname);
+  const t = pageTitle(pathname, role);
+  const item = (role ? navFor(role) : NAV).find((n) => isActivePath(pathname, n.href));
+  const icon = pathname.startsWith("/faoliyat") ? History : (item?.icon ?? LayoutDashboard);
+  const tone = pathname.startsWith("/faoliyat") ? "brand" : (item?.tone ?? "brand");
   return (
-    <nav className="flex min-w-0 items-center gap-2.5 text-[15px]" aria-label="Yo‘l">
-      <House className="size-[18px] shrink-0 text-ink-500" strokeWidth={1.8} aria-hidden />
-      <span className="hidden text-ink-400 xl:inline">Ish maydoni</span>
-      <span className="hidden text-ink-300 xl:inline" aria-hidden>
-        /
+    <nav className="group flex min-w-0 items-center gap-3" aria-label="Yo‘l">
+      <IconTile icon={icon} tone={tone} size="sm" />
+      <span className="min-w-0 leading-tight">
+        <span className="flex items-center gap-1 text-xs text-ink-400">
+          <House className="size-3" strokeWidth={2} aria-hidden />
+          Ish maydoni
+          {t.page ? (
+            <>
+              <ChevronRight className="size-3 text-ink-300" aria-hidden />
+              <Link href={t.sectionHref} className="truncate hover:text-ink-700">
+                {t.section}
+              </Link>
+            </>
+          ) : null}
+        </span>
+        <span className="block truncate text-[15px] font-semibold tracking-[-0.01em] text-ink-900">{t.page ?? t.section}</span>
       </span>
-      {t.page ? (
-        <>
-          <Link href={t.sectionHref} className="truncate text-ink-400 hover:text-ink-700">
-            {t.section}
-          </Link>
-          <span className="text-ink-300" aria-hidden>
-            /
-          </span>
-          <span className="truncate font-medium text-ink-800">{t.page}</span>
-        </>
-      ) : (
-        <span className="truncate font-medium text-ink-800">{t.section}</span>
-      )}
     </nav>
   );
 }
 
 export function BreadcrumbFallback() {
   return (
-    <span className="flex items-center gap-2.5 text-[15px] text-ink-400">
-      <House className="size-[18px] text-ink-500" strokeWidth={1.8} aria-hidden />
-      Ish maydoni
+    <span className="flex items-center gap-3">
+      <span className="skeleton size-8 rounded-[10px]" aria-hidden />
+      <span className="grid gap-1.5">
+        <span className="skeleton h-2.5 w-20" aria-hidden />
+        <span className="skeleton h-3.5 w-32" aria-hidden />
+      </span>
     </span>
   );
 }
@@ -123,9 +129,9 @@ export function HeaderSearch() {
         if (r && showPanel) go(`/students/${r.id}`);
         else if (q.trim()) go(`/students?${new URLSearchParams({ q: q.trim() })}`);
       }}
-      className="group relative hidden w-64 items-center md:flex xl:w-72"
+      className="group relative hidden h-10 w-56 items-center rounded-full bg-slate-100/80 ring-1 ring-transparent transition focus-within:bg-surface focus-within:ring-brand-300 hover:bg-slate-100 md:flex xl:w-72"
     >
-      <Search className="pointer-events-none absolute left-0 size-[18px] text-ink-400" strokeWidth={1.8} aria-hidden />
+      <Search className="pointer-events-none absolute left-3.5 size-[17px] text-ink-400" strokeWidth={1.9} aria-hidden />
       <input
         ref={ref}
         name="q"
@@ -147,18 +153,18 @@ export function HeaderSearch() {
         placeholder="O‘quvchi qidirish..."
         aria-label="O‘quvchi qidirish"
         autoComplete="off"
-        className="h-10 w-full bg-transparent pl-8 pr-9 text-[15px] text-ink-900 placeholder:text-ink-400 focus:outline-none"
+        className="h-10 w-full rounded-full bg-transparent pl-10 pr-10 text-[14px] text-ink-900 placeholder:text-ink-400 focus:outline-none"
       />
       {pending ? (
-        <LoaderCircle className="absolute right-1 size-4 animate-spin text-ink-400" aria-hidden />
+        <LoaderCircle className="absolute right-3.5 size-4 animate-spin text-ink-400" aria-hidden />
       ) : (
-        <kbd className="pointer-events-none absolute right-0 inline-flex size-6 items-center justify-center rounded-md border border-line text-xs text-ink-400 group-focus-within:hidden">
+        <kbd className="pointer-events-none absolute right-2.5 inline-flex size-6 items-center justify-center rounded-md border border-line bg-surface text-xs text-ink-400 group-focus-within:hidden">
           /
         </kbd>
       )}
 
       {showPanel ? (
-        <div className="pop-in absolute left-0 top-full z-50 mt-3 w-[min(380px,calc(100vw-2rem))] rounded-2xl border border-line bg-white p-2 shadow-pop">
+        <div className="pop-in absolute left-0 top-full z-50 mt-3 w-[min(380px,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-2 shadow-pop">
           {results === null ? (
             <p className="px-3 py-4 text-sm text-ink-400">Qidirilmoqda…</p>
           ) : results.length === 0 ? (
@@ -216,10 +222,10 @@ export function HeaderMonth({ fallbackMonth }: { fallbackMonth: string }) {
     sp.delete("day");
     return `${pathname}?${sp.toString()}`;
   };
-  const arrow = "inline-flex size-8 items-center justify-center rounded-lg text-ink-500 transition hover:bg-slate-100 hover:text-ink-900 sm:size-9";
+  const arrow = "inline-flex size-8 items-center justify-center rounded-full text-ink-500 transition hover:bg-slate-100 hover:text-ink-900";
 
   return (
-    <div className="inline-flex h-11 items-center gap-0.5 rounded-xl border border-line bg-white px-0.5 shadow-card sm:h-12 sm:px-1">
+    <div className="inline-flex h-10 items-center gap-0.5 rounded-full border border-line bg-surface px-1 shadow-card">
       <Link href={href(shiftMonth(month, -1))} className={arrow} aria-label="Oldingi oy" scroll={false}>
         <ChevronLeft className="size-4" aria-hidden />
       </Link>

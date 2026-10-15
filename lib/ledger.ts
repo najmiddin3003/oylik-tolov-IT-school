@@ -24,6 +24,8 @@ export type StudentLean = {
   active?: boolean | null;
   startDate: Date;
   lessons?: { day?: number | null; start?: string | null; end?: string | null }[] | null;
+  /** O'qituvchisi (xodim ID) */
+  teacher?: mongoose.Types.ObjectId | null;
 };
 
 export type StudentRow = {
@@ -42,6 +44,8 @@ export type StudentRow = {
   started: boolean;
   /** Dars jadvali (kunlar va vaqt) */
   lessons: Lesson[];
+  /** O'qituvchisi (xodim ID); biriktirilmagan — null */
+  teacherId: string | null;
 };
 
 export function feeHistoryOf(s: { feeHistory?: StudentLean["feeHistory"] }): FeeChange[] {
@@ -62,7 +66,7 @@ export function statusOf(fee: number, paid: number): PayStatus {
 /** Barcha o'quvchilar (bitta sahifa so'rovi ichida bir marta o'qiladi — React cache). */
 export const loadStudents = cache(async (): Promise<StudentLean[]> => {
   await ensureStudentSeqs();
-  return Student.find({}, { fullName: 1, phone: 1, group: 1, monthlyFee: 1, feeHistory: 1, active: 1, startDate: 1, seq: 1, lessons: 1 })
+  return Student.find({}, { fullName: 1, phone: 1, group: 1, monthlyFee: 1, feeHistory: 1, active: 1, startDate: 1, seq: 1, lessons: 1, teacher: 1 })
     .sort({ fullName: 1 })
     .limit(5000)
     .lean<StudentLean[]>();
@@ -93,6 +97,7 @@ export function toRow(s: StudentLean, paidMap: Map<string, number>, month: strin
     status: statusOf(fee, paid),
     started: compareMonths(monthOfDate(s.startDate), month) <= 0,
     lessons: normalizeLessons(s.lessons),
+    teacherId: s.teacher ? String(s.teacher) : null,
   };
 }
 

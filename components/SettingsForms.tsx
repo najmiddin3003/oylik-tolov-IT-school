@@ -1,20 +1,13 @@
 "use client";
 
-import { useState, type ChangeEvent, type ReactNode } from "react";
-import { Check, Eye, EyeOff, HandCoins, KeyRound, MessageSquareText, Percent, Send, ShieldCheck, Tags, Wallet } from "lucide-react";
-import {
-  addSalary,
-  applyFeeChange,
-  applyPercentChange,
-  changeOwnerPassword,
-  saveCenterName,
-  saveSmsSettings,
-  sendTestSmsAction,
-  setAdminPassword,
-} from "@/app/actions/settings";
+import { useState, type ReactNode } from "react";
+import { Check, Eye, EyeOff, HandCoins, KeyRound, MessageSquareText, Percent, Plus, Send, ShieldCheck, Tags, Trash2, Wallet } from "lucide-react";
+import { applyFeeChange, changeOwnerPassword, saveCenterName, saveCourses, saveSmsSettings, sendTestSmsAction, setAdminPassword } from "@/app/actions/settings";
 import type { FormState } from "@/app/actions/types";
+import { renderOtpText } from "@/lib/otp-text";
 import { renderSmsText, SMS_START_DAY_OPTIONS } from "@/lib/reminders";
 import { formatNumber, MONTH_NAMES, monthLabel } from "@/lib/time";
+import { MoneyInput, PhoneInput } from "./inputs";
 import { DatePicker, MonthPicker, Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
@@ -49,38 +42,62 @@ function Submit({ pending, children, pendingText = "Saqlanmoqda…", className }
   );
 }
 
-const moneyInput = (setter: (v: string) => void) => (e: ChangeEvent<HTMLInputElement>) => {
-  const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
-  setter(digits ? formatNumber(Number(digits)) : "");
-};
-
 // ---------- Oylik va avans ----------
 
-export function SalaryForm({ month, today }: { month: string; today: string }) {
-  const [state, onSubmit, pending] = useActionForm<FormState>(addSalary, {});
+type FormAction = (prev: FormState, fd: FormData) => Promise<FormState>;
+
+/** Oylik yoki avans yozish (`action` — xodimga bog'langan server action yoki xodimning o'zi uchun). */
+export function SalaryForm({
+  month,
+  today,
+  action,
+  narrow = false,
+  defaultKind = "oylik",
+  submitLabel = "Qo‘shish va ayirish",
+}: {
+  month: string;
+  today: string;
+  action: FormAction;
+  /** Tor ustunda — maydonlar bittadan */
+  narrow?: boolean;
+  defaultKind?: "oylik" | "avans";
+  submitLabel?: string;
+}) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(action, {});
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
-      <SalaryFields key={state.nonce ?? 0} month={month} today={today} fe={state.fieldErrors ?? {}} />
+      <SalaryFields key={state.nonce ?? 0} month={month} today={today} fe={state.fieldErrors ?? {}} narrow={narrow} defaultKind={defaultKind} />
       <Result state={state} />
       <div>
-        <Submit pending={pending}>
+        <Submit pending={pending} className={narrow ? "w-full" : undefined}>
           <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
-          Qo‘shish va ayirish
+          {submitLabel}
         </Submit>
       </div>
     </form>
   );
 }
 
-function SalaryFields({ month, today, fe }: { month: string; today: string; fe: Record<string, string> }) {
-  const [kind, setKind] = useState<"oylik" | "avans">("oylik");
-  const [amount, setAmount] = useState("");
+function SalaryFields({
+  month,
+  today,
+  fe,
+  narrow,
+  defaultKind,
+}: {
+  month: string;
+  today: string;
+  fe: Record<string, string>;
+  narrow: boolean;
+  defaultKind: "oylik" | "avans";
+}) {
+  const [kind, setKind] = useState<"oylik" | "avans">(defaultKind);
   return (
     <>
       <fieldset>
         <legend className={labelCls}>Turi</legend>
         <div className="grid max-w-sm grid-cols-2 gap-2">
-          {(["oylik", "avans"] as const).map((k) => (
+          {(["avans", "oylik"] as const).map((k) => (
             <label
               key={k}
               className={cx(
@@ -95,12 +112,12 @@ function SalaryFields({ month, today, fe }: { month: string; today: string; fe: 
           ))}
         </div>
       </fieldset>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className={cx("grid gap-4", !narrow && "sm:grid-cols-3")}>
         <div>
           <label htmlFor="sal-amount" className={labelCls}>
-            Summa (so‘m)
+            Summa
           </label>
-          <input id="sal-amount" name="amount" inputMode="numeric" value={amount} onChange={moneyInput(setAmount)} className={cx(inputCls, "num")} placeholder="300 000" aria-invalid={!!fe.amount} />
+          <MoneyInput id="sal-amount" name="amount" placeholder="300 000" invalid={!!fe.amount} />
           <FieldError msg={fe.amount} />
         </div>
         <div>
@@ -126,7 +143,16 @@ function SalaryFields({ month, today, fe }: { month: string; today: string; fe: 
 
 // ---------- Oylik to'lov narxi ----------
 
-export function FeeForm({ month, groups }: { month: string; groups: { fee: number; count: number }[] }) {
+export function FeeForm({
+  month,
+  groups,
+  courses = [],
+}: {
+  month: string;
+  groups: { fee: number; count: number }[];
+  /** Kurslar: tanlangan kursdagi o'quvchilarga qo'llash uchun */
+  courses?: { name: string; students: number }[];
+}) {
   const [state, onSubmit, pending] = useActionForm<FormState>(applyFeeChange, {});
   const [fee, setFee] = useState("");
   const [from, setFrom] = useState(month);
@@ -134,6 +160,7 @@ export function FeeForm({ month, groups }: { month: string; groups: { fee: numbe
   const fe = state.fieldErrors ?? {};
   const scopeOptions = [
     { value: "all", label: "Barcha o‘quvchilarga" },
+    ...courses.map((c) => ({ value: `course:${c.name}`, label: `«${c.name}» kursiga`, hint: `${c.students} ta` })),
     ...groups.map((g) => ({ value: `fee:${g.fee}`, label: `Faqat hozir ${formatNumber(g.fee)} to‘layotganlarga`, hint: `${g.count} ta` })),
   ];
 
@@ -142,7 +169,12 @@ export function FeeForm({ month, groups }: { month: string; groups: { fee: numbe
       className="grid gap-4"
       noValidate
       onSubmit={(e) => {
-        const target = scope === "all" ? "barcha o‘quvchilarga" : `hozir ${formatNumber(Number(scope.slice(4)))} so‘m to‘layotganlarga`;
+        const target =
+          scope === "all"
+            ? "barcha o‘quvchilarga"
+            : scope.startsWith("course:")
+              ? `«${scope.slice(7)}» kursidagi o‘quvchilarga`
+              : `hozir ${formatNumber(Number(scope.slice(4)))} so‘m to‘layotganlarga`;
         if (fee && !window.confirm(`${monthLabel(from)} oyidan boshlab ${target} oylik narx ${fee} so‘m qilinsinmi? O‘tgan oylar hisobi o‘zgarmaydi.`)) {
           e.preventDefault();
           return;
@@ -155,7 +187,7 @@ export function FeeForm({ month, groups }: { month: string; groups: { fee: numbe
           <label htmlFor="fee-new" className={labelCls}>
             Yangi narx (so‘m)
           </label>
-          <input id="fee-new" name="fee" inputMode="numeric" value={fee} onChange={moneyInput(setFee)} className={cx(inputCls, "num")} placeholder="350 000" aria-invalid={!!fe.fee} />
+          <MoneyInput id="fee-new" name="fee" value={fee} onValueChange={(_, f) => setFee(f)} placeholder="350 000" invalid={!!fe.fee} />
           <FieldError msg={fe.fee} />
         </div>
         <div>
@@ -182,8 +214,9 @@ export function FeeForm({ month, groups }: { month: string; groups: { fee: numbe
 
 // ---------- Ulush foizi ----------
 
-export function PercentForm({ month, current }: { month: string; current: number }) {
-  const [state, onSubmit, pending] = useActionForm<FormState>(applyPercentChange, {});
+/** Oylik foizi "falon oydan boshlab" (`action` — xodimga bog'langan server action). */
+export function PercentForm({ month, current, action }: { month: string; current: number; action: FormAction }) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(action, {});
   const fe = state.fieldErrors ?? {};
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
@@ -240,8 +273,9 @@ function PasswordInput({ id, name, label, error, autoComplete }: { id: string; n
   );
 }
 
-export function OwnerPasswordForm() {
-  const [state, onSubmit, pending] = useActionForm<FormState>(changeOwnerPassword, {});
+/** Parolni almashtirish: standart — rahbarning eski umumiy paroli; xodim profili uchun `action` beriladi. */
+export function OwnerPasswordForm({ action = changeOwnerPassword }: { action?: FormAction }) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(action, {});
   const fe = state.fieldErrors ?? {};
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate key={state.nonce ?? 0}>
@@ -285,13 +319,14 @@ export function SmsForm({
   sms,
   month,
 }: {
-  sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number };
+  sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number; otpTemplate: string };
   month: string;
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(saveSmsSettings, {});
-  const [enabled, setEnabled] = useState(sms.enabled);
   const [template, setTemplate] = useState(sms.template);
   const [startDay, setStartDay] = useState(String(sms.startDay));
+  const [otpTemplate, setOtpTemplate] = useState(sms.otpTemplate);
+  const otpPreview = renderOtpText(otpTemplate, "482913");
   const dayOptions = [...new Set<number>([...SMS_START_DAY_OPTIONS, sms.startDay])]
     .sort((a, b) => a - b)
     .map((d) => ({ value: String(d), label: d === 1 ? "Har kuni (oy boshidan)" : `Har oyning ${d}-sanasidan` }));
@@ -301,26 +336,6 @@ export function SmsForm({
 
   return (
     <form onSubmit={onSubmit} className="grid gap-5" noValidate>
-      <label className="flex cursor-pointer items-start gap-3.5 rounded-2xl border border-line p-4 transition hover:bg-slate-50/60">
-        <input type="checkbox" name="enabled" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="peer sr-only" />
-        <span
-          className={cx(
-            "relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition peer-focus-visible:ring-4 peer-focus-visible:ring-brand-500/20",
-            enabled ? "bg-emerald-500" : "bg-ink-300",
-          )}
-          aria-hidden
-        >
-          <span className={cx("absolute top-0.5 size-5 rounded-full bg-white shadow transition-all", enabled ? "left-[22px]" : "left-0.5")} />
-        </span>
-        <span>
-          <span className="block text-[15px] font-semibold text-ink-900">Kunlik SMS eslatma {enabled ? "yoqilgan" : "o‘chirilgan"}</span>
-          <span className="mt-0.5 block text-sm leading-relaxed text-ink-500">
-            {startDay === "1" ? "Har kuni" : `Har oyning ${startDay}-sanasidan boshlab, har kuni`} kechqurun (20:00) shu oy to‘lov qilmaganlarning jami soni SMS
-            qilib yuboriladi. Hamma to‘laganda SMS to‘xtaydi.
-          </span>
-        </span>
-      </label>
-
       <div className="max-w-sm">
         <span className={labelCls}>Qachondan boshlab</span>
         <Select name="startDay" value={startDay} onChange={setStartDay} options={dayOptions} aria-label="Qachondan boshlab" />
@@ -332,18 +347,7 @@ export function SmsForm({
           <label htmlFor="sms-phone" className={labelCls}>
             Qaysi raqamga
           </label>
-          <div className="relative">
-            <span className="num pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[15px] text-ink-400">+998</span>
-            <input
-              id="sms-phone"
-              name="phone"
-              inputMode="tel"
-              defaultValue={sms.phone.replace(/^998/, "").replace(/(\d{2})(\d{3})(\d{2})(\d{2})/, "$1 $2 $3 $4")}
-              className={cx(inputCls, "num pl-14")}
-              placeholder="33 626 30 06"
-              aria-invalid={!!fe.phone}
-            />
-          </div>
+          <PhoneInput id="sms-phone" name="phone" defaultValue={sms.phone} placeholder="33 626 30 06" invalid={!!fe.phone} />
           <FieldError msg={fe.phone} />
         </div>
         <div>
@@ -386,6 +390,29 @@ export function SmsForm({
             {length} belgi{length > 160 ? " — 2 ta SMS bo‘lib ketadi" : ""}
           </p>
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="sms-otp" className={labelCls}>
+          Xodim ro‘yxatdan o‘tish kodi (SMS matni)
+        </label>
+        <textarea
+          id="sms-otp"
+          name="otpTemplate"
+          rows={2}
+          maxLength={300}
+          value={otpTemplate}
+          onChange={(e) => setOtpTemplate(e.target.value)}
+          className={cx(inputCls, "h-auto py-2.5")}
+          aria-invalid={!!fe.otpTemplate}
+        />
+        <FieldError msg={fe.otpTemplate} />
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
+          <code className="rounded bg-slate-100 px-1 text-ink-600">{"{#kod#}"}</code> — 6 xonali tasdiqlash kodi. Xodim ro‘yxatdan o‘tganda yoki parolini
+          tiklaganda yuboriladi. Eskiz kabinetida («Mening matnlarim») quyidagi namunani <b className="font-semibold text-ink-600">harfma-harf</b> shunday
+          qo‘shib, tasdiqlatib qo‘ying (kod o‘rnida raqam turgani to‘g‘ri — o‘zgaruvchini moderator belgilaydi). Tasdiqlangan matn boshqacha chiqsa — uni shu
+          maydonga o‘zgartirmasdan ko‘chirib qo‘ying. Namuna: <span className="text-ink-600">{otpPreview}</span>
+        </p>
       </div>
 
       <Result state={state} />
@@ -435,6 +462,93 @@ export function CenterNameForm({ value }: { value: string }) {
           Saqlash
         </Submit>
       </div>
+    </form>
+  );
+}
+
+// ---------- Kurslar ----------
+
+type CourseDraft = { key: number; name: string; fee: string; prev: string; students: number };
+
+/** Kurslar ro'yxati: nomi va standart oylik narxi. Nomi o'zgarsa — o'sha kursdagi o'quvchilar ham yangi nomga o'tadi. */
+export function CoursesForm({ courses }: { courses: { name: string; fee: number | null; inList: boolean; students: number }[] }) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(saveCourses, {});
+  const [rows, setRows] = useState<CourseDraft[]>(() =>
+    courses.map((c, i) => ({ key: i, name: c.name, fee: c.fee ? formatNumber(c.fee) : "", prev: c.inList || c.students ? c.name : "", students: c.students })),
+  );
+  const [nextKey, setNextKey] = useState(courses.length);
+  const fe = state.fieldErrors ?? {};
+  const update = (key: number, patch: Partial<CourseDraft>) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const payload = JSON.stringify(rows.map((r) => ({ name: r.name, fee: r.fee, prev: r.prev })));
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-4" noValidate>
+      <input type="hidden" name="courses" value={payload} />
+      <div className="overflow-hidden rounded-2xl border border-line">
+        <div className="hidden grid-cols-[minmax(0,1fr)_200px_96px_44px] gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-400 sm:grid">
+          <span>Kurs nomi</span>
+          <span>Oylik narxi</span>
+          <span className="text-right">O‘quvchi</span>
+          <span />
+        </div>
+        <ul className="divide-y divide-line-soft">
+          {rows.map((r, i) => (
+            <li key={r.key} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_200px_96px_44px] sm:items-start sm:gap-3">
+              <div>
+                <input
+                  value={r.name}
+                  onChange={(e) => update(r.key, { name: e.target.value })}
+                  maxLength={80}
+                  className={inputCls}
+                  placeholder="Masalan: Grafik dizayn"
+                  aria-label="Kurs nomi"
+                  aria-invalid={!!fe[`name-${i}`]}
+                />
+                <FieldError msg={fe[`name-${i}`]} />
+                {r.prev && r.name.trim() && r.name.trim() !== r.prev && r.students ? (
+                  <p className="mt-1.5 text-xs text-amber-700">Saqlansa, {r.students} ta o‘quvchining kursi «{r.name.trim()}» bo‘ladi</p>
+                ) : null}
+              </div>
+              <div>
+                <MoneyInput value={r.fee} onValueChange={(_, f) => update(r.key, { fee: f })} placeholder="belgilanmagan" aria-label="Oylik narxi" invalid={!!fe[`fee-${i}`]} />
+                <FieldError msg={fe[`fee-${i}`]} />
+              </div>
+              <p className="num flex h-11 items-center text-sm text-ink-500 sm:justify-end">
+                <span className="sm:hidden">O‘quvchilar:&nbsp;</span>
+                {r.students}
+              </p>
+              <button
+                type="button"
+                onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}
+                disabled={rows.length <= 1 || r.students > 0}
+                className={cx(btn.iconDanger, "size-11")}
+                title={r.students > 0 ? "O‘quvchisi bor kursni o‘chirib bo‘lmaydi" : "Ro‘yxatdan olib tashlash"}
+                aria-label="Kursni olib tashlash"
+              >
+                <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setRows((list) => [...list, { key: nextKey, name: "", fee: "", prev: "", students: 0 }]);
+            setNextKey((k) => k + 1);
+          }}
+          className={cx(btn.outline, "h-10")}
+        >
+          <Plus className="size-4" aria-hidden />
+          Kurs qo‘shish
+        </button>
+        <Submit pending={pending} className="h-10">
+          <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          Saqlash
+        </Submit>
+      </div>
+      <Result state={state} />
     </form>
   );
 }

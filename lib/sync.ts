@@ -90,6 +90,7 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
       dateTo: string;
       courseFilter: string;
       filteredOut: number;
+      courseStats: { course: string; rows: number; matched: number; ignored: number }[];
       skipped: { row: number; reason: string }[];
       mismatches: MismatchResult[];
     };
@@ -105,6 +106,7 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
       dateTo: "",
       courseFilter: settings.courseFilter,
       filteredOut: 0,
+      courseStats: [],
       skipped: [],
       mismatches: [],
     });
@@ -155,6 +157,14 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
         dateTo: w?.dateTo ?? "",
         courseFilter: settings.courseFilter,
         filteredOut: parsed.filteredOut,
+        courseStats: [...new Set([...Object.keys(parsed.rowsByCourse), ...Object.keys(parsed.filteredByCourse)])]
+          .map((course) => ({
+            course,
+            rows: parsed.rowsByCourse[course] ?? 0,
+            matched: cmp.matchedByCourse[course] ?? 0,
+            ignored: parsed.filteredByCourse[course] ?? 0,
+          }))
+          .sort((a, b) => b.rows - a.rows || b.ignored - a.ignored),
         skipped: parsed.skipped.slice(0, 100),
         mismatches: cmp.mismatches,
       };

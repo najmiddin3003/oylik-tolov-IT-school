@@ -11,17 +11,17 @@ const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visi
 
 export const btn = {
   primary: `inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-[15px] font-semibold text-white shadow-brand transition hover:bg-brand-700 disabled:opacity-60 ${focus}`,
-  outline: `inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 text-[15px] font-medium text-ink-800 shadow-card transition hover:border-ink-300/60 hover:bg-slate-50 disabled:opacity-60 ${focus}`,
+  outline: `inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-[15px] font-medium text-ink-800 shadow-card transition hover:border-ink-300/60 hover:bg-slate-50 disabled:opacity-60 ${focus}`,
   soft: `inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-50 px-5 text-[15px] font-semibold text-brand-700 transition hover:bg-brand-100 disabled:opacity-60 ${focus}`,
-  danger: `inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 text-[15px] font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-60 ${focus}`,
-  sm: `inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-white px-3 text-sm font-medium text-ink-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 ${focus}`,
+  danger: `inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-surface px-4 text-[15px] font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-60 ${focus}`,
+  sm: `inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-sm font-medium text-ink-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-60 ${focus}`,
   icon: `inline-flex size-9 items-center justify-center rounded-lg text-ink-400 transition hover:bg-slate-100 hover:text-ink-900 disabled:opacity-60 ${focus}`,
   iconDanger: `inline-flex size-9 items-center justify-center rounded-lg text-ink-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-60 ${focus}`,
   link: "inline-flex items-center gap-1.5 text-[15px] font-medium text-brand-600 transition hover:text-brand-800",
 };
 
 export const inputCls =
-  "block h-11 w-full rounded-xl border border-line bg-white px-3.5 text-[15px] text-ink-900 shadow-card transition placeholder:text-ink-300 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 aria-invalid:border-rose-400";
+  "block h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-[15px] text-ink-900 shadow-card transition placeholder:text-ink-300 focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10 aria-invalid:border-rose-400";
 
 export const labelCls = "mb-2 block text-sm font-medium text-ink-700";
 
@@ -55,7 +55,7 @@ export function PageHeader({
 
 export function Card({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
   return (
-    <section id={id} className={cx("rounded-2xl border border-line bg-white shadow-card", className)}>
+    <section id={id} className={cx("rounded-2xl border border-line bg-surface shadow-card", className)}>
       {children}
     </section>
   );
@@ -101,7 +101,7 @@ export function CardHeader({
 
 export function Chip({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex h-7 items-center rounded-lg border border-line bg-white px-2.5 text-xs font-medium text-ink-500">
+    <span className="inline-flex h-7 items-center rounded-lg border border-line bg-surface px-2.5 text-xs font-medium text-ink-500">
       {children}
     </span>
   );
@@ -281,7 +281,7 @@ export function IconTile({
       aria-hidden
     >
       {/* yuqori chap burchakdagi yaltiroq */}
-      <span className="pointer-events-none absolute -left-1/4 -top-1/2 h-full w-[150%] rotate-[-18deg] bg-white/25" />
+      <span className="pointer-events-none absolute -left-1/4 -top-1/2 h-full w-[150%] rotate-[-18deg] bg-white/25 dark:bg-white/[0.06]" />
       <Icon
         className={cx("icon-wiggle relative", s.icon)}
         strokeWidth={1.9}
@@ -364,7 +364,7 @@ export function HeroKpiCard({
           {share.map((s) => (
             <div key={s.label} className="flex items-center justify-between gap-2">
               <dt className="min-w-0 truncate whitespace-nowrap text-white/80">{s.label}</dt>
-              <dd className={cx("num whitespace-nowrap", s.strong ? "font-bold text-white" : "font-semibold text-white/95", s.negative && "text-rose-200")}>{s.value}</dd>
+              <dd className={cx("num whitespace-nowrap", s.strong ? "font-bold text-white" : "font-semibold text-white/95", s.negative && "text-[#fecdd3]")}>{s.value}</dd>
             </div>
           ))}
         </dl>

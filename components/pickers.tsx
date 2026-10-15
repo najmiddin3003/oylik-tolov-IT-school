@@ -15,8 +15,8 @@ import { cx } from "./ui";
 /** up — yuqoriga ochiladi; x — panelning chap cheti (tugmaga nisbatan, px), ekrandan chiqib ketmasligi uchun. */
 type Placement = { up: boolean; x: number };
 
-function usePopover(estimate: { height: number; width: number; matchTrigger?: boolean }) {
-  const [open, setOpenState] = useState(false);
+function usePopover(estimate: { height: number; width: number; matchTrigger?: boolean }, initiallyOpen = false) {
+  const [open, setOpenState] = useState(initiallyOpen);
   const [placement, setPlacement] = useState<Placement>({ up: false, x: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -59,7 +59,7 @@ function usePopover(estimate: { height: number; width: number; matchTrigger?: bo
 
 function panelCls(p: Placement, extra = "") {
   return cx(
-    "absolute z-50 rounded-2xl border border-line bg-white p-2 shadow-pop pop-in",
+    "absolute z-50 rounded-2xl border border-line bg-surface p-2 shadow-pop pop-in",
     p.up ? "bottom-full mb-2 origin-bottom" : "top-full mt-2 origin-top",
     extra,
   );
@@ -70,7 +70,7 @@ function panelStyle(p: Placement) {
 }
 
 const fieldBase =
-  "flex w-full items-center gap-2 rounded-xl border bg-white px-3.5 text-left text-[15px] shadow-card transition focus:outline-none focus-visible:border-brand-400 focus-visible:ring-4 focus-visible:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60";
+  "flex w-full items-center gap-2 rounded-xl border bg-surface px-3.5 text-left text-[15px] shadow-card transition focus:outline-none focus-visible:border-brand-400 focus-visible:ring-4 focus-visible:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60";
 
 function triggerCls(opts: { open: boolean; invalid?: boolean; size?: "md" | "lg"; className?: string }) {
   return cx(
@@ -108,6 +108,7 @@ export function Select({
   invalid,
   id,
   disabled,
+  defaultOpen = false,
   "aria-label": ariaLabel,
 }: {
   name?: string;
@@ -116,6 +117,8 @@ export function Select({
   onChange?: (value: string) => void;
   options: SelectOption[];
   placeholder?: string;
+  /** Ro'yxat ochiq holda chiqadi (masalan, oldingi maydon tanlangach — yangi `key` bilan) */
+  defaultOpen?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
   emptyText?: string;
@@ -138,7 +141,7 @@ export function Select({
   const current = value ?? inner;
   const selected = options.find((o) => o.value === current);
   const canSearch = searchable ?? options.length > 8;
-  const { open, setOpen, close, placement, rootRef, triggerRef } = usePopover({ height: canSearch ? 380 : 320, width: 230, matchTrigger: true });
+  const { open, setOpen, close, placement, rootRef, triggerRef } = usePopover({ height: canSearch ? 380 : 320, width: 230, matchTrigger: true }, defaultOpen && !disabled);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -249,7 +252,7 @@ export function Select({
                 placeholder={searchPlaceholder}
                 aria-label={searchPlaceholder}
                 aria-controls={listId}
-                className="h-10 w-full rounded-xl border border-line bg-slate-50/60 pl-9 pr-3 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-300 focus:bg-white focus:outline-none"
+                className="h-10 w-full rounded-xl border border-line bg-slate-50/60 pl-9 pr-3 text-sm text-ink-900 placeholder:text-ink-400 focus:border-brand-300 focus:bg-surface focus:outline-none"
               />
             </label>
           ) : null}
@@ -363,7 +366,7 @@ export function SuggestInput({
         className={className}
       />
       {show ? (
-        <ul id={listId} role="listbox" className="pop-in absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-line bg-white p-1.5 shadow-pop">
+        <ul id={listId} role="listbox" className="pop-in absolute left-0 top-full z-50 mt-2 w-full rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
           {matches.map((s, i) => (
             <li
               key={s}
@@ -758,7 +761,7 @@ export function MonthPicker({
         className={
           variant === "bare"
             ? cx(
-                "flex h-9 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-ink-900 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:px-3 sm:text-[15px]",
+                "flex h-8 items-center gap-2 rounded-full px-2 text-sm font-semibold text-ink-900 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 sm:px-3",
                 open && "bg-slate-100",
                 className,
               )
@@ -1009,7 +1012,7 @@ export function TimePicker({
           role="dialog"
           aria-label="Vaqt tanlash"
           className={cx(
-            "pop-in fixed z-50 w-[288px] max-w-[calc(100vw-1rem)] rounded-2xl border border-line bg-white p-3 shadow-pop",
+            "pop-in fixed z-50 w-[288px] max-w-[calc(100vw-1rem)] rounded-2xl border border-line bg-surface p-3 shadow-pop",
             pos.bottom !== undefined ? "origin-bottom" : "origin-top",
           )}
           style={pos}

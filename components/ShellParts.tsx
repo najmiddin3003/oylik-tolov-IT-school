@@ -2,42 +2,48 @@
 import Link from "next/link";
 import { ArrowRight, BellRing, Building2, ChartColumnIncreasing, TriangleAlert } from "lucide-react";
 import { pageGuard } from "@/lib/auth";
-import { getNavCounts, getReminders, getSyncAlert } from "@/lib/data";
+import { getBellExtras, getNavCounts, getReminders, getSyncAlert, getTaskStatus } from "@/lib/data";
 import { reminderTitle } from "@/lib/reminders";
 import type { Role } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { currentMonth, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
-import { ROLE_INFO } from "./nav";
+import { navFor, ROLE_INFO } from "./nav";
 import { BottomNav, SidebarNav } from "./NavLinks";
 import { NotificationBell, UnpaidButton } from "./Notifications";
-import { HeaderMonth, HeaderSearch } from "./TopBar";
+import { SendTaskButton } from "./TaskButtons";
+import { ThemeToggle } from "./ThemeToggle";
+import { Breadcrumb, HeaderMonth, HeaderSearch } from "./TopBar";
 import { cx, IconTile, Skeleton } from "./ui";
-import { UserMenu } from "./UserMenu";
+import { UserAvatar, UserMenu } from "./UserMenu";
 
-/** Yon menyu tarkibi: rolga qarab bandlar, markaz nomi, foydalanuvchi. */
+/** Yon menyu tarkibi: o'rtasi (markaz, bo'limlar) aylanadi, foydalanuvchi bloki doim pastda ko'rinadi. */
 export async function SidebarBody() {
-  const { role } = await pageGuard();
+  const { role, name } = await pageGuard();
   const [counts, settings] = await Promise.all([getNavCounts(), getSettings()]);
   const info = ROLE_INFO[role];
+  const isOwner = role === "owner";
   return (
     <>
-      <div className="group mt-6 flex items-center gap-3 rounded-2xl border border-line px-3 py-3 sb-rail:hidden">
-        <IconTile icon={Building2} tone="slate" size="sm" />
-        <span className="min-w-0 leading-tight">
-          <span className="block truncate whitespace-nowrap text-[15px] font-semibold text-ink-900">{settings.centerName}</span>
-          <span className="mt-0.5 block whitespace-nowrap text-xs text-ink-400">{role === "owner" ? "Boshqaruv maydoni" : "To‘lovlar bo‘limi"}</span>
-        </span>
-      </div>
+      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pb-5 sb-rail:px-3">
+        <div className="group mt-2 flex items-center gap-3 rounded-2xl border border-line px-3 py-3 sb-rail:hidden">
+          <IconTile icon={Building2} tone="slate" size="sm" />
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate whitespace-nowrap text-[15px] font-semibold text-ink-900">{settings.centerName}</span>
+            <span className="mt-0.5 block whitespace-nowrap text-xs text-ink-400">
+              {isOwner ? "Rahbar boshqaruvi" : role === "teacher" ? "O‘qituvchi maydoni" : "To‘lovlar va kassa"}
+            </span>
+          </span>
+        </div>
 
-      <p className="mb-3 mt-7 whitespace-nowrap px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-400 sb-rail:hidden">Ish maydoni</p>
-      <nav className="flex flex-col gap-1 sb-rail:mt-6 sb-rail:items-stretch" aria-label="Asosiy menyu">
-        <SidebarNav counts={counts} role={role} />
-      </nav>
+        <p className="mb-2.5 mt-6 whitespace-nowrap px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-400 sb-rail:hidden">Ish maydoni</p>
+        <nav className="flex flex-col gap-1 sb-rail:mt-4 sb-rail:items-stretch" aria-label="Asosiy menyu">
+          <SidebarNav counts={counts} role={role} />
+        </nav>
 
-      <div className="mt-auto pt-8">
-        {role === "owner" ? (
-          <div className="group relative overflow-hidden rounded-2xl border border-brand-100/70 bg-[linear-gradient(160deg,#f5f6ff_0%,#eceeff_100%)] p-4 sb-rail:hidden">
-            <span className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full border-[14px] border-white/60" aria-hidden />
+        {isOwner ? (
+          // Ekran past bo'lsa — joy tejash uchun yashiriladi
+          <div className="group relative mt-6 overflow-hidden rounded-2xl border border-brand-100/70 bg-[linear-gradient(160deg,#f5f6ff_0%,#eceeff_100%)] p-4 sb-rail:hidden dark:bg-[linear-gradient(160deg,#1b2046_0%,#151935_100%)] [@media(max-height:860px)]:hidden">
+            <span className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full border-[14px] border-white/60 dark:border-white/5" aria-hidden />
             <IconTile icon={ChartColumnIncreasing} tone="brand" variant="solid" size="sm" />
             <p className="relative mt-4 text-[15px] font-semibold text-ink-900">
               Har bir to‘lov muhim<span className="text-brand-600">.</span>
@@ -49,21 +55,19 @@ export async function SidebarBody() {
             </Link>
           </div>
         ) : null}
+      </div>
 
-        <div className="mt-4 flex items-center gap-3 border-t border-line pt-4 sb-rail:flex-col sb-rail:gap-2">
-          <span
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-brand-500 to-brand-700 text-sm font-semibold text-white shadow-brand"
-            title={`${info.name} · ${info.hint}`}
-            aria-hidden
-          >
-            {info.letter}
+      <div className="flex shrink-0 items-center gap-3 border-t border-line bg-surface px-5 py-3.5 sb-rail:flex-col sb-rail:gap-2 sb-rail:px-3">
+        <span title={`${name ?? info.name} · ${info.hint}`}>
+          <UserAvatar role={role} name={name} />
+        </span>
+        <span className="min-w-0 flex-1 leading-tight sb-rail:hidden">
+          <span className="block truncate whitespace-nowrap text-sm font-semibold text-ink-900">{name ?? info.name}</span>
+          <span className={cx("mt-0.5 block truncate whitespace-nowrap text-xs", isOwner ? "font-semibold text-amber-700" : "text-ink-400")}>
+            {name ? info.name : info.hint}
           </span>
-          <span className="min-w-0 flex-1 leading-tight sb-rail:hidden">
-            <span className="block truncate whitespace-nowrap text-sm font-semibold text-ink-900">{info.name}</span>
-            <span className="mt-0.5 block truncate whitespace-nowrap text-xs text-ink-400">{info.hint}</span>
-          </span>
-          <UserMenu role={role} placement="sidebar" />
-        </div>
+        </span>
+        <UserMenu role={role} name={name} placement="sidebar" />
       </div>
     </>
   );
@@ -71,29 +75,31 @@ export async function SidebarBody() {
 
 export function SidebarSkeleton() {
   return (
-    <div className="mt-6 grid gap-2" aria-hidden>
-      <Skeleton className="h-16 rounded-2xl sb-rail:hidden" />
-      <Skeleton className="mt-6 h-3 w-24 sb-rail:hidden" />
-      {[0, 1, 2, 3].map((i) => (
-        <Skeleton key={i} className="h-12 rounded-xl" />
-      ))}
+    <div className="min-h-0 flex-1 px-5 sb-rail:px-3" aria-hidden>
+      <div className="mt-2 grid gap-2">
+        <Skeleton className="h-16 rounded-2xl sb-rail:hidden" />
+        <Skeleton className="mt-6 h-3 w-24 sb-rail:hidden" />
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-12 rounded-xl" />
+        ))}
+      </div>
     </div>
   );
 }
 
-/** Yuqori panelning o'ng qismi: qidiruv (rahbar), oy tanlagich, bildirishnomalar, menyu (telefonda). */
+/** Yuqori panelning o'ng qismi: qidiruv (rahbar, o'qituvchi), oy tanlagich, mavzu, bildirishnomalar, foydalanuvchi. */
 export async function HeaderTools() {
-  const { role } = await pageGuard();
-  const [reminders, sync] = await Promise.all([getReminders(), getSyncAlert()]);
+  const { role, name } = await pageGuard();
+  const [reminders, sync, extras] = await Promise.all([getReminders(), getSyncAlert(), getBellExtras()]);
+  const canSearch = role === "owner" || role === "teacher";
   return (
     <>
-      {role === "owner" ? <HeaderSearch /> : null}
-      {role === "owner" ? <span className="hidden h-7 w-px bg-line md:block" aria-hidden /> : null}
+      {canSearch ? <HeaderSearch /> : null}
       <HeaderMonth fallbackMonth={currentMonth()} />
-      <NotificationBell reminders={reminders} sync={sync} role={role} />
-      <div className="lg:hidden">
-        <UserMenu role={role} placement="header" />
-      </div>
+      <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden />
+      <ThemeToggle />
+      <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} handovers={extras.handovers} />
+      <UserMenu role={role} name={name} placement="header" />
     </>
   );
 }
@@ -101,24 +107,34 @@ export async function HeaderTools() {
 export function HeaderToolsFallback() {
   return (
     <>
-      <div className="skeleton h-11 w-48 rounded-xl sm:h-12 sm:w-52" aria-hidden />
-      <div className="skeleton size-10 rounded-xl" aria-hidden />
+      <div className="skeleton h-10 w-44 rounded-full sm:w-52" aria-hidden />
+      <div className="skeleton size-10 rounded-full" aria-hidden />
+      <div className="skeleton size-9 rounded-full" aria-hidden />
     </>
   );
 }
 
-/** Telefondagi pastki menyu (administratorda bitta bo'lim — ko'rsatilmaydi). */
+/** Yuqoridagi yo'l ko'rsatkich (rolga xos bo'lim nomlari bilan). */
+export async function HeaderBreadcrumb() {
+  const { role } = await pageGuard();
+  return <Breadcrumb role={role} />;
+}
+
+/** Telefondagi pastki menyu (bo'limlar bittadan ko'p bo'lsa). */
 export async function MobileNav() {
   const { role } = await pageGuard();
-  if (role !== "owner") return null;
+  if (navFor(role).length < 2) return null;
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Asosiy menyu">
+    <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Asosiy menyu">
       <BottomNav role={role} />
     </nav>
   );
 }
 
-/** Oxirgi Sheets tekshiruvida farq yoki xato bo'lsa — sahifa sarlavhasi ostida ogohlantirish (faqat rahbar). */
+/**
+ * Oxirgi Sheets tekshiruvida farq yoki xato bo'lsa — sahifa sarlavhasi ostida ogohlantirish (faqat rahbar,
+ * o'zi Sozlamalarda o'chirmagan bo'lsa).
+ */
 export async function SyncAlert() {
   await pageGuard();
   const alert = await getSyncAlert();
@@ -133,30 +149,51 @@ export async function SyncAlert() {
         </span>
         <span className="ml-2 text-amber-800/75">{isError ? alert.error : `Oxirgi tekshiruv: ${formatDateTime(alert.at)}`}</span>
       </p>
-      <Link href="/sync" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-800 transition hover:text-amber-950">
-        {isError ? "Sozlash" : "Ko‘rish"}
-        <ArrowRight className="size-4" aria-hidden />
-      </Link>
+      <span className="flex items-center gap-3">
+        <Link href="/settings#funksiyalar" className="text-xs font-medium text-amber-800/70 underline-offset-4 hover:text-amber-900 hover:underline">
+          O‘chirish
+        </Link>
+        <Link href="/sync" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-800 transition hover:text-amber-950">
+          {isError ? "Sozlash" : "Ko‘rish"}
+          <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      </span>
     </div>
   );
 }
 
-/** Oy oxiri eslatmasi: "Oy tugashiga 7 kun qoldi — 10 ta o'quvchi to'lov qilmadi" (bosilsa — ro'yxat). */
+/**
+ * Oy oxiri eslatmasi: "Oy tugashiga 7 kun qoldi — 10 ta o'quvchi to'lov qilmadi".
+ * Rahbarda — «Administratorga topshiriq yuborish», boshqalarda — ro'yxat.
+ */
 export async function ReminderBanner() {
   const { role } = await pageGuard();
   const reminders = await getReminders();
   if (!reminders.length) return null;
+  const tasks = role === "owner" ? await getTaskStatus(reminders.map((r) => r.month)) : {};
   return (
     <div className="mb-6 grid gap-3">
       {reminders.map((r) => (
-        <ReminderRow key={r.month} role={role} reminder={r} />
+        <ReminderRow key={r.month} role={role} reminder={r} task={tasks[r.month] ?? null} />
       ))}
     </div>
   );
 }
 
-function ReminderRow({ role, reminder: r }: { role: Role; reminder: Awaited<ReturnType<typeof getReminders>>[number] }) {
+function ReminderRow({
+  role,
+  reminder: r,
+  task,
+}: {
+  role: Role;
+  reminder: Awaited<ReturnType<typeof getReminders>>[number];
+  task: Awaited<ReturnType<typeof getTaskStatus>>[string] | null;
+}) {
   const urgent = r.daysLeft === null || r.daysLeft <= 3;
+  const listButton = cx(
+    "inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-surface px-4 text-sm font-semibold shadow-card ring-1 ring-inset transition sm:w-auto",
+    urgent ? "text-rose-700 ring-rose-200 hover:bg-rose-50" : "text-amber-800 ring-amber-200 hover:bg-amber-50",
+  );
   return (
     <div
       className={cx(
@@ -166,26 +203,33 @@ function ReminderRow({ role, reminder: r }: { role: Role; reminder: Awaited<Retu
       role="status"
     >
       <IconTile icon={BellRing} tone={urgent ? "rose" : "amber"} variant="solid" />
-      <p className="min-w-[200px] flex-1 text-sm leading-relaxed">
-        <span className={cx("block font-semibold", urgent ? "text-rose-900" : "text-amber-900")}>
+      <div className="min-w-[200px] flex-1 text-sm leading-relaxed">
+        <p className={cx("font-semibold", urgent ? "text-rose-900" : "text-amber-900")}>
           {reminderTitle(r)}: {r.students.length} ta o‘quvchi to‘lov qilmadi
-        </span>
-        <span className={cx("num block", urgent ? "text-rose-800/75" : "text-amber-800/75")}>
+        </p>
+        {/* <div>: ichida modal oyna (<dialog>) bor — <p> ichiga joylab bo'lmaydi */}
+        <div className={cx("num flex flex-wrap items-center gap-x-2", urgent ? "text-rose-800/75" : "text-amber-800/75")}>
           {monthLabel(r.month)} · qolgan qarz {formatMoney(r.total)}
-        </span>
-      </p>
-      <UnpaidButton
-        month={r.month}
-        students={r.students}
-        role={role}
-        className={cx(
-          "inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-white px-4 text-sm font-semibold shadow-card ring-1 ring-inset transition sm:w-auto",
-          urgent ? "text-rose-700 ring-rose-200 hover:bg-rose-50" : "text-amber-800 ring-amber-200 hover:bg-amber-50",
-        )}
-      >
-        Ro‘yxatni ko‘rish
-        <ArrowRight className="size-4" aria-hidden />
-      </UnpaidButton>
+          {role === "owner" ? (
+            <UnpaidButton
+              month={r.month}
+              students={r.students}
+              role={role}
+              className="font-semibold underline decoration-dotted underline-offset-4 hover:decoration-solid"
+            >
+              ro‘yxat
+            </UnpaidButton>
+          ) : null}
+        </div>
+      </div>
+      {role === "owner" ? (
+        <SendTaskButton month={r.month} task={task} tone={urgent ? "rose" : "amber"} />
+      ) : (
+        <UnpaidButton month={r.month} students={r.students} role={role} className={listButton}>
+          Ro‘yxatni ko‘rish
+          <ArrowRight className="size-4" aria-hidden />
+        </UnpaidButton>
+      )}
     </div>
   );
 }

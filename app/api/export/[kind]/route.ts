@@ -1,19 +1,22 @@
-import { requireAuth, requireOwner } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
+import { requireAuth, requireOwner, type Session } from "@/lib/auth";
 import {
   getMonthOverview,
-  getShareSummary,
+  getStaffPay,
+  getTeamOverview,
   listPayments,
   listStudents,
   type PayStatus,
   type StudentSort,
   type StudentTab,
 } from "@/lib/data";
+import type { SalaryRow } from "@/lib/pay";
 import { parseDayFilter, scheduleLabel } from "@/lib/schedule";
 import { blank, day, headerRow, int, money, text, totalRow, xlsxResponse, type XlsxSheet } from "@/lib/xlsx";
-import { currentMonth, dateToISO, isoToDate, isValidMonth, monthLabel } from "@/lib/time";
+import { currentMonth, dateToISO, formatNumber, isoToDate, isValidMonth, monthLabel } from "@/lib/time";
 
 // Excel eksport: /api/export/hisobot | oquvchilar | tolovlar  (?month=YYYY-MM va filtrlar)
-// Administrator faqat «tolovlar» ni yuklay oladi (ulush va oylik ma'lumotlarisiz).
+// Administrator — faqat «tolovlar»; o'qituvchi — o'z o'quvchilari bo'yicha «tolovlar» va «oquvchilar»; «hisobot» — rahbar.
 
 const STATUS: Record<PayStatus, string> = { paid: "To‘lagan", partial: "Qisman", unpaid: "To‘lamagan" };
 const METHOD: Record<string, string> = { naqd: "Naqd", karta: "Karta", otkazma: "O‘tkazma" };
@@ -21,8 +24,13 @@ const BY: Record<string, string> = { owner: "Rahbar", admin: "Administrator", sy
 
 const code = (seq: number | null) => (seq ? `#${String(seq).padStart(3, "0")}` : "");
 
-/** Oy bo'yicha qisqa xulosa varag'i (rahbarga ulush va oylik/avans bilan). Guruh tanlansa — shu guruh bo'yicha. */
-async function summarySheet(month: string, withShare: boolean, group = ""): Promise<XlsxSheet> {
+type Viewer = { role: Session["role"]; staffId: string | null };
+
+/**
+ * Oy bo'yicha qisqa xulosa varag'i. Rahbarga — xodimlar oyligi va markazga qolgani,
+ * o'qituvchiga — o'z oyligi. Guruh tanlansa — shu guruh bo'yicha.
+ */
+async function summarySheet(month: string, viewer: Viewer, group = ""): Promise<XlsxSheet> {
   const { totals } = await getMonthOverview(month, group);
   const rows = [
     [text("Oy"), text(monthLabel(month))],
@@ -37,30 +45,48 @@ async function summarySheet(month: string, withShare: boolean, group = ""): Prom
     [text("Qisman to‘laganlar"), int(totals.partial)],
     [text("To‘lamaganlar"), int(totals.unpaid)],
   ];
-  if (withShare) {
-    // Ulush butun tushumdan hisoblanadi (guruh filtridan qat'i nazar)
-    const collected = group ? (await getMonthOverview(month)).totals.collected : totals.collected;
-    const share = await getShareSummary(month, collected);
-    if (group) rows.push([blank(), blank()], [text("Butun markaz tushumi"), money(collected)]);
+  const payLines = (label: string, pay: { percent: number; share: number; taken: number; left: number }, salaries: SalaryRow[]) => {
     rows.push(
       [blank(), blank()],
-      [text(`Tushumning ${share.percent}%`), money(share.share, { fontWeight: "bold" })],
-      [text("Olindi (oylik va avans)"), money(share.taken)],
-      [text("Qoldi"), money(share.left, { fontWeight: "bold", textColor: share.left < 0 ? "#BE123C" : "#047857" })],
+      [text(`${label} (${pay.percent}%)`), money(pay.share, { fontWeight: "bold" })],
+      [text("Olindi (oylik va avans)"), money(pay.taken)],
+      [text("Qoldi"), money(pay.left, { fontWeight: "bold", textColor: pay.left < 0 ? "#BE123C" : "#047857" })],
     );
-    for (const s of share.salaries) {
-      rows.push([text(`  ${s.kind === "oylik" ? "Oylik" : "Avans"} · ${dateToISO(new Date(s.date))}${s.note ? ` · ${s.note}` : ""}`), money(s.amount)]);
+    for (const x of salaries) {
+      rows.push([text(`  ${x.kind === "oylik" ? "Oylik" : "Avans"} · ${dateToISO(new Date(x.date))}${x.note ? ` · ${x.note}` : ""}`), money(x.amount)]);
     }
+  };
+  if (viewer.role === "owner") {
+    // Butun markaz bo'yicha (guruh filtridan qat'i nazar)
+    const team = await getTeamOverview(month);
+    rows.push(
+      [blank(), blank()],
+      [text("Butun markaz tushumi"), money(team.finance.collected)],
+      [text("Xodimlar oyligi (jami)"), money(team.finance.staffShare, { fontWeight: "bold" })],
+    );
+    for (const m of team.members) {
+      if (m.role === "owner") continue;
+      rows.push([text(`  ${m.name} · ${m.pay.percent}% · olindi ${formatNumber(m.pay.taken)}`), money(m.pay.share)]);
+    }
+    rows.push(
+      [text("Berilgan avans (shu oy hisobidan)"), money(team.finance.given.avans)],
+      [text("Berilgan oylik (shu oy hisobidan)"), money(team.finance.given.oylik)],
+    );
+  } else if (viewer.role === "teacher" && viewer.staffId) {
+    const pay = await getStaffPay(viewer.staffId, month);
+    if (pay) payLines("Mening oyligim", pay, pay.salaries);
   }
   return {
     sheet: "Xulosa",
     data: [headerRow(["Ko‘rsatkich", "Qiymat"]), ...rows],
-    columns: [{ width: 34 }, { width: 22 }],
+    columns: [{ width: 40 }, { width: 22 }],
   };
 }
 
 export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind]">) {
-  const { role } = await requireAuth({ fresh: true });
+  const session = await requireAuth({ fresh: true });
+  const { role } = session;
+  const viewer: Viewer = { role, staffId: session.staffId };
   const { kind } = await ctx.params;
   const url = new URL(request.url);
   const p = (k: string) => (url.searchParams.get(k) ?? "").slice(0, 100);
@@ -90,18 +116,19 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
         columns: [{ width: 12 }, { width: 30 }, { width: 16 }, { width: 14 }, { width: 11 }, { width: 30 }, { width: 15 }],
         stickyRowsCount: 1,
       },
-      await summarySheet(month, isOwner),
+      await summarySheet(month, viewer),
     ];
+    await logActivity(session, "export.tolovlar", `Excel yuklab olindi: to‘lovlar — ${dayFilter || monthLabel(month)}`);
     return xlsxResponse(sheets, dayFilter ? `tolovlar-${dayFilter}.xlsx` : `tolovlar-${month}.xlsx`);
   }
 
-  // Quyidagilari — faqat rahbar uchun
-  if (!isOwner) await requireOwner();
+  // O'qituvchi o'z o'quvchilari ro'yxatini yuklay oladi; qolganlari — faqat rahbar uchun
+  if (!isOwner && !(role === "teacher" && kind === "oquvchilar")) await requireOwner();
 
   if (kind === "hisobot") {
     const { rows } = await getMonthOverview(month, p("group"));
     const sheets: XlsxSheet[] = [
-      await summarySheet(month, true, p("group")),
+      await summarySheet(month, viewer, p("group")),
       {
         sheet: "O‘quvchilar",
         data: [
@@ -133,6 +160,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
         stickyRowsCount: 1,
       },
     ];
+    await logActivity(session, "export.hisobot", `Excel yuklab olindi: oylik hisobot — ${monthLabel(month)}`);
     return xlsxResponse(sheets, `hisobot-${month}.xlsx`);
   }
 
@@ -143,6 +171,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
       q: p("q"),
       group: p("group"),
       day: parseDayFilter(p("day")),
+      teacher: /^([a-f0-9]{24}|none)$/i.test(p("teacher")) ? p("teacher") : "",
       status,
       month,
       tab,
@@ -171,6 +200,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
         stickyRowsCount: 1,
       },
     ];
+    await logActivity(session, "export.oquvchilar", `Excel yuklab olindi: o‘quvchilar ro‘yxati — ${monthLabel(month)}`);
     return xlsxResponse(sheets, `oquvchilar-${month}.xlsx`);
   }
 

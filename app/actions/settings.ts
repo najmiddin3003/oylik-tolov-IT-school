@@ -2,20 +2,22 @@
 
 import { cookies } from "next/headers";
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { isOwnerPassword, passwordVersion, requireOwner } from "@/lib/auth";
+import { cleanCourseName, courseKey, sameCourse, type Course } from "@/lib/courses";
 import { connectDB } from "@/lib/db";
-import { isId } from "@/lib/ids";
 import { normalizeUzPhone } from "@/lib/eskiz";
-import { applyFeeFrom, applyPercentFrom, feeFor, type FeeChange } from "@/lib/fees";
+import { applyFeeFrom, feeFor, type FeeChange } from "@/lib/fees";
 import { feeHistoryOf, studentFee, type StudentLean } from "@/lib/ledger";
-import { Salary, Student } from "@/lib/models";
+import { Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { DEFAULT_OTP_TEMPLATE, templateHasCode } from "@/lib/otp-text";
 import { normalizeStartDay, templateHasCount } from "@/lib/reminders";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/passwords";
 import { createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
 import { sendTestSms } from "@/lib/sms";
-import { currentMonth, formatMoney, isoToDate, isValidMonth, monthLabel, monthOfDate, todayISO } from "@/lib/time";
+import { currentMonth, formatMoney, isValidMonth, monthLabel, monthOfDate } from "@/lib/time";
 import type { FormState } from "./types";
 
 function str(fd: FormData, key: string, max = 200): string {
@@ -25,10 +27,11 @@ function str(fd: FormData, key: string, max = 200): string {
 // ---------- Umumiy ----------
 
 export async function saveCenterName(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   const centerName = str(fd, "centerName", 60).replace(/\s+/g, " ");
   if (centerName.length < 2) return { fieldErrors: { centerName: "Nomni kiriting" } };
   await updateSettings({ $set: { centerName } });
+  await logActivity(session, "settings.center", `Markaz nomi: «${centerName}»`);
   refresh();
   return { ok: true, message: "Saqlandi" };
 }
@@ -42,10 +45,11 @@ function sameFees(a: { monthlyFee: number; feeHistory: FeeChange[] }, b: { month
 
 /**
  * "Tanlangan oydan boshlab oylik to'lov = X". O'tgan oylar hisobi o'zgarmaydi.
- * scope = "all" — barcha o'quvchilar; "fee:300000" — faqat shu oyda 300 000 to'layotganlar (chegirmalar saqlanadi).
+ * scope = "all" — barcha o'quvchilar; "fee:300000" — faqat shu oyda 300 000 to'layotganlar (chegirmalar saqlanadi);
+ * "course:Web dasturlash" — faqat shu kursdagilar.
  */
 export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   const fee = parseAmount(str(fd, "fee"));
   const from = str(fd, "from");
   const scope = str(fd, "scope") || "all";
@@ -56,17 +60,19 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
   if (!isValidMonth(from)) fieldErrors.from = "Qaysi oydan boshlab — tanlang";
   const onlyFee = scope.startsWith("fee:") ? Number(scope.slice(4)) : null;
   if (onlyFee !== null && !Number.isFinite(onlyFee)) fieldErrors.scope = "Kimlarga qo‘llanishini tanlang";
+  const onlyCourse = scope.startsWith("course:") ? cleanCourseName(scope.slice(7)) : null;
+  if (onlyCourse !== null && !courseKey(onlyCourse)) fieldErrors.scope = "Kursni tanlang";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   await connectDB();
   const [students, settings] = await Promise.all([
-    Student.find({}, { monthlyFee: 1, feeHistory: 1, startDate: 1, active: 1 }).lean<StudentLean[]>(),
+    Student.find({}, { monthlyFee: 1, feeHistory: 1, startDate: 1, active: 1, group: 1 }).lean<StudentLean[]>(),
     getSettings({ fresh: true }),
   ]);
   // Narxi shu oyda allaqachon shunday bo'lsa ham, keyingi rejalashtirilgan o'zgarishlar bekor bo'lishi mumkin
   // (masalan, "yanvardan 400 000" ni "noyabrdan 300 000" bilan bekor qilish) — shuning uchun natijani solishtiramiz.
   const ops = students
-    .filter((s) => onlyFee === null || studentFee(s, from) === onlyFee)
+    .filter((s) => (onlyFee === null || studentFee(s, from) === onlyFee) && (onlyCourse === null || sameCourse(s.group, onlyCourse)))
     .flatMap((s) => {
       const current = { monthlyFee: s.monthlyFee, feeHistory: feeHistoryOf(s) };
       const next = applyFeeFrom({ ...current, startMonth: monthOfDate(s.startDate) }, from, fee!);
@@ -85,17 +91,25 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
   }
   let schedule = settings.feeSchedule;
   const standardAtFrom = feeFor({ monthlyFee: base, feeHistory: schedule }, from);
-  if (onlyFee === null || onlyFee === standardAtFrom) {
+  // Kurs bo'yicha o'zgarsa — markaz standarti emas, shu kursning narxi yangilanadi
+  if (onlyCourse === null && (onlyFee === null || onlyFee === standardAtFrom)) {
     // "0000-01" — standart narxning boshlanishi yo'q: o'zgarish doim tarixga yoziladi
     const next = applyFeeFrom({ monthlyFee: base, feeHistory: schedule, startMonth: "0000-01" }, from, fee!);
     base = next.monthlyFee;
     schedule = next.feeHistory;
   }
 
+  const courses: Course[] = onlyCourse
+    ? settings.courses.some((c) => sameCourse(c.name, onlyCourse))
+      ? settings.courses.map((c) => (sameCourse(c.name, onlyCourse) ? { ...c, fee: fee! } : c))
+      : [...settings.courses, { name: onlyCourse, fee: fee! }]
+    : settings.courses;
   await updateSettings({
-    $set: { defaultFee: base, feeSchedule: schedule },
+    $set: { defaultFee: base, feeSchedule: schedule, ...(onlyCourse ? { courses } : {}) },
     $push: { feeChanges: { $each: [{ from, fee, count: ops.length, at: new Date() }], $slice: -30 } },
   });
+  const target = onlyCourse ? `«${onlyCourse}» kursiga` : onlyFee !== null ? `hozir ${formatMoney(onlyFee)} to‘layotganlarga` : "barcha o‘quvchilarga";
+  await logActivity(session, "settings.fee", `Oylik narx ${monthLabel(from)} dan ${formatMoney(fee!)} — ${target} (${ops.length} ta o‘quvchi)`);
   refresh();
   return {
     ok: true,
@@ -104,61 +118,6 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
       : `O‘quvchilarda o‘zgarish yo‘q (hammasida allaqachon shu narx). Standart narx yangilandi.`,
     nonce: Date.now(),
   };
-}
-
-// ---------- Ulush foizi ----------
-
-export async function applyPercentChange(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireOwner({ fresh: true });
-  const percent = Number(str(fd, "percent").replace(",", "."));
-  const from = str(fd, "from");
-  const fieldErrors: Record<string, string> = {};
-  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) fieldErrors.percent = "1 dan 100 gacha son kiriting";
-  if (!isValidMonth(from)) fieldErrors.from = "Qaysi oydan boshlab — tanlang";
-  if (Object.keys(fieldErrors).length) return { fieldErrors };
-
-  const settings = await getSettings({ fresh: true });
-  const rounded = Math.round(percent * 100) / 100;
-  await updateSettings({ $set: { shareHistory: applyPercentFrom(settings.shareHistory, from, rounded) } });
-  refresh();
-  return { ok: true, message: `${monthLabel(from)} oyidan boshlab ulush ${rounded}%`, nonce: Date.now() };
-}
-
-// ---------- Oylik va avanslar ----------
-
-export async function addSalary(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireOwner({ fresh: true });
-  const kind = str(fd, "kind") === "avans" ? "avans" : "oylik";
-  const amount = parseAmount(str(fd, "amount"));
-  const dateIso = str(fd, "date");
-  const date = isoToDate(dateIso);
-  const month = str(fd, "month");
-  const note = str(fd, "note", 300);
-
-  const fieldErrors: Record<string, string> = {};
-  if (amount === null || amount <= 0) fieldErrors.amount = "Summani kiriting";
-  else if (amount > 1_000_000_000) fieldErrors.amount = "Summa juda katta — tekshirib ko‘ring";
-  if (!date) fieldErrors.date = "Sanani tanlang";
-  else if (dateIso > todayISO()) fieldErrors.date = "Kelajakdagi sana tanlab bo‘lmaydi";
-  if (!isValidMonth(month)) fieldErrors.month = "Qaysi oy uchun — tanlang";
-  if (Object.keys(fieldErrors).length) return { fieldErrors };
-
-  await connectDB();
-  await Salary.create({ kind, amount: amount!, date: date!, month, note });
-  refresh();
-  return {
-    ok: true,
-    message: `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} — ${monthLabel(month)} hisobidan ayirildi`,
-    nonce: Date.now(),
-  };
-}
-
-export async function deleteSalary(id: string): Promise<void> {
-  await requireOwner({ fresh: true });
-  if (!isId(id)) return;
-  await connectDB();
-  await Salary.findByIdAndDelete(id);
-  refresh();
 }
 
 // ---------- Parollar ----------
@@ -172,7 +131,7 @@ function checkNewPassword(next: string, confirm: string): Record<string, string>
 }
 
 export async function changeOwnerPassword(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   const current = String(fd.get("current") ?? "");
   const next = String(fd.get("next") ?? "");
   const confirm = String(fd.get("confirm") ?? "");
@@ -195,12 +154,13 @@ export async function changeOwnerPassword(_prev: FormState, fd: FormData): Promi
     path: "/",
     maxAge: SESSION_DAYS * 24 * 3600,
   });
+  await logActivity(session, "auth.password", "Rahbarning umumiy paroli almashtirildi");
   refresh();
   return { ok: true, message: "Parolingiz almashtirildi. Boshqa qurilmalarda qayta kirish kerak bo‘ladi.", nonce: Date.now() };
 }
 
 export async function setAdminPassword(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   const next = String(fd.get("next") ?? "");
   const confirm = String(fd.get("confirm") ?? "");
   const settings = await getSettings({ fresh: true });
@@ -210,6 +170,7 @@ export async function setAdminPassword(_prev: FormState, fd: FormData): Promise<
 
   const had = Boolean(settings.adminPasswordHash);
   await updateSettings({ $set: { adminPasswordHash: await hashPassword(next) } });
+  await logActivity(session, "settings.admin_password", had ? "Administratorning umumiy paroli almashtirildi" : "Administrator uchun umumiy parol o‘rnatildi");
   refresh();
   return {
     ok: true,
@@ -221,36 +182,132 @@ export async function setAdminPassword(_prev: FormState, fd: FormData): Promise<
 }
 
 export async function disableAdmin(): Promise<void> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   await updateSettings({ $set: { adminPasswordHash: null } });
+  await logActivity(session, "settings.admin_password", "Administratorning umumiy paroli o‘chirildi");
   refresh();
 }
 
 // ---------- SMS ----------
 
 export async function saveSmsSettings(_prev: FormState, fd: FormData): Promise<FormState> {
-  await requireOwner({ fresh: true });
-  const enabled = fd.get("enabled") === "on";
+  const session = await requireOwner({ fresh: true });
+  // Yoqish/o'chirish — alohida katakcha (Funksiyalar); forma maydoni bo'lsa — o'qiladi
+  const enabled = fd.has("enabled") ? fd.get("enabled") === "on" : null;
   const phone = normalizeUzPhone(str(fd, "phone", 40));
   const template = str(fd, "template", 400).replace(/\s+/g, " ");
   const sender = str(fd, "sender", 20) || "4546";
   const startDay = normalizeStartDay(fd.get("startDay"));
+  const otpTemplate = str(fd, "otpTemplate", 300).replace(/\s+/g, " ") || DEFAULT_OTP_TEMPLATE;
 
   const fieldErrors: Record<string, string> = {};
   if (!phone) fieldErrors.phone = "Raqamni to‘liq kiriting, masalan: 33 626 30 06";
   if (!templateHasCount(template)) fieldErrors.template = "Matnda {#soni#} bo‘lishi shart (to‘lamaganlar soni)";
   if (!/^[\w.-]{2,11}$/.test(sender)) fieldErrors.sender = "Jo‘natuvchi nomi noto‘g‘ri (odatda 4546)";
+  if (!templateHasCode(otpTemplate)) fieldErrors.otpTemplate = "Matnda {#kod#} bo‘lishi shart (tasdiqlash kodi)";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
-  await updateSettings({ $set: { "sms.enabled": enabled, "sms.phone": phone, "sms.template": template, "sms.sender": sender, "sms.startDay": startDay } });
+  await updateSettings({
+    $set: {
+      ...(enabled !== null ? { "sms.enabled": enabled } : {}),
+      "sms.phone": phone,
+      "sms.template": template,
+      "sms.sender": sender,
+      "sms.startDay": startDay,
+      "sms.otpTemplate": otpTemplate,
+    },
+  });
+  await logActivity(session, "settings.sms", "SMS sozlamalari saqlandi (raqam, matnlar, boshlanish sanasi)");
   refresh();
-  return { ok: true, message: enabled ? "Saqlandi — SMS eslatma yoqilgan" : "Saqlandi — SMS eslatma o‘chirilgan", nonce: Date.now() };
+  return { ok: true, message: "SMS sozlamalari saqlandi", nonce: Date.now() };
 }
 
 export async function sendTestSmsAction(): Promise<FormState> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   const res = await sendTestSms();
+  await logActivity(session, "settings.sms_test", res.status === "sent" ? `Sinov SMS yuborildi: «${res.text}»` : `Sinov SMS yuborilmadi: ${res.message}`);
   refresh();
   if (res.status === "sent") return { ok: true, message: `Sinov SMS yuborildi: «${res.text}»` };
   return { error: res.message };
+}
+
+// ---------- Funksiyalar (yoqib-o'chiriladi) ----------
+
+const FEATURES = {
+  paymentDateOwner: { field: "features.paymentDateOwner", label: "«To‘langan sana» maydoni (rahbar)" },
+  paymentDateAdmin: { field: "features.paymentDateAdmin", label: "«To‘langan sana» maydoni (administrator)" },
+  autoImport: { field: "autoImport", label: "Sheets’dagi yangi to‘lovlarni avtomatik qo‘shish" },
+  smsEnabled: { field: "sms.enabled", label: "Kunlik SMS eslatma" },
+} as const;
+
+export type FeatureKey = keyof typeof FEATURES;
+
+/** Bitta imkoniyatni yoqish/o'chirish (Sozlamalar → Funksiyalar, katakcha bosilishi bilan saqlanadi). */
+export async function setFeature(key: FeatureKey, on: boolean): Promise<{ ok: boolean }> {
+  const session = await requireOwner({ fresh: true });
+  const f = Object.hasOwn(FEATURES, key) ? FEATURES[key] : null;
+  if (!f) return { ok: false };
+  await updateSettings({ $set: { [f.field]: Boolean(on) } });
+  await logActivity(session, "settings.feature", `${f.label}: ${on ? "yoqildi" : "o‘chirildi"}`);
+  refresh();
+  return { ok: true };
+}
+
+// ---------- Kurslar ----------
+
+/**
+ * Kurslar ro'yxatini saqlash (JSON: [{ name, fee, prev }]). Nomi o'zgargan kursdagi o'quvchilarning
+ * kursi ham yangi nomga o'tkaziladi.
+ */
+export async function saveCourses(_prev: FormState, fd: FormData): Promise<FormState> {
+  const session = await requireOwner({ fresh: true });
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(fd.get("courses") ?? "[]"));
+  } catch {
+    return { error: "Ma’lumot noto‘g‘ri — sahifani yangilab, qayta urinib ko‘ring" };
+  }
+  if (!Array.isArray(raw) || raw.length > 30) return { error: "Kurslar ro‘yxati noto‘g‘ri" };
+
+  const fieldErrors: Record<string, string> = {};
+  const courses: Course[] = [];
+  const renames: { from: string; to: string }[] = [];
+  const seen = new Set<string>();
+  raw.forEach((item, i) => {
+    const r = (item ?? {}) as { name?: unknown; fee?: unknown; prev?: unknown };
+    const name = cleanCourseName(String(r.name ?? ""));
+    const feeText = String(r.fee ?? "").trim();
+    const fee = feeText ? parseAmount(feeText) : null;
+    if (name.length < 2) fieldErrors[`name-${i}`] = "Kurs nomini kiriting";
+    else if (seen.has(courseKey(name))) fieldErrors[`name-${i}`] = "Bu nom takrorlangan";
+    if (feeText && (fee === null || fee <= 0 || fee > 100_000_000)) fieldErrors[`fee-${i}`] = "Narx noto‘g‘ri";
+    seen.add(courseKey(name));
+    courses.push({ name, fee: fee && fee > 0 ? fee : null });
+    const prev = cleanCourseName(String(r.prev ?? ""));
+    if (prev && name.length >= 2 && !sameCourse(prev, name)) renames.push({ from: prev, to: name });
+  });
+  if (!courses.length) return { error: "Kamida bitta kurs bo‘lishi kerak" };
+  if (Object.keys(fieldErrors).length) return { fieldErrors };
+
+  await connectDB();
+  let moved = 0;
+  if (renames.length) {
+    const students = await Student.find({}, { group: 1 }).lean<{ _id: unknown; group?: string | null }[]>();
+    const ops = students.flatMap((st) => {
+      const r = renames.find((x) => sameCourse(st.group, x.from));
+      return r ? [{ updateOne: { filter: { _id: st._id }, update: { $set: { group: r.to } } } }] : [];
+    });
+    if (ops.length) {
+      await Student.bulkWrite(ops as Parameters<typeof Student.bulkWrite>[0]);
+      moved = ops.length;
+    }
+  }
+  await updateSettings({ $set: { courses } });
+  await logActivity(
+    session,
+    "settings.courses",
+    `Kurslar: ${courses.map((c) => (c.fee ? `${c.name} (${formatMoney(c.fee)})` : c.name)).join(", ")}${moved ? ` · ${moved} ta o‘quvchining kursi yangi nomga o‘tkazildi` : ""}`,
+  );
+  refresh();
+  return { ok: true, message: moved ? `Saqlandi. ${moved} ta o‘quvchining kursi yangi nomga o‘tkazildi.` : "Saqlandi", nonce: Date.now() };
 }

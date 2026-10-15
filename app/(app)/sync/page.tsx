@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { CalendarClock, CircleCheck, Download, Eye, FileSpreadsheet, Info, TriangleAlert } from "lucide-react";
+import { BookOpen, CalendarClock, CircleCheck, Download, Eye, FileSpreadsheet, Info, TriangleAlert } from "lucide-react";
 import { importAllMismatches, importMismatch, resolveMismatch } from "@/app/actions/sync";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
 import { Avatar, btn, Card, CardHeader, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
+import { courseLabel } from "@/lib/compare";
+import { sameCourse } from "@/lib/courses";
 import { getSyncPageData, type MismatchRow, type SyncRunView } from "@/lib/data";
 import type { MismatchKind } from "@/lib/models";
 import { syncHour } from "@/lib/sync";
@@ -24,16 +26,18 @@ const KIND: Record<MismatchKind, { label: string; tone: "rose" | "amber" | "bran
 const TRIGGER = { auto: "avtomatik", cron: "cron", manual: "qo‘lda" } as const;
 const isImportable = (m: MismatchRow) => m.kind === "missing_on_site" || m.kind === "unknown_student";
 
-export default function SyncPage() {
+export default function SyncPage({ searchParams }: PageProps<"/sync">) {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <SyncView />
+      <SyncView searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function SyncView() {
+async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["searchParams"] }) {
   await ownerGuard();
+  const sp = await searchParams;
+  const course = typeof sp.kurs === "string" ? sp.kurs.slice(0, 80) : "";
   const { settings, runs } = await getSyncPageData();
   const last = runs[0];
   const hour = String(syncHour()).padStart(2, "0");
@@ -57,7 +61,7 @@ async function SyncView() {
       ) : null}
 
       {last ? (
-        <LastRun run={last} />
+        <LastRun run={last} course={course} />
       ) : settings.sheetUrl ? (
         <Card className="mb-6">
           <EmptyState title="Hali tekshiruv o‘tkazilmagan" icon={FileSpreadsheet}>
@@ -69,7 +73,13 @@ async function SyncView() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card id="sozlamalar" className="scroll-mt-24 p-6">
           <h2 className="mb-5 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Sozlamalar</h2>
-          <SheetSettingsForm sheetUrl={settings.sheetUrl} columns={settings.columns} courseFilter={settings.courseFilter} autoImport={settings.autoImport} />
+          <SheetSettingsForm
+            sheetUrl={settings.sheetUrl}
+            columns={settings.columns}
+            courseFilter={settings.courseFilter}
+            autoImport={settings.autoImport}
+            courses={settings.courses}
+          />
         </Card>
 
         <Card className="self-start">
@@ -106,10 +116,15 @@ function periodLabel(run: SyncRunView): string {
   return "—";
 }
 
-function LastRun({ run }: { run: SyncRunView }) {
-  const open = run.mismatches.filter((m) => !m.resolved);
-  const resolved = run.mismatches.length - open.length;
-  const importable = open.filter(isImportable);
+function LastRun({ run, course }: { run: SyncRunView; course: string }) {
+  // Kurs bo'yicha filtr (?kurs=): ko'rsatkichlar va farqlar shu kurs bo'yicha
+  const stat = course ? run.courseStats.find((c) => sameCourse(c.course, course)) : undefined;
+  const selected = stat?.course ?? "";
+  const inCourse = (m: MismatchRow) => !selected || sameCourse(courseLabel(m.group), selected);
+  const allOpen = run.mismatches.filter((m) => !m.resolved);
+  const open = allOpen.filter(inCourse);
+  const resolved = run.mismatches.filter(inCourse).length - open.length;
+  const importable = allOpen.filter(isImportable);
   const newStudents = new Set(importable.filter((m) => m.kind === "unknown_student").map((m) => m.studentName.toLowerCase())).size;
 
   if (!run.ok) {
@@ -126,10 +141,16 @@ function LastRun({ run }: { run: SyncRunView }) {
 
   return (
     <>
+      {run.courseStats.length ? <CourseChips run={run} selected={selected} /> : null}
       <div className="mb-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
         <MiniStat label="Oxirgi tekshiruv" value={<span className="text-xl">{formatDateTime(run.startedAt)}</span>} icon={CalendarClock} tone="slate" />
-        <MiniStat label={run.courseFilter ? `«${run.courseFilter}» to‘lovlari` : "Sheets’dagi to‘lovlar"} value={run.sheetRowCount} icon={FileSpreadsheet} tone="brand" />
-        <MiniStat label="Mos keldi" value={run.matchedCount} icon={CircleCheck} tone="emerald" />
+        <MiniStat
+          label={selected ? `«${selected}» to‘lovlari` : run.courseFilter ? `«${run.courseFilter}» to‘lovlari` : "Sheets’dagi to‘lovlar"}
+          value={stat ? stat.rows : run.sheetRowCount}
+          icon={FileSpreadsheet}
+          tone="brand"
+        />
+        <MiniStat label="Mos keldi" value={stat ? stat.matched : run.matchedCount} icon={CircleCheck} tone="emerald" />
         <MiniStat label={resolved ? `Farqlar (${resolved} tasi hal qilingan)` : "Farqlar"} value={open.length} icon={TriangleAlert} tone={open.length ? "amber" : "emerald"} />
       </div>
       {run.autoImported ? (
@@ -157,7 +178,7 @@ function LastRun({ run }: { run: SyncRunView }) {
           title={open.length ? "Mos kelmagan to‘lovlar" : "Natija"}
           count={open.length || undefined}
           right={
-            importable.length ? (
+            importable.length && !selected ? (
               <ConfirmAction
                 action={importAllMismatches.bind(null, run.id)}
                 confirmText={`Sheets’dan saytga qo‘shiladi: ${newStudents ? `${newStudents} ta yangi o‘quvchi va ` : ""}${importable.length} ta yozuvdagi to‘lovlar. Keyin qayta tekshiriladi. Davom etilsinmi?`}
@@ -172,8 +193,8 @@ function LastRun({ run }: { run: SyncRunView }) {
         />
         {open.length === 0 ? (
           <div className="border-t border-line-soft">
-            <EmptyState title="Sayt va Google Sheets bir xil ✓" icon={CircleCheck}>
-              {run.sheetRowCount ? `${periodLabel(run)} oralig‘idagi barcha to‘lovlar mos keldi.` : "Sheets’da solishtiriladigan to‘lov topilmadi."}
+            <EmptyState title={selected ? `«${selected}»: farq yo‘q ✓` : "Sayt va Google Sheets bir xil ✓"} icon={CircleCheck}>
+              {(stat ? stat.rows : run.sheetRowCount) ? `${periodLabel(run)} oralig‘idagi barcha to‘lovlar mos keldi.` : "Sheets’da solishtiriladigan to‘lov topilmadi."}
             </EmptyState>
           </div>
         ) : (
@@ -277,5 +298,46 @@ function MismatchItem({ m, runId, basis }: { m: MismatchRow; runId: string; basi
         </ConfirmAction>
       </div>
     </li>
+  );
+}
+
+/** Kurslar bo'yicha filtr: solishtirilgan kurslar va (sozlamadagi filtr tufayli) solishtirilmaganlari. */
+function CourseChips({ run, selected }: { run: SyncRunView; selected: string }) {
+  const compared = run.courseStats.filter((c) => c.rows > 0);
+  const ignored = run.courseStats.filter((c) => c.rows === 0 && c.ignored > 0);
+  const chip = "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium ring-1 ring-inset transition";
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Kurs bo‘yicha">
+      <Link href="/sync" scroll={false} className={cx(chip, !selected ? "bg-ink-900 text-surface ring-ink-900" : "bg-surface text-ink-600 ring-line hover:bg-slate-50")}>
+        Barcha kurslar
+        <span className="num opacity-70">{run.sheetRowCount}</span>
+      </Link>
+      {compared.map((c) => {
+        const on = sameCourse(c.course, selected);
+        return (
+          <Link
+            key={c.course}
+            href={`/sync?${new URLSearchParams({ kurs: c.course })}`}
+            scroll={false}
+            className={cx(chip, on ? "bg-ink-900 text-surface ring-ink-900" : "bg-surface text-ink-600 ring-line hover:bg-slate-50")}
+          >
+            <BookOpen className="size-3.5" aria-hidden />
+            {c.course}
+            <span className="num opacity-70">{c.rows}</span>
+          </Link>
+        );
+      })}
+      {ignored.map((c) => (
+        <Link
+          key={c.course}
+          href="/sync#sozlamalar"
+          title="Sozlamalardagi kurs filtri tufayli solishtirilmaydi — qo‘shish uchun bosing"
+          className={cx(chip, "border-dashed bg-transparent text-ink-400 ring-line hover:text-ink-600")}
+        >
+          {c.course}
+          <span className="num">{c.ignored} qator · solishtirilmaydi</span>
+        </Link>
+      ))}
+    </div>
   );
 }

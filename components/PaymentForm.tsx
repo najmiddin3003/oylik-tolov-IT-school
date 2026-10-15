@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Banknote, CalendarCheck, Check, CreditCard, Landmark, Lock, Plus, type LucideIcon } from "lucide-react";
+import { Banknote, BookOpen, CalendarCheck, Check, CreditCard, Landmark, Lock, Plus, type LucideIcon } from "lucide-react";
 import { addPayment } from "@/app/actions/payments";
 import type { FormState } from "@/app/actions/types";
 import type { StudentOption } from "@/lib/data";
+import { courseKey } from "@/lib/courses";
 import { feeFor } from "@/lib/fees";
 import type { PaymentMethod } from "@/lib/models";
 import { formatMoney, formatNumber } from "@/lib/time";
+import { MoneyInput } from "./inputs";
 import { DatePicker, formatDayLong, MonthPicker, Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
@@ -25,9 +27,15 @@ type Props = {
   defaultStudentId?: string;
   defaultMonth: string;
   today: string;
-  /** Rahbar to'langan sanani tanlay oladi; administratorda — har doim bugun */
+  /** «To'langan sana» maydoni (rahbar Sozlamalar → Funksiyalar bo'limida rol bo'yicha yoqadi); o'chiq — har doim bugun */
   canPickDate: boolean;
+  /** Kurslar tartibi (sozlamalardagi ro'yxat); to'lov kiritishda avval kurs tanlanadi */
+  courses?: string[];
 };
+
+/** Kursi yo'q o'quvchilar uchun tanlov qiymati */
+const NO_COURSE = "__none";
+const courseOf = (s: StudentOption) => (s.group.trim() ? courseKey(s.group) : NO_COURSE);
 
 /** To'lov qo'shish formasi (To'lovlar sahifasi va o'quvchi sahifasi). */
 export function PaymentForm(props: Props) {
@@ -71,8 +79,23 @@ function PaymentFields({
   defaultMonth,
   today,
   canPickDate,
+  courses = [],
   fe,
 }: Props & { fe: Record<string, string> }) {
+  // Kurslar: sozlamalardagi tartibda, keyin o'quvchilarda uchraydigan boshqalari; o'quvchilar soni bilan
+  const courseOptions = useMemo(() => {
+    const count = new Map<string, { label: string; n: number }>();
+    for (const s of students) {
+      const k = courseOf(s);
+      const prev = count.get(k);
+      count.set(k, { label: prev?.label ?? (k === NO_COURSE ? "Kursi belgilanmagan" : s.group.trim()), n: (prev?.n ?? 0) + 1 });
+    }
+    const ordered = [...courses.map(courseKey).filter((k) => count.has(k)), ...[...count.keys()].filter((k) => !courses.some((c) => courseKey(c) === k))];
+    return [...new Set(ordered)].map((k) => ({ value: k, label: count.get(k)!.label, hint: `${count.get(k)!.n} ta` }));
+  }, [students, courses]);
+  const initialStudent = students.find((s) => s.id === (fixedStudentId ?? defaultStudentId));
+  const [course, setCourse] = useState(initialStudent ? courseOf(initialStudent) : courseOptions.length === 1 ? courseOptions[0].value : "");
+  const [openStudents, setOpenStudents] = useState(0);
   const [studentId, setStudentId] = useState(fixedStudentId ?? defaultStudentId ?? "");
   const [month, setMonth] = useState(defaultMonth);
   const [amount, setAmount] = useState<string | null>(null); // null — avtomatik (qolgan summa)
@@ -86,10 +109,10 @@ function PaymentFields({
   const shown = amount ?? (st ? formatNumber(remaining || fee) : "");
   const chips = [...new Set([roundTo10k(fee / 3), roundTo10k(fee / 2)])].filter((v) => v > 0 && v < fee);
 
-  // O'quvchilar ro'yxati: faqat ism-familiya; o'ngda shu oy holati (to'lagan / qancha qolgan)
+  // O'quvchilar ro'yxati (tanlangan kurs bo'yicha): faqat ism-familiya; o'ngda shu oy holati (to'lagan / qancha qolgan)
   const options = useMemo(
     () =>
-      students.map((s) => {
+      students.filter((s) => courseOf(s) === course).map((s) => {
         const f = feeFor(s, month);
         const p = s.paid[month] ?? 0;
         return {
@@ -103,7 +126,7 @@ function PaymentFields({
             ) : undefined,
         };
       }),
-    [students, month],
+    [students, month, course],
   );
 
   return (
@@ -111,29 +134,60 @@ function PaymentFields({
       {fixedStudentId ? (
         <input type="hidden" name="studentId" value={fixedStudentId} />
       ) : (
-        <div>
-          <label htmlFor="pf-student" className={labelCls}>
-            O‘quvchi <span className="text-brand-600">*</span>
-          </label>
-          <Select
-            id="pf-student"
-            name="studentId"
-            value={studentId}
-            onChange={(v) => {
-              setStudentId(v);
-              setAmount(null);
-            }}
-            options={options}
-            placeholder="O‘quvchini tanlang"
-            searchable
-            searchPlaceholder="Ism bo‘yicha qidirish..."
-            emptyText="Bunday o‘quvchi topilmadi"
-            size="lg"
-            invalid={!!fe.studentId}
-            aria-label="O‘quvchi"
-          />
-          {fe.studentId ? <p className="mt-1.5 text-xs text-rose-600">{fe.studentId}</p> : null}
-        </div>
+        <>
+          {courseOptions.length > 1 ? (
+            <div>
+              <label htmlFor="pf-course" className={labelCls}>
+                Kurs <span className="text-brand-600">*</span>
+              </label>
+              <Select
+                id="pf-course"
+                value={course}
+                onChange={(v) => {
+                  setCourse(v);
+                  // Boshqa kursdagi o'quvchi tanlangan bo'lsa — tozalanadi; o'quvchilar ro'yxati o'zi ochiladi
+                  if (!students.some((s) => s.id === studentId && courseOf(s) === v)) {
+                    setStudentId("");
+                    setAmount(null);
+                  }
+                  setOpenStudents((n) => n + 1);
+                }}
+                options={courseOptions.map((o) => ({ ...o, icon: <BookOpen className="size-4 text-ink-400" aria-hidden /> }))}
+                placeholder="Avval kursni tanlang"
+                searchable={false}
+                size="lg"
+                aria-label="Kurs"
+              />
+            </div>
+          ) : null}
+          <div>
+            <label htmlFor="pf-student" className={labelCls}>
+              O‘quvchi <span className="text-brand-600">*</span>
+            </label>
+            <Select
+              // Kurs tanlanganda ro'yxat yangidan, ochiq holda chiqadi
+              key={`students-${openStudents}`}
+              defaultOpen={openStudents > 0}
+              id="pf-student"
+              name="studentId"
+              value={studentId}
+              onChange={(v) => {
+                setStudentId(v);
+                setAmount(null);
+              }}
+              options={options}
+              placeholder={course ? "O‘quvchini tanlang" : "Avval kursni tanlang"}
+              disabled={!course}
+              searchable
+              searchPlaceholder="Ism bo‘yicha qidirish..."
+              emptyText="Bu kursda o‘quvchi topilmadi"
+              size="lg"
+              invalid={!!fe.studentId}
+              aria-label="O‘quvchi"
+            />
+            {fe.studentId ? <p className="mt-1.5 text-xs text-rose-600">{fe.studentId}</p> : null}
+          </div>
+        </>
       )}
 
       {st ? (
@@ -185,23 +239,16 @@ function PaymentFields({
         <label htmlFor="pf-amount" className={labelCls}>
           To‘lov summasi <span className="text-brand-600">*</span>
         </label>
-        <div className="relative">
-          <input
-            id="pf-amount"
-            name="amount"
-            inputMode="numeric"
-            autoComplete="off"
-            value={shown}
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, "").slice(0, 12);
-              setAmount(digits ? formatNumber(Number(digits)) : "");
-            }}
-            className={cx(inputCls, "num h-16 pr-16 text-[26px] font-semibold tracking-[-0.01em]")}
-            placeholder="0"
-            aria-invalid={!!fe.amount}
-          />
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-ink-400">so‘m</span>
-        </div>
+        <MoneyInput
+          id="pf-amount"
+          name="amount"
+          value={shown}
+          onValueChange={(_, formatted) => setAmount(formatted)}
+          maxDigits={12}
+          className="h-16 pr-16 text-[26px] font-semibold tracking-[-0.01em]"
+          placeholder="0"
+          invalid={!!fe.amount}
+        />
         {fe.amount ? <p className="mt-1.5 text-xs text-rose-600">{fe.amount}</p> : null}
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           {chips.map((v) => (

@@ -3,14 +3,16 @@
 // Oy oxiri eslatmalari: to'lamaganlar ro'yxati oynasi va yuqoridagi qo'ng'iroqcha.
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, BellRing, CalendarClock, FileSpreadsheet, Phone, Plus, X } from "lucide-react";
-import type { Reminder, UnpaidStudent } from "@/lib/data";
+import { Bell, BellRing, CalendarClock, ClipboardList, FileSpreadsheet, Phone, Plus, Coins, X } from "lucide-react";
+import type { BellHandover, Reminder, UnpaidStudent } from "@/lib/data";
 import { reminderTitle } from "@/lib/reminders";
 import { minutesUntil, nextLesson, nextLessonLabel, scheduleLabel, tashkentClock } from "@/lib/schedule";
 import type { Role } from "@/lib/session";
+import type { TaskRow } from "@/lib/tasks";
 import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
 import { LiveDot } from "./Lessons";
 import { Avatar, btn, cx, IconTile } from "./ui";
+import { useDialog } from "./Modal";
 import { useNow } from "./useNow";
 
 /** To'lov qilmagan o'quvchilar ro'yxati (modal oyna). */
@@ -27,13 +29,7 @@ export function UnpaidDialog({
   students: UnpaidStudent[];
   role: Role;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
+  const { ref, present } = useDialog(open);
 
   const total = students.reduce((s, x) => s + x.debt, 0);
 
@@ -45,9 +41,9 @@ export function UnpaidDialog({
         if (e.target === ref.current) onClose();
       }}
       aria-labelledby={`unpaid-${month}`}
-      className="m-auto max-h-[min(720px,calc(100dvh-2rem))] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-2xl border border-line bg-white p-0 text-ink-700 shadow-pop"
+      className="m-auto max-h-[min(720px,calc(100dvh-2rem))] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-2xl border border-line bg-surface p-0 text-ink-700 shadow-pop"
     >
-      {open ? (
+      {present ? (
         <div className="flex max-h-[min(720px,calc(100dvh-2rem))] flex-col">
           <div className="group flex items-start gap-3.5 border-b border-line-soft px-5 py-4 sm:px-6">
             <IconTile icon={BellRing} tone="amber" variant="solid" />
@@ -99,7 +95,7 @@ function UnpaidList({ students, month, role, onClose }: { students: UnpaidStuden
           <span className="num w-5 shrink-0 text-right text-xs text-ink-300">{i + 1}</span>
           <Avatar name={s.name} />
           <div className="min-w-0 flex-1">
-            {role === "owner" ? (
+            {role !== "admin" ? (
               <Link href={`/students/${s.id}?month=${month}`} onClick={onClose} className="block truncate text-[15px] font-medium text-ink-900 hover:text-brand-600">
                 {s.name}
               </Link>
@@ -126,16 +122,18 @@ function UnpaidList({ students, month, role, onClose }: { students: UnpaidStuden
             </p>
           </div>
           <span className="num shrink-0 text-right text-[15px] font-semibold text-ink-900">{formatNumber(s.debt)}</span>
-          <Link
-            href={`/payments?${new URLSearchParams({ month, student: s.id })}#yangi-tolov`}
-            onClick={onClose}
-            className={cx(btn.sm, "shrink-0 px-2.5")}
-            aria-label={`${s.name}: to‘lov kiritish`}
-            title="To‘lov kiritish"
-          >
-            <Plus className="size-4" aria-hidden />
-            <span className="hidden sm:inline">To‘lov</span>
-          </Link>
+          {role !== "teacher" ? (
+            <Link
+              href={`/payments?${new URLSearchParams({ month, student: s.id })}#yangi-tolov`}
+              onClick={onClose}
+              className={cx(btn.sm, "shrink-0 px-2.5")}
+              aria-label={`${s.name}: to‘lov kiritish`}
+              title="To‘lov kiritish"
+            >
+              <Plus className="size-4" aria-hidden />
+              <span className="hidden sm:inline">To‘lov</span>
+            </Link>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -171,12 +169,27 @@ export function UnpaidButton({
 
 type SyncAlertData = { unresolved: number; error: string; at: string } | null;
 
-/** Yuqori paneldagi qo'ng'iroqcha: oy oxiri eslatmalari va (rahbarga) Sheets farqlari. */
-export function NotificationBell({ reminders, sync, role }: { reminders: Reminder[]; sync: SyncAlertData; role: Role }) {
+/**
+ * Yuqori paneldagi qo'ng'iroqcha: oy oxiri eslatmalari, rahbarga — Sheets farqlari va qabul qilinishi kerak bo'lgan kassa
+ * topshiruvlari, administratorga — rahbardan kelgan topshiriqlar.
+ */
+export function NotificationBell({
+  reminders,
+  sync,
+  role,
+  tasks = [],
+  handovers = [],
+}: {
+  reminders: Reminder[];
+  sync: SyncAlertData;
+  role: Role;
+  tasks?: TaskRow[];
+  handovers?: BellHandover[];
+}) {
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<Reminder | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const count = reminders.length + (sync ? 1 : 0);
+  const count = reminders.length + (sync ? 1 : 0) + tasks.length + handovers.length;
 
   useEffect(() => {
     if (!open) return;
@@ -205,13 +218,13 @@ export function NotificationBell({ reminders, sync, role }: { reminders: Reminde
         aria-haspopup="dialog"
         aria-label={label}
         title={label}
-        className={cx(btn.icon, "group relative size-10 text-ink-500", open && "bg-slate-100 text-ink-900")}
+        className={cx(btn.icon, "group relative size-10 rounded-full text-ink-500", open && "bg-slate-100 text-ink-900")}
       >
         {count ? <BellRing className="icon-wiggle size-5" strokeWidth={1.8} aria-hidden /> : <Bell className="size-5" strokeWidth={1.8} aria-hidden />}
         {count ? (
           <span className="absolute right-1 top-1 flex size-[18px] items-center justify-center" aria-hidden>
             <span className="ping-soft absolute inset-0 rounded-full bg-rose-400" />
-            <span className="num relative inline-flex size-[18px] items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-white">
+            <span className="num relative inline-flex size-[18px] items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white ring-2 ring-surface">
               {count}
             </span>
           </span>
@@ -219,12 +232,43 @@ export function NotificationBell({ reminders, sync, role }: { reminders: Reminde
       </button>
 
       {open ? (
-        <div role="dialog" aria-label="Bildirishnomalar" className="pop-in absolute right-0 top-full z-50 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-line bg-white p-2 shadow-pop">
+        <div role="dialog" aria-label="Bildirishnomalar" className="pop-in absolute right-0 top-full z-50 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-2 shadow-pop">
           <p className="px-3 pb-2 pt-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-ink-400">Bildirishnomalar</p>
           {count === 0 ? (
             <p className="px-3 pb-4 pt-2 text-sm text-ink-500">Yangi xabar yo‘q. Hammasi joyida ✓</p>
           ) : (
-            <ul className="grid gap-1">
+            <ul className="grid max-h-[min(480px,calc(100dvh-8rem))] gap-1 overflow-y-auto overscroll-contain">
+              {tasks.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    href="/payments#topshiriqlar"
+                    onClick={() => setOpen(false)}
+                    className="group flex items-start gap-3 rounded-xl px-3 py-2.5 transition hover:bg-brand-50/70"
+                  >
+                    <IconTile icon={ClipboardList} tone="brand" size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-ink-900">Rahbardan topshiriq</span>
+                      <span className="num mt-0.5 block text-[13px] text-ink-500">
+                        To‘lovlarni yig‘ing: {monthLabel(t.month)} uchun {t.count} ta o‘quvchi to‘lov qilmabdi
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+              {handovers.map((h) => (
+                <li key={h.id}>
+                  <Link href="/kassa" onClick={() => setOpen(false)} className="group flex items-start gap-3 rounded-xl px-3 py-2.5 transition hover:bg-orange-50/70">
+                    <IconTile icon={Coins} tone="orange" size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-ink-900">Kassa: qabul qiling</span>
+                      <span className="num mt-0.5 block text-[13px] text-ink-500">
+                        {h.fromName} {formatMoney(h.cash + h.card)} topshirdi
+                        {h.cash && h.card ? ` (naqd ${formatNumber(h.cash)}, karta ${formatNumber(h.card)})` : h.card ? " (karta)" : " (naqd)"}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
               {reminders.map((r) => (
                 <li key={r.month}>
                   <button

@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { requireOwner } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
@@ -14,7 +15,7 @@ import type { FormState } from "./types";
 const COLUMN_FIELDS = ["name", "phone", "month", "amount", "date", "cash", "card", "fee", "course"] as const;
 
 export async function saveSheetSettings(_prev: FormState, formData: FormData): Promise<FormState> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   const sheetUrl = String(formData.get("sheetUrl") ?? "").trim();
   const courseFilter = String(formData.get("courseFilter") ?? "").trim().slice(0, 200);
 
@@ -31,16 +32,18 @@ export async function saveSheetSettings(_prev: FormState, formData: FormData): P
     if (v) columns[f] = v;
   }
   await updateSettings({ $set: { sheetUrl, columns, courseFilter, autoImport } });
+  await logActivity(session, "sync.settings", `Google Sheets sozlamalari saqlandi${courseFilter ? ` (kurslar: ${courseFilter})` : " (barcha kurslar)"}`);
   refresh();
   return { ok: true, message: "Sozlamalar saqlandi" };
 }
 
 export async function runSyncNow(): Promise<FormState> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   await connectDB();
   const res = await runSync("manual");
   refresh();
   if (!res) return { error: "Hozir boshqa tekshiruv ketmoqda, birozdan keyin urinib ko'ring" };
+  await logActivity(session, "sync.run", res.ok ? `Sheets bilan tekshirildi: ${res.mismatches} ta farq${res.imported ? `, ${res.imported} ta to‘lov qo‘shildi` : ""}` : `Sheets tekshiruvi xato: ${res.error}`);
   if (!res.ok) return { error: res.error };
   const parts = [
     res.imported ? `${res.imported} ta to‘lov Sheets’dan saytga qo‘shildi` : "",
@@ -51,24 +54,28 @@ export async function runSyncNow(): Promise<FormState> {
 
 /** Bitta «Saytda yo'q» / «Noma'lum o'quvchi» farqini saytga qo'shadi. */
 export async function importMismatch(runId: string, mismatchId: string): Promise<void> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (!isId(runId) || !isId(mismatchId)) return;
-  await importFromRun(runId, [mismatchId]);
+  const res = await importFromRun(runId, [mismatchId]);
+  if (res?.resolved) await logActivity(session, "sync.import", "Sheets’dagi yozuv saytga qo‘shildi");
   refresh();
 }
 
 /** Barcha qo'shsa bo'ladigan farqlarni saytga qo'shadi va qayta tekshiradi. */
 export async function importAllMismatches(runId: string): Promise<void> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (!isId(runId)) return;
   const res = await importFromRun(runId, "all");
-  if (res && res.resolved > 0) await runSync("manual");
+  if (res && res.resolved > 0) {
+    await logActivity(session, "sync.import", `Sheets’dan ${res.resolved} ta yozuv saytga qo‘shildi`);
+    await runSync("manual");
+  }
   refresh();
 }
 
 /** Farqni "hal qilindi" deb belgilash (masalan, Sheets'ni qo'lda to'g'rilagandan keyin). */
 export async function resolveMismatch(runId: string, mismatchId: string): Promise<void> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (!isId(runId) || !isId(mismatchId)) return;
   await connectDB();
   const run = await SyncRun.findById(runId);
@@ -76,5 +83,6 @@ export async function resolveMismatch(runId: string, mismatchId: string): Promis
   if (!run || !mismatch) return;
   mismatch.resolved = true;
   await run.save();
+  await logActivity(session, "sync.resolve", `Farq hal qilindi deb belgilandi: ${mismatch.studentName}`);
   refresh();
 }

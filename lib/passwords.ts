@@ -4,7 +4,7 @@ import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from "no
 
 const KEYLEN = 32;
 
-export const MIN_PASSWORD_LENGTH = 8;
+export { MIN_PASSWORD_LENGTH } from "./passwords-rules";
 
 function scryptAsync(password: string, salt: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) =>

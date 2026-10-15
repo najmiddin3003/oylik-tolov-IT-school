@@ -1,7 +1,7 @@
 "use client";
 
 // Dars jadvalini kiritish: kunlar (toq/juft yoki o'zingiz tanlagan) va vaqt (boshlanishi — tugashi).
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { CalendarClock, Check, Eraser, X } from "lucide-react";
 import {
   DAY_PRESETS,
@@ -14,6 +14,7 @@ import {
   WEEKDAY_SHORT,
   type Lesson,
 } from "@/lib/schedule";
+import { useDialog } from "./Modal";
 import { TimePicker } from "./pickers";
 import { btn, cx, IconTile, labelCls } from "./ui";
 
@@ -134,7 +135,7 @@ export function ScheduleField({
                 onClick={() => setDays(active ? [] : [...p.days])}
                 className={cx(
                   "inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold ring-1 ring-inset transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
-                  active ? "bg-ink-900 text-white ring-ink-900" : "bg-white text-ink-700 ring-line hover:bg-slate-50",
+                  active ? "bg-ink-900 text-surface ring-ink-900" : "bg-surface text-ink-700 ring-line hover:bg-slate-50",
                 )}
               >
                 {p.label}
@@ -159,7 +160,7 @@ export function ScheduleField({
                   "h-11 rounded-xl border text-sm font-semibold transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/15",
                   on
                     ? "border-brand-600 bg-brand-600 text-white shadow-brand"
-                    : cx("border-line bg-white hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700", i >= 5 ? "text-rose-500/80" : "text-ink-600"),
+                    : cx("border-line bg-surface hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700", i >= 5 ? "text-rose-500/80" : "text-ink-600"),
                 )}
               >
                 {w}
@@ -239,7 +240,7 @@ export function ScheduleField({
                   onClick={() => update(fromLessons(t))}
                   className={cx(
                     "num inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-left text-[13px] font-medium transition",
-                    active ? "border-brand-300 bg-brand-50 text-brand-700" : "border-line bg-white text-ink-600 hover:border-brand-200 hover:text-brand-700",
+                    active ? "border-brand-300 bg-brand-50 text-brand-700" : "border-line bg-surface text-ink-600 hover:border-brand-200 hover:text-brand-700",
                   )}
                 >
                   <CalendarClock className="size-3.5 shrink-0" aria-hidden />
@@ -295,13 +296,7 @@ export function ScheduleDialog({
   /** Saqlash: xato bo'lsa — xabar, bo'lmasa — null */
   onSave: (lessons: Lesson[]) => Promise<string | null>;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
+  const { ref, present } = useDialog(open);
 
   return (
     <dialog
@@ -311,9 +306,9 @@ export function ScheduleDialog({
         if (e.target === ref.current) onClose();
       }}
       aria-labelledby="schedule-dialog-title"
-      className="m-auto max-h-[min(760px,calc(100dvh-2rem))] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-2xl border border-line bg-white p-0 text-ink-700 shadow-pop"
+      className="m-auto max-h-[min(760px,calc(100dvh-2rem))] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-2xl border border-line bg-surface p-0 text-ink-700 shadow-pop"
     >
-      {open ? <ScheduleDialogBody count={count} initial={initial} templates={templates} onSave={onSave} onClose={onClose} /> : null}
+      {present ? <ScheduleDialogBody count={count} initial={initial} templates={templates} onSave={onSave} onClose={onClose} /> : null}
     </dialog>
   );
 }

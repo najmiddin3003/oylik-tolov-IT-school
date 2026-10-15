@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowUpDown, BadgeCheck, Download, Plus, UserCheck, Users, Wallet } from "lucide-react";
+import { ArrowUpDown, BookOpen, CalendarClock, Download, Plus, UserCheck, Users } from "lucide-react";
 import { FilterForm, SearchInput } from "@/components/FilterForm";
 import { Select } from "@/components/pickers";
 import { SyncAlert } from "@/components/ShellParts";
 import { StudentsTable } from "@/components/StudentsTable";
 import { btn, Card, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Pagination } from "@/components/ui";
-import { ownerGuard } from "@/lib/auth";
-import { listGroups, listScheduleTemplates, listStudents, type StudentSort, type StudentTab } from "@/lib/data";
+import { roleGuard } from "@/lib/auth";
+import { listGroups, listScheduleTemplates, listStudents, listTeacherOptions, type StudentSort, type StudentTab } from "@/lib/data";
 import { parseDayFilter, tashkentClock, WEEKDAY_NAMES } from "@/lib/schedule";
-import { currentMonth, formatNumber, isValidMonth, monthLabel, nowMs } from "@/lib/time";
+import { currentMonth, isValidMonth, monthLabel, nowMs } from "@/lib/time";
 
 export const metadata: Metadata = { title: "O‘quvchilar" };
 
@@ -30,29 +30,40 @@ export default function StudentsPage({ searchParams }: PageProps<"/students">) {
 }
 
 async function Students({ searchParams }: { searchParams: PageProps<"/students">["searchParams"] }) {
-  await ownerGuard();
+  const { role } = await roleGuard(["owner", "teacher"]);
+  // O'qituvchi faqat ko'radi (o'z o'quvchilarini): qo'shish, tahrirlash, o'chirish — rahbarda
+  const isOwner = role === "owner";
   const sp = await searchParams;
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
   const month = isValidMonth(sp.month) ? sp.month : currentMonth();
   const q = str("q").slice(0, 100);
   const group = str("group");
   const day = parseDayFilter(str("day"));
+  const teacher = isOwner && /^([a-f0-9]{24}|none)$/i.test(str("teacher")) ? str("teacher") : "";
   const status = str("status") === "inactive" || str("status") === "all" ? (str("status") as "inactive" | "all") : "active";
   const tab: StudentTab = str("tab") === "debt" || str("tab") === "paid" ? (str("tab") as StudentTab) : "all";
   const sort: StudentSort = SORTS.some((s) => s.key === str("sort")) ? (str("sort") as StudentSort) : "name";
   const page = Math.max(1, Number(str("page")) || 1);
 
-  const [data, groups, templates] = await Promise.all([
-    listStudents({ q, group, day, status, month, tab, sort, page, pageSize: PAGE_SIZE }),
+  const [data, groups, templates, teachers] = await Promise.all([
+    listStudents({ q, group, day, status, month, tab, sort, page, pageSize: PAGE_SIZE, teacher }),
     listGroups(),
-    listScheduleTemplates(),
+    isOwner ? listScheduleTemplates() : Promise.resolve([]),
+    isOwner ? listTeacherOptions() : Promise.resolve([]),
   ]);
   const { rows, counts, stats } = data;
-  const filtered = Boolean(q || group || day || tab !== "all" || status !== "active");
+  const filtered = Boolean(q || group || day || teacher || tab !== "all" || status !== "active");
   const serverNow = nowMs();
   const todayName = WEEKDAY_NAMES[tashkentClock(serverNow).weekday - 1].toLowerCase();
 
-  const base = { month, ...(q ? { q } : {}), ...(group ? { group } : {}), ...(day ? { day } : {}), ...(status !== "active" ? { status } : {}) };
+  const base = {
+    month,
+    ...(q ? { q } : {}),
+    ...(group ? { group } : {}),
+    ...(day ? { day } : {}),
+    ...(teacher ? { teacher } : {}),
+    ...(status !== "active" ? { status } : {}),
+  };
   const href = (extra: Record<string, string>) => `/students?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}), ...(sort !== "name" ? { sort } : {}), ...extra })}`;
   const tabHref = (t: StudentTab) => `/students?${new URLSearchParams({ ...base, ...(t !== "all" ? { tab: t } : {}), ...(sort !== "name" ? { sort } : {}) })}`;
   const nextSort = SORTS[(SORTS.findIndex((s) => s.key === sort) + 1) % SORTS.length];
@@ -67,9 +78,9 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
   return (
     <>
       <PageHeader
-        eyebrow="O‘quvchilar bazasi"
-        title="O‘quvchilar"
-        subtitle="Guruhlar, oylik to‘lovlar va qarzdorlikni bir joyda boshqaring."
+        eyebrow={isOwner ? "O‘quvchilar bazasi" : "O‘qituvchi profili"}
+        title={isOwner ? "O‘quvchilar" : "O‘quvchilarim"}
+        subtitle={isOwner ? "Kurslar, o‘qituvchilar, oylik to‘lovlar va dars jadvalini bir joyda boshqaring." : "Sizga biriktirilgan o‘quvchilar: to‘lov holati va dars jadvali (faqat ko‘rish)."}
         actions={
           <>
             <a href={`/api/export/oquvchilar?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}) })}`} className={cx(btn.outline, "group")}>
@@ -78,23 +89,27 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
               </span>
               Excel yuklash
             </a>
-            <Link href="/students/new" className={btn.primary}>
-              <Plus className="size-[18px]" strokeWidth={2.2} aria-hidden />
-              Yangi o‘quvchi
-            </Link>
+            {isOwner ? (
+              <Link href="/students/new" className={btn.primary}>
+                <Plus className="size-[18px]" strokeWidth={2.2} aria-hidden />
+                Yangi o‘quvchi
+              </Link>
+            ) : null}
           </>
         }
       />
 
-      <Suspense fallback={null}>
-        <SyncAlert />
-      </Suspense>
+      {isOwner ? (
+        <Suspense fallback={null}>
+          <SyncAlert />
+        </Suspense>
+      ) : null}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
         <MiniStat label="Jami o‘quvchilar" value={stats.total} icon={Users} tone="violet" />
         <MiniStat label="Bu oy faol" value={stats.activeThisMonth} icon={UserCheck} tone="sky" />
-        <MiniStat label="To‘liq to‘lagan" value={stats.fullyPaid} icon={BadgeCheck} tone="emerald" />
-        <MiniStat label="Jami qarzdorlik" value={formatNumber(stats.totalDebt)} unit="so‘m" icon={Wallet} tone="amber" />
+        <MiniStat label="Kurslar" value={stats.courses} hint={stats.courses ? "faol o‘quvchilar kurslari" : "kurs belgilanmagan"} icon={BookOpen} tone="emerald" />
+        <MiniStat label="Bugun darsga keladi" value={stats.today} hint={todayName} icon={CalendarClock} tone="amber" />
       </div>
 
       <Card>
@@ -134,10 +149,25 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
             name="group"
             defaultValue={group}
             autoSubmit
-            aria-label="Guruh"
+            aria-label="Kurs"
             wrapperClassName="w-full sm:w-48"
-            options={[{ value: "", label: "Barcha guruhlar" }, ...groups.map((g) => ({ value: g, label: g }))]}
+            options={[{ value: "", label: "Barcha kurslar" }, ...groups.map((g) => ({ value: g, label: g }))]}
           />
+          {isOwner && teachers.length ? (
+            <Select
+              name="teacher"
+              defaultValue={teacher}
+              autoSubmit
+              searchable={false}
+              aria-label="O‘qituvchi"
+              wrapperClassName="w-full sm:w-52"
+              options={[
+                { value: "", label: "Barcha o‘qituvchilar" },
+                ...teachers.map((t) => ({ value: t.id, label: t.name, hint: t.status === "invited" ? "kutilmoqda" : undefined })),
+                { value: "none", label: "O‘qituvchi biriktirilmagan" },
+              ]}
+            />
+          ) : null}
           <Select
             name="day"
             defaultValue={day}
@@ -176,9 +206,11 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
 
         {rows.length === 0 ? (
           <div className="border-t border-line-soft">
-            <EmptyState title={filtered ? "Hech narsa topilmadi" : "Hali o‘quvchi qo‘shilmagan"} icon={Users} tone="violet">
+            <EmptyState title={filtered ? "Hech narsa topilmadi" : isOwner ? "Hali o‘quvchi qo‘shilmagan" : "Sizga hali o‘quvchi biriktirilmagan"} icon={Users} tone="violet">
               {filtered ? (
                 "Qidiruv yoki filtr shartlarini o‘zgartirib ko‘ring."
+              ) : !isOwner ? (
+                "Rahbar o‘quvchilarni sizga biriktirgach, ular shu yerda ko‘rinadi."
               ) : (
                 <>
                   <Link href="/students/new" className="font-medium text-brand-600 hover:underline">
@@ -194,7 +226,16 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
             </EmptyState>
           </div>
         ) : (
-          <StudentsTable rows={rows} month={month} monthTitle={monthLabel(month)} templates={templates} serverNow={serverNow} showGroup={groups.length > 1} />
+          <StudentsTable
+            rows={rows}
+            month={month}
+            monthTitle={monthLabel(month)}
+            templates={templates}
+            serverNow={serverNow}
+            showGroup={groups.length > 1}
+            readOnly={!isOwner}
+            teachers={teachers}
+          />
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-6 py-4 text-[13px] text-ink-400">

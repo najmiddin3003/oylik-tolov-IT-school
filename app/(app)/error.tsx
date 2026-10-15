@@ -7,7 +7,7 @@ import { btn } from "@/components/ui";
 export default function AppError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const isDb = /mongo|querySrv|ECONNREFUSED|ETIMEOUT|ENOTFOUND|server selection/i.test(error.message);
   return (
-    <div className="mx-auto mt-10 max-w-lg rounded-2xl border border-line bg-white p-8 text-center shadow-card">
+    <div className="mx-auto mt-10 max-w-lg rounded-2xl border border-line bg-surface p-8 text-center shadow-card">
       <span className="mx-auto mb-4 inline-flex size-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600" aria-hidden>
         <TriangleAlert className="size-6" strokeWidth={1.8} />
       </span>

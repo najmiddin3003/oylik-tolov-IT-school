@@ -112,6 +112,7 @@ export function TodayLessons({
   serverNow,
   role,
   unscheduled,
+  defaultAll = false,
 }: {
   /** Jadvali bor (faol) o'quvchilar va tanlangan oy bo'yicha to'lov holati */
   students: TodayStudent[];
@@ -120,9 +121,11 @@ export function TodayLessons({
   role: Role;
   /** Jadvali kiritilmagan qarzdorlar soni */
   unscheduled: number;
+  /** Boshida hamma keladiganlar ko'rinsin (administrator uchun) */
+  defaultAll?: boolean;
 }) {
   const now = useNow(serverNow);
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(defaultAll);
   const clock = tashkentClock(now);
   const tomorrow = (clock.weekday % 7) + 1;
 
@@ -131,8 +134,8 @@ export function TodayLessons({
     return l ? [{ s, l }] : [];
   });
   const debtorsToday = today.filter((x) => x.s.status !== "paid");
-  // «Hammasi» faqat qarzdorlar ham, to'laganlar ham bo'lsa ma'noli (hamma to'lab bo'lsa — 🎉 xabari)
-  const canToggle = debtorsToday.length > 0 && today.length > debtorsToday.length;
+  // «Hammasi» to'laganlar bo'lsa ma'noli (hamma to'lagan bo'lsa ham — kim kelishini ko'rish uchun)
+  const canToggle = today.length > debtorsToday.length;
   const all = showAll && canToggle;
   const visible = all ? today : debtorsToday;
   const debtorsTomorrow = students.filter((s) => s.status !== "paid" && lessonOn(s.lessons, tomorrow)).length;
@@ -148,6 +151,9 @@ export function TodayLessons({
   for (const slot of slots) slot.items.sort((a, b) => Number(a.status === "paid") - Number(b.status === "paid") || a.name.localeCompare(b.name));
 
   const isOwner = role === "owner";
+  // O'qituvchi faqat ko'radi: to'lov kiritish tugmasi yo'q, lekin o'quvchi profiliga kira oladi
+  const canPay = role !== "teacher";
+  const canOpenProfile = role !== "admin";
   const weekdayName = WEEKDAY_NAMES[clock.weekday - 1];
   const totalDebt = debtorsToday.reduce((sum, x) => sum + x.s.debt, 0);
 
@@ -159,8 +165,8 @@ export function TodayLessons({
           <div className="min-w-0">
             <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Bugun darsga keladi</h2>
             <p className="num mt-0.5 text-sm text-ink-500">
-              {dayLabel(clock.iso)} · {monthLabel(month)} uchun to‘lamaganlar
-              {debtorsToday.length ? ` · ${debtorsToday.length} ta, jami ${formatMoney(totalDebt)}` : ""}
+              {dayLabel(clock.iso)} · {all ? `${today.length} ta o‘quvchi, ${debtorsToday.length} tasi to‘lamagan` : `${monthLabel(month)} uchun to‘lamaganlar`}
+              {!all && debtorsToday.length ? ` · ${debtorsToday.length} ta, jami ${formatMoney(totalDebt)}` : ""}
             </p>
           </div>
         </div>
@@ -175,7 +181,7 @@ export function TodayLessons({
                 type="button"
                 aria-pressed={all === o.v}
                 onClick={() => setShowAll(o.v)}
-                className={cx("num rounded-lg px-3 py-1.5 transition", all === o.v ? "bg-white text-ink-900 shadow-card" : "text-ink-500 hover:text-ink-800")}
+                className={cx("num rounded-lg px-3 py-1.5 transition", all === o.v ? "bg-surface text-ink-900 shadow-card" : "text-ink-500 hover:text-ink-800")}
               >
                 {o.label} {o.n}
               </button>
@@ -214,7 +220,7 @@ export function TodayLessons({
               key={`${slot.start}-${slot.end}`}
               aria-label={`${slot.start}–${slot.end}`}
               className={cx(
-                "min-w-0 rounded-xl border bg-white shadow-card",
+                "min-w-0 rounded-xl border bg-surface shadow-card",
                 slot.state === "now" ? "border-emerald-200 ring-2 ring-emerald-500/10" : "border-line",
                 slot.state === "done" && "opacity-70",
               )}
@@ -231,7 +237,7 @@ export function TodayLessons({
                   <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
                     <Avatar name={s.name} />
                     <div className="min-w-0 flex-1">
-                      {isOwner ? (
+                      {canOpenProfile ? (
                         <Link href={`/students/${s.id}?month=${month}`} className="block truncate text-[15px] font-medium text-ink-900 hover:text-brand-600">
                           {s.name}
                         </Link>
@@ -254,7 +260,7 @@ export function TodayLessons({
                         <Phone className="size-4" aria-hidden />
                       </a>
                     ) : null}
-                    {s.status !== "paid" ? (
+                    {s.status !== "paid" && canPay ? (
                       <Link
                         href={`/payments?${new URLSearchParams({ month, student: s.id })}#yangi-tolov`}
                         className={cx(btn.sm, "shrink-0 px-2.5")}

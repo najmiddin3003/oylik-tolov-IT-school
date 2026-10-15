@@ -3,6 +3,8 @@
 /* Yon menyu holati <html data-sb="full|rail|hidden"> — sb-rail:hidden kabi sinflar uchun */
 @custom-variant sb-rail (&:where([data-sb="rail"], [data-sb="rail"] *));
 @custom-variant sb-hidden (&:where([data-sb="hidden"], [data-sb="hidden"] *));
+/* Qorong'i mavzu: <html class="dark"> (sahifa chizilishidan oldin skript qo'yadi) */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -31,6 +33,8 @@
   --color-line: #e7e9f0;
   --color-line-soft: #f0f1f6;
   --color-canvas: #f6f7fb;
+  /* Karta, panel, maydon foni (qorong'i mavzuda — to'q) */
+  --color-surface: #ffffff;
 
   /* Holat ranglari */
   --color-paid: #1fa971;
@@ -48,10 +52,114 @@
   --sb-w: 264px;
 }
 
+/*
+ * Qorong'i mavzu: ranglar o'zgaruvchilar orqali almashtiriladi — sinflar (bg-surface, text-ink-900, bg-emerald-50,
+ * text-amber-700 ...) o'sha-o'sha qoladi. Och fonlar (50–200) to'q tusga, to'q matn ranglari (700–950) ochroqqa o'tadi;
+ * o'rta tuslar (300–600: tugmalar, ikonkalar) deyarli o'zgarmaydi.
+ */
+.dark {
+  color-scheme: dark;
+  --color-canvas: #0b0e1a;
+  --color-surface: #131729;
+  --color-line: #272c46;
+  --color-line-soft: #1d2137;
+
+  --color-ink-900: #eef0f8;
+  --color-ink-800: #dde0ee;
+  --color-ink-700: #c4c8da;
+  --color-ink-600: #a6acc3;
+  --color-ink-500: #8a91ab;
+  --color-ink-400: #6f7693;
+  --color-ink-300: #4f5573;
+
+  --color-slate-50: #171b30;
+  --color-slate-100: #1e233a;
+  --color-slate-200: #2b3150;
+
+  --color-brand-50: color-mix(in oklab, #4352ff 16%, var(--color-surface));
+  --color-brand-100: color-mix(in oklab, #4352ff 25%, var(--color-surface));
+  --color-brand-200: color-mix(in oklab, #4352ff 38%, var(--color-surface));
+  --color-brand-600: #5562ff;
+  --color-brand-700: #7480ff;
+  --color-brand-800: #a2aaff;
+  --color-brand-900: #c9ceff;
+
+  --color-emerald-50: color-mix(in oklab, var(--color-emerald-500) 14%, var(--color-surface));
+  --color-emerald-100: color-mix(in oklab, var(--color-emerald-500) 22%, var(--color-surface));
+  --color-emerald-200: color-mix(in oklab, var(--color-emerald-500) 34%, var(--color-surface));
+  --color-emerald-700: #34d399;
+  --color-emerald-800: #6ee7b7;
+  --color-emerald-900: #a7f3d0;
+  --color-emerald-950: #d1fae5;
+
+  --color-amber-50: color-mix(in oklab, var(--color-amber-500) 13%, var(--color-surface));
+  --color-amber-100: color-mix(in oklab, var(--color-amber-500) 21%, var(--color-surface));
+  --color-amber-200: color-mix(in oklab, var(--color-amber-500) 32%, var(--color-surface));
+  --color-amber-700: #fbbf24;
+  --color-amber-800: #fcd34d;
+  --color-amber-900: #fde68a;
+  --color-amber-950: #fef3c7;
+
+  --color-rose-50: color-mix(in oklab, var(--color-rose-500) 14%, var(--color-surface));
+  --color-rose-100: color-mix(in oklab, var(--color-rose-500) 22%, var(--color-surface));
+  --color-rose-200: color-mix(in oklab, var(--color-rose-500) 34%, var(--color-surface));
+  --color-rose-700: #fb7185;
+  --color-rose-800: #fda4af;
+  --color-rose-900: #fecdd3;
+
+  --color-sky-50: color-mix(in oklab, var(--color-sky-500) 14%, var(--color-surface));
+  --color-sky-100: color-mix(in oklab, var(--color-sky-500) 22%, var(--color-surface));
+  --color-sky-200: color-mix(in oklab, var(--color-sky-500) 34%, var(--color-surface));
+  --color-sky-700: #38bdf8;
+  --color-sky-800: #7dd3fc;
+  --color-sky-900: #bae6fd;
+
+  --color-violet-50: color-mix(in oklab, var(--color-violet-500) 15%, var(--color-surface));
+  --color-violet-100: color-mix(in oklab, var(--color-violet-500) 23%, var(--color-surface));
+  --color-violet-200: color-mix(in oklab, var(--color-violet-500) 35%, var(--color-surface));
+  --color-violet-600: #8b5cf6;
+  --color-violet-700: #a78bfa;
+  --color-violet-800: #c4b5fd;
+
+  --color-teal-50: color-mix(in oklab, var(--color-teal-500) 14%, var(--color-surface));
+  --color-teal-100: color-mix(in oklab, var(--color-teal-500) 22%, var(--color-surface));
+  --color-teal-200: color-mix(in oklab, var(--color-teal-500) 34%, var(--color-surface));
+  --color-teal-700: #2dd4bf;
+
+  --color-orange-50: color-mix(in oklab, var(--color-orange-500) 14%, var(--color-surface));
+  --color-orange-100: color-mix(in oklab, var(--color-orange-500) 22%, var(--color-surface));
+  --color-orange-200: color-mix(in oklab, var(--color-orange-500) 34%, var(--color-surface));
+  --color-orange-700: #fb923c;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-pop: 0 16px 40px -10px rgb(0 0 0 / 0.65);
+}
+
 html,
 body {
   background: var(--color-canvas);
   color: var(--color-ink-700);
+}
+
+/* Sahifa ichidagi havolalar (#bo'lim) silliq aylanadi; sahifalar orasida o'tishda Next o'zi o'chiradi (data-scroll-behavior) */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Mavzu almashganda ranglar silliq o'tadi (faqat bosilgan paytda — data-theme-switching) */
+html[data-theme-switching] *,
+html[data-theme-switching] *::before,
+html[data-theme-switching] *::after {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease !important;
+}
+
+/* Ingichka aylantirish chizig'i (yon menyu, ichki ro'yxatlar) */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
 }
 
 /* Raqamlar ustunlarda bir tekis turishi uchun */
@@ -73,6 +181,10 @@ body {
   background-size: 800px 100%;
   animation: shimmer 1.4s ease infinite;
   border-radius: 0.75rem;
+}
+.dark .skeleton {
+  background: linear-gradient(90deg, #191d33 25%, #222741 37%, #191d33 63%);
+  background-size: 800px 100%;
 }
 /* Ikonkalar: kursor kelganda yengil "jonlanish" */
 @keyframes icon-wiggle {
@@ -140,19 +252,91 @@ body {
     visibility 0s linear 0.2s;
 }
 
+/* Modal oynalar: ochilganda pastdan yengil ko'tarilib paydo bo'ladi, yopilganda — silliq yo'qoladi */
+dialog {
+  opacity: 0;
+  translate: 0 14px;
+  scale: 0.97;
+  transition:
+    opacity 0.2s ease,
+    translate 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    scale 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    overlay 0.24s ease allow-discrete,
+    display 0.24s ease allow-discrete;
+}
+/* Ochiq holatda transform yo'q: ichidagi `fixed` ochiladigan oynalar (soat tanlagich) ekranga nisbatan joylashadi */
+dialog[open] {
+  opacity: 1;
+  translate: none;
+  scale: none;
+}
+@starting-style {
+  dialog[open] {
+    opacity: 0;
+    translate: 0 14px;
+    scale: 0.97;
+  }
+}
 dialog::backdrop {
+  background: rgb(14 17 33 / 0);
+  backdrop-filter: blur(0);
+  transition:
+    background-color 0.24s ease,
+    backdrop-filter 0.24s ease,
+    overlay 0.24s ease allow-discrete,
+    display 0.24s ease allow-discrete;
+}
+dialog[open]::backdrop {
   background: rgb(14 17 33 / 0.45);
   backdrop-filter: blur(2px);
 }
+@starting-style {
+  dialog[open]::backdrop {
+    background: rgb(14 17 33 / 0);
+    backdrop-filter: blur(0);
+  }
+}
+
+/* Ochiladigan bo'limlar (accordion): ichki qism silliq ochiladi */
+details.accordion::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition:
+    block-size 0.28s ease,
+    content-visibility 0.28s ease allow-discrete;
+}
+details.accordion[open]::details-content {
+  block-size: auto;
+  block-size: calc-size(auto, size);
+}
+details.accordion > summary {
+  list-style: none;
+}
+details.accordion > summary::-webkit-details-marker {
+  display: none;
+}
+details.accordion .accordion-chevron {
+  transition: rotate 0.2s ease;
+}
+/* Faqat o'z sarlavhasidagi strelka (ichma-ich bo'limlarda tashqisi ochiq bo'lsa ham ichkisi to'g'ri ko'rinadi) */
+details.accordion[open] > summary .accordion-chevron {
+  rotate: 180deg;
+}
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   .skeleton,
   .icon-wiggle,
   .pop-in,
   .ping-soft {
     animation: none !important;
   }
-  .sb-anim {
+  .sb-anim,
+  dialog,
+  dialog::backdrop,
+  details.accordion::details-content {
     transition: none;
   }
 }

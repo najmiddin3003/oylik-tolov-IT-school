@@ -25,18 +25,46 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   (yozilishi bilan natija chiqadi). Barcha ro‘yxat, sana va oy tanlagichlar — saytning o‘z dizaynida (brauzer standartisiz).
 - **O‘quvchilar** sahifasida tablar (Barcha / Qarzdorlar / To‘laganlar), saralash va belgilash katakchalari orqali bir nechta o‘quvchini
   birdan nofaol/faol qilish yoki o‘chirish. Har o‘quvchining tartib raqami bor (`#001`). Qidiruv Enter bosmasdan ishlaydi.
-- **Ikki xil kirish:**
-  - **Rahbar** (`ADMIN_PASSWORD` yoki Sozlamalarda almashtirilgan parol) — hamma bo‘limlar.
-  - **Administrator** (parolini rahbar Sozlamalarda o‘rnatadi) — faqat «To‘lovlar»: to‘lov kiritadi (sana avtomatik — bugun),
-    o‘chiradi (arxivga), qarzdorlarni ko‘radi. 40% ulush, oylik/avans va Sheets farqlari unga ko‘rinmaydi.
-  - Bir marta kirilsa — 30 kun eslab qolinadi. Parol almashsa, eski sessiyalar avtomatik bekor bo‘ladi.
-- **To‘lovlar** sahifasi: kutilayotgan tushum, tushgan summa, qolgan qarz (bosilsa — to‘lamaganlar ro‘yxati); tarix kunlar bo‘yicha
-  guruhlangan; usul va **kun** bo‘yicha filtr. O‘chirilgan to‘lov **arxivga** o‘tadi — hech qayerda hisoblanmaydi, rahbar
-  arxivdan ko‘radi, tiklaydi yoki butunlay o‘chiradi.
+- **Xodimlar va rollar** — har xodim o‘z telefon raqami va paroli bilan kiradi va faqat o‘ziga tegishli narsani ko‘radi:
+  - **Rahbar** — hamma bo‘limlar. Bosh sahifa o‘rniga **«Rahbar paneli»**: jami tushum, xodimlar oyligi, shu oy berilgan
+    avans/oylik, qolgan qarz va har bir xodimning kartasi (o‘quvchilari, tushumi, oyligi), o‘qituvchi bo‘yicha filtr.
+    **«Xodimlar»** bo‘limida xodim qo‘shadi, foizini va oylik/avanslarini yozadi, kirishini o‘chiradi yoki parolini tiklaydi.
+  - **O‘qituvchi** — faqat **ko‘radi**: o‘z o‘quvchilari (profili, dars jadvali, qarzi), ularning to‘lovlari, «Bugun darsga keladi»,
+    o‘z oyligi va Excel eksport. Boshqa o‘qituvchilarning o‘quvchilari, markaz tushumi va sozlamalar unga ko‘rinmaydi.
+    **«Olingan avans/oylik»** bo‘limida o‘zi olgan pulni yozib boradi (oyligidan ayiriladi), butun tarixi oylar bo‘yicha.
+  - **Administrator** — «To‘lovlar»: oy rejasi va bajarilish foizi, bugun keladigan o‘quvchilar, to‘lov kiritish (avval kurs,
+    keyin o‘quvchi; sana — sozlamaga qarab), **«Yangi o‘quvchi»** oynasi (kurs, oylik to‘lov, dars vaqti), rahbardan kelgan
+    **topshiriqlar**; **«Kassa»** — o‘zi yig‘gan pul va rahbarga topshirish; «Olingan avans/oylik» va «Profilim».
+  - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
+    administrator va rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). Foiz «falon oydan boshlab» o‘zgaradi —
+    o‘tgan oylar o‘zgarmaydi.
+  - O‘quvchini o‘qituvchiga biriktirish — o‘quvchi formasidagi «O‘qituvchisi» maydoni yoki «O‘quvchilar» ro‘yxatida belgilab,
+    «O‘qituvchi» tugmasi bilan (bir nechtasiga birdan).
+  - **Ro‘yxatdan o‘tish SMS bilan:** rahbar xodimni telefon raqami bilan qo‘shadi → xodim saytda «Ro‘yxatdan o‘tish» ni bosib
+    raqamini kiritadi → raqamiga 6 xonali kod keladi → kodni kiritib o‘zi parol yaratadi. Parolni unutsa — «Parolni
+    unutdingizmi?», yo‘li xuddi shunday. Kod 10 daqiqa amal qiladi, 5 marta xato kiritilsa bekor bo‘ladi, qayta yuborish —
+    1 daqiqadan keyin (bir raqamga kuniga ko‘pi bilan 5 ta). Bazada kodning o‘zi emas, faqat izi saqlanadi; parollar — scrypt.
+  - Bir marta kirilsa — 30 kun eslab qolinadi. Parol almashsa, kirishi o‘chirilsa yoki lavozimi o‘zgarsa — eski sessiyalar
+    avtomatik bekor bo‘ladi.
+- **To‘lovlar** sahifasi: oy rejasi (bajarilish foizi bilan), tushgan summa, qolgan qarz (bosilsa — to‘lamaganlar ro‘yxati).
+  Tarix kunlar bo‘yicha guruhlangan, o‘z ichida aylanadi va 10 tadan ochiladi (eng yangilari tepada); «Shu oy uchun / Hammasi»,
+  usul va **kun** bo‘yicha filtr. To‘lov kiritishda avval **kurs** tanlanadi, keyin shu kurs o‘quvchilari ro‘yxati o‘zi ochiladi.
+  O‘chirilgan to‘lov **arxivga** o‘tadi — hech qayerda hisoblanmaydi, rahbar arxivdan ko‘radi, tiklaydi yoki butunlay o‘chiradi.
+- **Kassa** — administrator kiritgan to‘lovlar uning kassasiga tushadi (naqd va karta alohida). Kun oxirida «Rahbarga topshirish»;
+  rahbar «Qabul qildim» deguncha pul administrator kassasida turadi, qabul qilingach — rahbar kassasiga o‘tadi (rad etish ham
+  mumkin). Rahbar o‘zi kiritgan to‘lovlar to‘g‘ridan-to‘g‘ri rahbar kassasiga. Kassa shu versiyadan keyin kiritilgan to‘lovlar
+  bo‘yicha yuritiladi (oldingilari va Sheets’dan import qilinganlari kirmaydi).
+- **Topshiriqlar** — rahbar oy eslatmasi bannerida «Administratorga topshiriq yuborish»ni bosadi; administrator sahifasida va
+  qo‘ng‘iroqchada «To‘lovlarni yig‘ing: … N ta o‘quvchi to‘lov qilmabdi» chiqadi (ro‘yxati bilan), bajargach «Bajarildi».
+- **Faoliyat tarixi** — har bir kirish va amal (to‘lov, o‘quvchi, kassa, sozlama, Excel yuklash…) vaqti, qurilmasi va manzili
+  bilan yoziladi; har kim **faqat o‘z** amallarini ko‘radi (profil menyusi → «Faoliyat tarixi»).
+- **Reja va yangiliklar** (rahbar) — kelgusida qilinadigan ishlar va shu paytgacha qilinganlar, ochiladigan bo‘limlarda.
 - **Oy oxiri eslatmasi** — oy tugashiga 10 kun qolganda (va o‘tgan oyda to‘lamaganlar qolgan bo‘lsa) yuqoridagi qo‘ng‘iroqchada va
   sahifalarda: «10 ta o‘quvchi to‘lov qilmadi» — bosilsa ism-familiyalar ro‘yxati.
-- **Sozlamalar** (rahbar): oylik to‘lov narxi (tanlangan oydan boshlab, o‘tgan oylar o‘zgarmaydi; hamma yoki faqat ma’lum narxdagilar),
-  tushum ulushi foizi (oydan boshlab), **oylik va avanslar** (oy ulushidan ayiriladi: 40% − olingan = qoldi), parollar, SMS, markaz nomi.
+- **Sozlamalar** (rahbar): **kurslar** (nomi va standart narxi; nomi o‘zgarsa — o‘quvchilari ham o‘tadi), oylik to‘lov narxi
+  (tanlangan oydan boshlab; hammaga, bitta kursga yoki ma’lum narxdagilarga), **funksiyalar** (galochka bilan, darhol saqlanadi:
+  «To‘langan sana» maydoni rahbarda/administratorda, Google Sheets ogohlantiruvi — har kim o‘zi uchun, Sheets’dan avtomatik
+  qo‘shish, kunlik SMS), parol, SMS matnlari, markaz nomi. Chapdagi menyu o‘qilayotgan bo‘limni belgilab boradi.
 - **SMS eslatma (Eskiz)** — har kuni kechqurun (20:00) belgilangan raqamga shu oy to‘lamaganlarning jami soni (oldingi oylardan
   qolganlari ham); hamma to‘laguncha davom etadi, kuniga bitta SMS. Sozlamalarda «qachondan boshlab» tanlanadi (standart — oy boshidan,
   masalan faqat 25-sanadan ham qilsa bo‘ladi). SMS’dan oldin Google Sheets’dagi yangi to‘lovlar olib kelinadi.
@@ -51,8 +79,12 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     To‘lovni o‘quvchi kelgan vaqtda kirib yig‘ish uchun; administrator ham ko‘radi.
   - Ro‘yxatlarda «keyingi dars» (bugun, 14:00 / ertaga / chorshanba…), to‘lamaganlar oynasi keyingi darsi yaqinligi bo‘yicha
     saralanadi; «O‘quvchilar»da **Dars kuni** filtri (bugun keladiganlar, hafta kuni, jadvali kiritilmaganlar).
-- **Excel (.xlsx) eksport** — oylik hisobot, o‘quvchilar (dars vaqti bilan) va to‘lovlar (+ «Xulosa» varag‘i).
+- **Excel (.xlsx) eksport** — oylik hisobot, o‘quvchilar (dars vaqti va o‘qituvchisi bilan) va to‘lovlar (+ «Xulosa» varag‘i:
+  rahbarda — xodimlar oyligi, o‘qituvchida — faqat o‘z o‘quvchilari va o‘z oyligi).
 - **Yon menyu** — chetidan surib kengligini o‘zgartirish, ixcham (faqat ikonkalar) rejim yoki to‘liq yopish (`Ctrl+B`); holat eslab qolinadi.
+  Ekran past bo‘lsa ham to‘liq ko‘rinadi: menyu o‘zi aylanadi, foydalanuvchi bloki doim pastda.
+- **Ko‘rinish** — yorug‘ / qorong‘i mavzu (yuqori paneldagi tugma yoki profil menyusi; tanlov brauzerda saqlanadi), modal oynalar
+  silliq ochiladi, telefon va summa yozilganda raqamlar avtomatik ajratiladi («90 123 45 67», «1 250 000»).
 
 ## Ishga tushirish
 
@@ -128,19 +160,54 @@ Bir vaqtda ikki tekshiruv ketmasligi uchun bazada qulf bor; oxirgi 60 ta natija 
 3. Eskiz kabinetida SMS matnini (shablon) moderatsiyaga yuboring. Saytdagi matn (Sozlamalar → SMS) shablon bilan
    **harfma-harf bir xil** bo'lishi kerak; standart: `To'lov nazorati: {#oy#} uchun {#soni#} ta o'quvchi hali to'lov qilmagan`
    (`{#oy#}` — oy nomi, bir necha oy bo'lsa `Sentabr-Oktabr`; `{#soni#}` — to'lamaganlar soni).
-4. Saytda Sozlamalar → SMS: eslatmani yoqing, raqamni tekshiring, «Sinov SMS yuborish» bilan sinab ko'ring.
+4. Xodimlar ro'yxatdan o'tishi uchun **tasdiqlash kodi** matnini ham Eskiz'da («Mening matnlarim») qo'shib tasdiqlating —
+   telefonga qanday borsa shunday, kod o'rnida namuna raqam bilan (o'zgaruvchini moderator o'zi belgilaydi):
+   `To'lov nazorati: xodim sifatida ro'yxatdan o'tish yoki parolni tiklash uchun tasdiqlash kodi: 482913. Kodni hech kimga bermang.`
+   Saytdagi standart matn (Sozlamalar → SMS → «Xodim ro‘yxatdan o‘tish kodi») aynan shu, faqat raqam o'rnida `{#kod#}`.
+   Moderator matnni o'zgartirib tasdiqlasa — tasdiqlangan matnni shu maydonga o'zgartirmasdan ko'chirib qo'ying
+   (`{#...#}` qanday nomlangan bo'lsa ham, o'rniga kod qo'yiladi). Apostrof — oddiy `'`: `o‘` kabi belgi bo'lsa SMS qimmatlashadi.
+   Eskiz ulanmagan bo'lsa saytda kod yuborilmaydi; faqat `npm run dev` da (Eskiz kalitlarisiz) kod ekranda va terminalda ko'rsatiladi.
+5. Saytda Sozlamalar → SMS: eslatmani yoqing, raqamni tekshiring, «Sinov SMS yuborish» bilan sinab ko'ring.
+
+## Xodimlarni ulash (birinchi marta)
+
+Yangilanishdan keyin ham eski umumiy parollar (`ADMIN_PASSWORD` / Sozlamalardagi rahbar va administrator paroli) ishlab turadi —
+xodimlarni ulab olish uchun. Tartib:
+
+1. Rahbar paroli bilan kiring → **Xodimlar** → «Yangi xodim»: rahbar, o'qituvchilar, administrator (ism, telefon, lavozim, foiz).
+2. Avval umumiy hisobda yuritilgan ulush foizi va oylik/avans yozuvlari bo'lsa — «Xodimlar» tepasidagi
+   «Avvalgi oylik hisobi kimniki?» kartasida kerakli o'qituvchiga o'tkazing.
+3. O'quvchilarni o'qituvchilarga biriktiring (O'quvchilar → belgilash → «O'qituvchi»). «Xodimlar» sahifasi biriktirilmaganlar
+   sonini ko'rsatib turadi.
+4. Eskiz'da tasdiqlash kodi matnini tasdiqlating (yuqoridagi 4-qadam).
+5. Har xodim saytda «Ro'yxatdan o'tish» → telefon → SMS kod → o'z paroli.
+6. Rahbar ro'yxatdan o'tgach — rahbarning umumiy paroli, administrator ro'yxatdan o'tgach — administratorning umumiy paroli
+   o'z-o'zidan o'chadi; keyin hamma faqat telefon raqami va o'z paroli bilan kiradi.
 
 ## Tuzilma
 
 ```
-app/(app)/            sahifalar: bosh sahifa, students, payments, settings, sync
-app/actions/          server action'lar (login, o'quvchi, to'lov, sozlamalar, Sheets, qidiruv)
+app/(app)/            sahifalar: bosh sahifa (rahbar paneli / o'qituvchi sahifasi), students, payments, kassa, olinganlar,
+                      staff, me, faoliyat, reja, settings, sync
+app/login, register   kirish (telefon + parol) va SMS kod bilan ro'yxatdan o'tish / parolni tiklash
+app/actions/          server action'lar (kirish va SMS kod, xodimlar, o'quvchi, to'lov, kassa, topshiriq, o'zim, sozlamalar, Sheets)
 app/api/cron/         kunlik tekshiruv va SMS endpoint'lari (CRON_SECRET bilan)
 app/api/export/       Excel eksport
 components/pickers.tsx  Select, DatePicker, MonthPicker, TimePicker (o'z dizayni)
 components/Lessons.tsx  «Bugun darsga keladi» va «keyingi dars» (jonli, useNow soati bilan)
 components/ScheduleField.tsx  dars jadvalini kiritish (forma va ommaviy oyna)
-lib/auth.ts, session.ts  rollar (rahbar / administrator), sessiya va parol barmoq izi
+components/inputs.tsx    telefon va summa maydonlari (raqamlar yozilganda ajratiladi)
+components/Modal.tsx     modal oyna (ochilish/yopilish animatsiyasi bilan)
+components/ThemeToggle.tsx, theme-state.ts  yorug' / qorong'i mavzu
+lib/auth.ts, session.ts  rollar (rahbar / administrator / o'qituvchi), kim qayerga kira olishi, sessiya va parol barmoq izi
+lib/staff.ts, staff-rules.ts  xodimlar: qidirish, lavozim nomlari, foiz va oylik qoidalari (sof funksiyalar, testlangan)
+lib/pay.ts           oy bo'yicha tushum (o'qituvchilar kesimida) va xodim oyligi
+lib/otp.ts, otp-code.ts  SMS tasdiqlash kodi: yuborish, tekshirish, cheklovlar
+lib/kassa.ts          administrator va rahbar kassasi (naqd / karta), topshiruvlar
+lib/tasks.ts          rahbardan administratorga topshiriqlar
+lib/activity.ts       faoliyat jurnali (har kimga — o'ziniki)
+lib/courses.ts        kurslar ro'yxati va taqqoslash (sof funksiyalar, testlangan)
+lib/roadmap.ts        «Reja va yangiliklar» sahifasi matnlari
 lib/ledger.ts         to'lov holati hisoblari (arxivlanganlar hisobga olinmaydi)
 lib/fees.ts           oylik narx va ulush foizi tarixi ("falon oydan boshlab")
 lib/reminders.ts      oy oxiri eslatmasi va SMS oynasi
@@ -152,6 +219,6 @@ lib/importer.ts       Sheets farqlaridan saytga o'quvchi va to'lov qo'shish
 lib/normalize.ts      ism / telefon / summa / oy / sana normallashtirish
 lib/sheets.ts         Sheets'dan yuklash (CSV yoki service account)
 lib/sync.ts           tekshiruvni bajarish, natijani saqlash, kunlik rejim
-lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog
-proxy.ts              kirmagan foydalanuvchini /login ga, administratorni /payments ga yo'naltiradi
+lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Handover, Activity
+proxy.ts              kirmagan foydalanuvchini /login ga, har bir rolni o'z bo'limlariga yo'naltiradi
 ```

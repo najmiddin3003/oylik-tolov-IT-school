@@ -2,27 +2,42 @@
 
 import mongoose from "mongoose";
 import { refresh } from "next/cache";
+import { logActivity } from "@/lib/activity";
 import { allocateAmount, type Allocation } from "@/lib/allocate";
-import { requireAuth, requireOwner } from "@/lib/auth";
+import { requireOwner, requireRole } from "@/lib/auth";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
 import { LIVE, studentFee, type StudentLean } from "@/lib/ledger";
 import { Payment, PAYMENT_METHODS, Student, type PaymentMethod } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { getSettings } from "@/lib/settings";
 import { formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 import type { FormState } from "./types";
 
 const MAX_AMOUNT = 1_000_000_000;
+const METHOD_LABEL: Record<PaymentMethod, string> = { naqd: "naqd", karta: "karta", otkazma: "o‘tkazma" };
+
+/** Jurnal uchun: to'lov tavsifi ("Aliyev Vali: Oktabr uchun 300 000 so'm"). */
+async function describePayment(id: string): Promise<string> {
+  const p = await Payment.findById(id, { student: 1, month: 1, amount: 1 })
+    .populate<{ student: { fullName: string } | null }>("student", "fullName")
+    .lean();
+  return p ? `${p.student?.fullName ?? "o‘chirilgan o‘quvchi"}: ${monthLabel(p.month)} uchun ${formatMoney(p.amount)}` : "to‘lov";
+}
 
 export async function addPayment(_prev: FormState, formData: FormData): Promise<FormState> {
-  const { role } = await requireAuth({ fresh: true });
+  // To'lovni rahbar va administrator kiritadi (o'qituvchi faqat ko'radi)
+  const session = await requireRole(["owner", "admin"], { fresh: true });
+  const { role, staffId } = session;
 
   const studentId = String(formData.get("studentId") ?? "");
   const month = String(formData.get("month") ?? "");
   const amount = parseAmount(String(formData.get("amount") ?? ""));
   const today = todayISO();
-  // Administrator kiritganda sana tanlanmaydi — har doim bugungi sana (Toshkent vaqti)
-  const paidIso = role === "admin" ? today : String(formData.get("paidAt") ?? "");
+  // «To'langan sana» maydoni rahbar sozlamasi bilan yoqiladi (rol bo'yicha); o'chiq bo'lsa — har doim bugun (Toshkent vaqti)
+  const { features } = await getSettings({ fresh: true });
+  const canPickDate = role === "owner" ? features.paymentDate.owner : features.paymentDate.admin;
+  const paidIso = canPickDate ? String(formData.get("paidAt") ?? "") : today;
   const paidAt = isoToDate(paidIso);
   const methodRaw = String(formData.get("method") ?? "naqd");
   const note = String(formData.get("note") ?? "").trim().slice(0, 500);
@@ -67,39 +82,48 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
       note,
       source: "site",
       createdBy: role,
+      createdByStaff: staffId,
+      // Pul kiritgan kishining kassasiga tushadi (administrator — rahbarga topshirguncha)
+      cashierRole: role,
+      cashierStaff: staffId,
     })),
   );
-  refresh();
   const what =
     parts.length === 1
       ? `${monthLabel(parts[0].month)} uchun ${formatMoney(parts[0].amount)}`
       : parts.map((p) => `${monthLabel(p.month)} — ${formatMoney(p.amount)}`).join(", ");
+  await logActivity(session, "payment.add", `${student.fullName}: ${what} (${METHOD_LABEL[method]}${paidIso !== today ? `, to‘langan sana ${paidIso}` : ""})`);
+  refresh();
   return { ok: true, message: `${student.fullName}: ${what} saqlandi`, nonce: Date.now() };
 }
 
 /** To'lovni arxivga o'tkazish: hech qayerda ko'rinmaydi va hisoblanmaydi (faqat rahbarning arxivida qoladi). */
 export async function archivePayment(id: string): Promise<void> {
-  const { role } = await requireAuth({ fresh: true });
+  const session = await requireRole(["owner", "admin"], { fresh: true });
   if (!isId(id)) return;
   await connectDB();
-  await Payment.updateOne({ _id: id, ...LIVE }, { $set: { archivedAt: new Date(), archivedBy: role } });
+  const res = await Payment.updateOne({ _id: id, ...LIVE }, { $set: { archivedAt: new Date(), archivedBy: session.role } });
+  if (res.modifiedCount) await logActivity(session, "payment.archive", `${session.role === "owner" ? "Arxivga o‘tkazildi" : "O‘chirildi"}: ${await describePayment(id)}`);
   refresh();
 }
 
 /** Arxivdan qaytarish (faqat rahbar). */
 export async function restorePayment(id: string): Promise<void> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (!isId(id)) return;
   await connectDB();
-  await Payment.updateOne({ _id: id, archivedAt: { $ne: null } }, { $set: { archivedAt: null, archivedBy: null } });
+  const res = await Payment.updateOne({ _id: id, archivedAt: { $ne: null } }, { $set: { archivedAt: null, archivedBy: null } });
+  if (res.modifiedCount) await logActivity(session, "payment.restore", `Arxivdan qaytarildi: ${await describePayment(id)}`);
   refresh();
 }
 
 /** Arxivdagi to'lovni butunlay o'chirish (faqat rahbar, qaytarib bo'lmaydi). */
 export async function purgePayment(id: string): Promise<void> {
-  await requireOwner({ fresh: true });
+  const session = await requireOwner({ fresh: true });
   if (!isId(id)) return;
   await connectDB();
-  await Payment.deleteOne({ _id: id, archivedAt: { $ne: null } });
+  const what = await describePayment(id);
+  const res = await Payment.deleteOne({ _id: id, archivedAt: { $ne: null } });
+  if (res.deletedCount) await logActivity(session, "payment.purge", `Butunlay o‘chirildi: ${what}`);
   refresh();
 }

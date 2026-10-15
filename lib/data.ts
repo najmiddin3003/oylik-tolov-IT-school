@@ -1,10 +1,12 @@
 import "server-only";
 import mongoose from "mongoose";
 import { cache } from "react";
-import { requireAuth, requireOwner } from "./auth";
+import { listMyActivity, type ActivityRow } from "./activity";
+import { requireAuth, requireOwner, requireRole, type Session } from "./auth";
+import { courseFee, courseNames, sameCourse } from "./courses";
 import { connectDB } from "./db";
 import { eskizConfigured } from "./eskiz";
-import { changesAfter, percentFor, shareOf, type FeeChange, type PercentChange } from "./fees";
+import { changesAfter, type FeeChange } from "./fees";
 import {
   feeHistoryOf,
   LIVE,
@@ -18,7 +20,9 @@ import {
   type StudentLean,
   type StudentRow,
 } from "./ledger";
-import { Payment, Salary, SmsLog, Student, SyncRun, type MismatchKind, type PaymentMethod } from "./models";
+import { cashierKassa, kassaState } from "./kassa";
+import { Handover, Payment, Salary, SmsLog, Staff, Student, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
+import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
 import { normalizeText } from "./normalize";
 import { daysLeftInMonth, monthEndReminderActive } from "./reminders";
 import {
@@ -33,8 +37,10 @@ import {
   type Lesson,
 } from "./schedule";
 import { getSettings, standardFee } from "./settings";
-import { sharePercent } from "./share";
 import type { Role } from "./session";
+import { activeStaffRoles, getStaffById, listStaff, listTeachers, shareHistoryOf, teacherNames, toStaffView, type StaffView } from "./staff";
+import type { StaffStatus } from "./staff-rules";
+import { latestTasksByMonth, tasksFor, type TaskRow } from "./tasks";
 import { compareMonths, currentMonth, isoToDate, monthOfDate, nowMs, shiftMonth, todayISO } from "./time";
 
 export type { PayStatus, StudentRow } from "./ledger";
@@ -58,6 +64,9 @@ export type StudentDetail = {
   note: string;
   /** Dars jadvali (kunlar va vaqt) */
   lessons: Lesson[];
+  /** O'qituvchisi */
+  teacherId: string | null;
+  teacherName: string;
 };
 
 export type PaymentRow = {
@@ -72,6 +81,8 @@ export type PaymentRow = {
   note: string;
   source: "site" | "sheets";
   createdBy: "owner" | "admin" | "system";
+  /** Qachon kiritilgan (yangilari tepada) */
+  createdAt: string;
   archivedAt: string | null;
   archivedBy: "owner" | "admin" | null;
 };
@@ -79,6 +90,8 @@ export type PaymentRow = {
 export type StudentOption = {
   id: string;
   name: string;
+  /** Kursi (to'lov formasida avval kurs tanlanadi) */
+  group: string;
   monthlyFee: number;
   feeHistory: FeeChange[];
   /** oy -> shu oy uchun to'langan summa (tanlangan oy atrofidagi oylar) */
@@ -139,6 +152,8 @@ export type SyncRunView = {
   dateTo: string;
   courseFilter: string;
   filteredOut: number;
+  /** Kurslar bo'yicha statistika (eski tekshiruvlarda — bo'sh) */
+  courseStats: { course: string; rows: number; matched: number; ignored: number }[];
   skipped: { row: number; reason: string }[];
   mismatches: MismatchRow[];
   /** Sheets'dan avtomatik qo'shilgan to'lov qatorlari */
@@ -147,7 +162,16 @@ export type SyncRunView = {
 
 export type SyncState = "ok" | "warn" | "error" | "off";
 
-export type NavCounts = { role: Role; students?: number; payments: number; sync?: SyncState };
+export type NavCounts = {
+  role: Role;
+  students?: number;
+  payments: number;
+  sync?: SyncState;
+  staff?: number;
+  /** Rahbar: qabul qilinishi kutilayotgan kassa topshiruvlari; administrator: ochiq topshiriqlar */
+  kassa?: number;
+  tasks?: number;
+};
 
 // ---------- Yordamchilar ----------
 
@@ -174,6 +198,7 @@ type PopulatedPayment = {
   createdBy?: string | null;
   archivedAt?: Date | null;
   archivedBy?: string | null;
+  createdAt?: Date | null;
 };
 
 function toPaymentRow(p: PopulatedPayment): PaymentRow {
@@ -190,12 +215,13 @@ function toPaymentRow(p: PopulatedPayment): PaymentRow {
     source: p.source === "sheets" ? "sheets" : "site",
     // Eski yozuvlarda maydon yo'q: Sheets'dan kelgani — tizim, qolgani — rahbar
     createdBy: p.createdBy === "admin" || p.createdBy === "system" ? p.createdBy : !p.createdBy && p.source === "sheets" ? "system" : "owner",
+    createdAt: (p.createdAt ?? p.paidAt).toISOString(),
     archivedAt: p.archivedAt ? p.archivedAt.toISOString() : null,
     archivedBy: p.archivedBy === "admin" || p.archivedBy === "owner" ? p.archivedBy : null,
   };
 }
 
-function findPayments(filter: Record<string, unknown>, sort: Record<string, 1 | -1>, limit = 3000) {
+function findPayments(filter: Record<string, unknown>, sort: Record<string, 1 | -1>, limit = 5000) {
   return Payment.find(filter)
     .sort(sort)
     .limit(limit)
@@ -207,51 +233,90 @@ function toUnpaid(r: StudentRow): UnpaidStudent {
   return { id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status, lessons: r.lessons };
 }
 
+// ---------- Kim ko'ryapti ----------
+
+/** Joriy foydalanuvchi: o'qituvchi bo'lsa — faqat o'z o'quvchilari ko'rinadi (teacherId). */
+const viewer = cache(async () => {
+  const s = await requireAuth();
+  return { ...s, teacherId: s.role === "teacher" ? s.staffId : null };
+});
+type Viewer = Awaited<ReturnType<typeof viewer>>;
+
+/**
+ * Ko'rinadigan o'quvchilar. O'qituvchi — faqat o'ziniki. Rahbar `teacher` filtri bilan
+ * bitta o'qituvchinikini ("none" — o'qituvchi biriktirilmaganlarni) ko'radi.
+ */
+async function visibleStudents(v: Viewer, teacher = ""): Promise<StudentLean[]> {
+  const all = await loadStudents();
+  const t = v.teacherId ?? teacher;
+  if (!t) return all;
+  if (t === "none") return all.filter((s) => !s.teacher);
+  return all.filter((s) => String(s.teacher ?? "") === t);
+}
+
 // ---------- Umumiy ----------
 
 export async function listGroups(): Promise<string[]> {
-  await requireOwner();
+  const v = await requireRole(["owner", "teacher"]).then(() => viewer());
   await connectDB();
-  const groups = (await Student.distinct("group")) as string[];
-  return groups.filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const students = await visibleStudents(v);
+  return [...new Set(students.map((s) => s.group ?? "").filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
 /** Yon menyudagi son belgilari (rolga qarab). */
 export const getNavCounts = cache(async (): Promise<NavCounts> => {
-  const { role } = await requireAuth();
+  const v = await viewer();
+  const role = v.role;
   await connectDB();
   const month = currentMonth();
   if (role === "admin") {
-    return { role, payments: await Payment.countDocuments({ ...LIVE, month }) };
+    const [payments, tasks] = await Promise.all([Payment.countDocuments({ ...LIVE, month }), Task.countDocuments({ toRole: "admin", status: "open" })]);
+    return { role, payments, tasks };
   }
-  const [students, payments, settings, last] = await Promise.all([
+  if (role === "teacher") {
+    const mine = await visibleStudents(v);
+    return {
+      role,
+      students: mine.filter((s) => s.active ?? true).length,
+      payments: await Payment.countDocuments({ ...LIVE, month, student: { $in: mine.map((s) => s._id) } }),
+    };
+  }
+  const [students, payments, settings, last, staff, kassa] = await Promise.all([
     Student.countDocuments({ active: true }),
     Payment.countDocuments({ ...LIVE, month }),
     getSettings(),
     SyncRun.findOne({}).select("ok mismatches.resolved").sort({ startedAt: -1 }).lean(),
+    Staff.countDocuments({ status: { $ne: "disabled" } }),
+    Handover.countDocuments({ status: "pending" }),
   ]);
   let sync: SyncState = "off";
   if (settings.sheetUrl && last) {
     if (!last.ok) sync = "error";
     else sync = (last.mismatches ?? []).some((m) => !m.resolved) ? "warn" : "ok";
   }
-  return { role, students, payments, sync };
+  return { role, students, payments, sync, staff, kassa };
 });
 
 // ---------- Oy bo'yicha umumiy holat (bosh sahifa va to'lovlar sahifasi) ----------
 
-/** Tanlangan oy bo'yicha faol o'quvchilarning to'lov holati va tushum. */
-export const getMonthOverview = cache(async (month: string, group = "") => {
-  await requireAuth();
+/**
+ * Tanlangan oy bo'yicha faol o'quvchilarning to'lov holati va tushum. O'qituvchiga — faqat o'z o'quvchilari;
+ * rahbar `teacher` bilan bitta o'qituvchi bo'yicha ko'radi.
+ */
+export const getMonthOverview = cache(async (month: string, group = "", teacher = "") => {
+  const v = await viewer();
   await connectDB();
   const [students, agg] = await Promise.all([
-    loadStudents(),
+    visibleStudents(v, teacher),
     Payment.aggregate<{ _id: { student: mongoose.Types.ObjectId; method: string }; total: number; count: number }>([
       { $match: { ...LIVE, month } },
       { $group: { _id: { student: "$student", method: "$method" }, total: { $sum: "$amount" }, count: { $sum: 1 } } },
     ]),
   ]);
   const inGroup = new Set(students.filter((s) => !group || (s.group ?? "") === group).map((s) => String(s._id)));
+  // O'qituvchiga boshqa o'quvchilarning to'lovlari umuman berilmaydi
+  const own = v.teacherId ? new Set(students.map((s) => String(s._id))) : null;
+  const restricted = Boolean(group || teacher || v.teacherId);
 
   const paidMap = new Map<string, number>();
   let collected = 0;
@@ -259,9 +324,10 @@ export const getMonthOverview = cache(async (month: string, group = "") => {
   let cash = 0;
   for (const a of agg) {
     const id = String(a._id.student);
+    if (own && !own.has(id)) continue;
     paidMap.set(id, (paidMap.get(id) ?? 0) + a.total);
-    // Guruh tanlanmagan bo'lsa — hamma to'lovlar (o'quvchisi topilmaganlari ham) tushumga kiradi
-    if (group && !inGroup.has(id)) continue;
+    // Filtr bo'lmasa — hamma to'lovlar (o'quvchisi topilmaganlari ham) tushumga kiradi
+    if (restricted && !inGroup.has(id)) continue;
     collected += a.total;
     paymentCount += a.count;
     if ((a._id.method ?? "naqd") === "naqd") cash += a.total;
@@ -294,45 +360,81 @@ export const getMonthOverview = cache(async (month: string, group = "") => {
   };
 });
 
-/** Tushum ulushi (masalan 40%) va shu oy uchun olingan oylik/avanslar — faqat rahbar uchun. */
-export async function getShareSummary(month: string, collected: number) {
-  await requireOwner();
-  await connectDB();
-  const [settings, salaries] = await Promise.all([
-    getSettings(),
-    Salary.find({ month }).sort({ date: -1, createdAt: -1 }).lean(),
-  ]);
-  const percent = percentFor(settings.shareHistory, month, sharePercent());
-  const share = shareOf(collected, percent);
-  const taken = salaries.reduce((s, x) => s + x.amount, 0);
-  return {
-    percent,
-    share,
-    taken,
-    left: share - taken,
-    salaries: salaries.map((x) => ({
-      id: String(x._id),
-      kind: x.kind as "oylik" | "avans",
-      amount: x.amount,
-      date: x.date.toISOString(),
-      month: x.month,
-      note: x.note ?? "",
-    })),
-  };
+// ---------- Xodimlar oyligi ----------
+
+export type PayView = StaffPay & { name: string; role: Role; status: StaffStatus; salaries: SalaryRow[] };
+
+/** Xodimning shu oydagi oyligi: o'zi yoki rahbar ko'radi. */
+export async function getStaffPay(staffId: string, month: string): Promise<PayView | null> {
+  const v = await viewer();
+  if (v.role !== "owner" && v.staffId !== staffId) return null;
+  const staff = await getStaffById(staffId);
+  if (!staff) return null;
+  const [pay, salaries] = await Promise.all([staffPay(staff, month), monthSalaries(month)]);
+  return { ...pay, name: staff.name, role: staff.role, status: staff.status, salaries: salaries.get(staffId) ?? [] };
 }
 
-export type ShareSummary = Awaited<ReturnType<typeof getShareSummary>>;
+export type TeamMember = StaffView & {
+  pay: StaffPay;
+  /** O'qituvchi: shu oyda to'lashi kerak bo'lgan o'quvchilari bo'yicha */
+  students: number;
+  paidCount: number;
+  debtors: number;
+  debt: number;
+  expected: number;
+};
+
+/** Rahbar paneli: har bir xodim (o'quvchilari, tushumi, oyligi) va markaz bo'yicha jami. */
+export async function getTeamOverview(month: string) {
+  await requireOwner();
+  await connectDB();
+  const [{ rows, totals }, staffDocs, collections] = await Promise.all([getMonthOverview(month), listStaff(), monthCollections(month)]);
+  const byTeacher = new Map<string, StudentRow[]>();
+  for (const r of rows) {
+    const key = r.teacherId ?? "";
+    byTeacher.set(key, [...(byTeacher.get(key) ?? []), r]);
+  }
+  const stats = (list: StudentRow[]) => ({
+    students: list.length,
+    paidCount: list.filter((r) => r.status === "paid").length,
+    debtors: list.filter((r) => r.status !== "paid").length,
+    debt: list.reduce((s, r) => s + r.debt, 0),
+    expected: list.reduce((s, r) => s + r.monthlyFee, 0),
+  });
+  const members: TeamMember[] = [];
+  for (const d of staffDocs) {
+    if (d.status === "disabled") continue;
+    members.push({ ...toStaffView(d), pay: await staffPay(d, month), ...stats(byTeacher.get(String(d._id)) ?? []) });
+  }
+  const order: Record<Role, number> = { owner: 0, teacher: 1, admin: 2 };
+  members.sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
+  const staffShare = members.reduce((s, m) => s + m.pay.share, 0);
+  const unassigned = { ...stats(byTeacher.get("") ?? []), collected: collections.unassigned };
+  // Shu oy hisobidan berilgan avans va oyliklar (barcha xodimlar)
+  const salaries = [...(await monthSalaries(month)).values()].flat();
+  const given = {
+    avans: salaries.filter((x) => x.kind === "avans").reduce((s, x) => s + x.amount, 0),
+    oylik: salaries.filter((x) => x.kind === "oylik").reduce((s, x) => s + x.amount, 0),
+    count: salaries.length,
+  };
+  return {
+    members,
+    unassigned,
+    totals,
+    finance: { collected: totals.collected, staffShare, centerLeft: totals.collected - staffShare, given },
+  };
+}
 
 /**
  * Oy oxiri eslatmalari: joriy oy — oy tugashiga 10 kun qolganda; o'tgan oy — to'lamaganlar qolgan bo'lsa.
  */
 export const getReminders = cache(async (): Promise<Reminder[]> => {
-  await requireAuth();
+  const v = await viewer();
   await connectDB();
   const today = todayISO();
   const current = today.slice(0, 7);
   const months = monthEndReminderActive(today) ? [current, shiftMonth(current, -1)] : [shiftMonth(current, -1)];
-  const students = await loadStudents();
+  const students = await visibleStudents(v);
   const lists = await Promise.all(months.map((m) => monthRows(m, students)));
   return months
     .map((month, i) => {
@@ -369,22 +471,28 @@ export async function listStudents(opts: {
   sort: StudentSort;
   page: number;
   pageSize: number;
+  /** Rahbar uchun: o'qituvchi bo'yicha ("none" — biriktirilmaganlar) */
+  teacher?: string;
 }) {
-  await requireOwner();
+  await requireRole(["owner", "teacher"]);
+  const v = await viewer();
   await connectDB();
-  const [{ debtors, rows: current, paid }, students] = await Promise.all([getMonthOverview(opts.month), loadStudents()]);
+  const teacher = v.teacherId ? "" : (opts.teacher ?? "");
+  const [{ debtors, rows: current, paid }, students] = await Promise.all([getMonthOverview(opts.month, "", teacher), visibleStudents(v, teacher)]);
   const paidMap = new Map(Object.entries(paid));
   const all = students.map((s) => toRow(s, paidMap, opts.month));
 
-  // Yuqoridagi kartalar: filtrlardan qat'i nazar
+  const today = tashkentClock(nowMs()).weekday;
+  // Yuqoridagi kartalar: filtrlardan qat'i nazar (pul summalarisiz)
+  const activeRows = all.filter((r) => r.active);
   const stats = {
     total: all.length,
     activeThisMonth: current.length,
-    fullyPaid: current.length - debtors.length,
-    totalDebt: current.reduce((s, r) => s + r.debt, 0),
+    courses: new Set(activeRows.map((r) => r.group.trim().toLowerCase()).filter(Boolean)).size,
+    today: activeRows.filter((r) => lessonOn(r.lessons, today)).length,
+    debtors: debtors.length,
   };
 
-  const today = tashkentClock(nowMs()).weekday;
   const filtered = all.filter(
     (r) =>
       (opts.status === "all" || (opts.status === "active" ? r.active : !r.active)) &&
@@ -422,12 +530,13 @@ export async function listStudents(opts: {
   };
 }
 
-/** Yuqoridagi tezkor qidiruv uchun (rahbar). */
+/** Yuqoridagi tezkor qidiruv uchun (rahbar — hammasi, o'qituvchi — o'z o'quvchilari). */
 export async function searchStudents(q: string, limit = 8) {
-  await requireOwner();
+  await requireRole(["owner", "teacher"]);
+  const v = await viewer();
   if (!q.trim()) return [];
   await connectDB();
-  const students = await loadStudents();
+  const students = await visibleStudents(v);
   return students
     .map((s) => ({
       id: String(s._id),
@@ -443,12 +552,17 @@ export async function searchStudents(q: string, limit = 8) {
 }
 
 export async function getStudent(id: string): Promise<StudentDetail | null> {
-  await requireOwner();
-  if (!mongoose.isValidObjectId(id)) return null;
+  const v = await viewer();
+  if (v.role === "admin" || !mongoose.isValidObjectId(id)) return null;
   await connectDB();
   const s = await Student.findById(id).lean<StudentLean & { parentPhone?: string | null; note?: string | null }>();
   if (!s) return null;
+  // O'qituvchi — faqat o'z o'quvchisini
+  if (v.teacherId && String(s.teacher ?? "") !== v.teacherId) return null;
+  const teacherId = s.teacher ? String(s.teacher) : null;
   return {
+    teacherId,
+    teacherName: teacherId ? ((await teacherNames()).get(teacherId) ?? "") : "",
     id: String(s._id),
     seq: s.seq ?? null,
     fullName: s.fullName,
@@ -467,7 +581,7 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
 
 /** Faol o'quvchilarda ko'p uchraydigan dars jadvallari (formada bir bosishda qo'yish uchun). */
 export async function listScheduleTemplates(): Promise<Lesson[][]> {
-  await requireOwner();
+  await requireRole(["owner", "admin"]);
   await connectDB();
   const students = await loadStudents();
   return popularSchedules(students.filter((s) => s.active ?? true).map((s) => normalizeLessons(s.lessons))).map((t) => t.lessons);
@@ -475,7 +589,9 @@ export async function listScheduleTemplates(): Promise<Lesson[][]> {
 
 /** O'quvchining barcha to'lovlari va boshlagan oyidan joriy oygacha har oy holati. */
 export async function getStudentPayments(student: StudentDetail) {
-  await requireOwner();
+  await requireRole(["owner", "teacher"]);
+  const v = await viewer();
+  if (v.teacherId && student.teacherId !== v.teacherId) return { payments: [], months: [], totalDebt: 0, totalPaid: 0 };
   await connectDB();
   const payments = await findPayments({ ...LIVE, student: student.id }, { paidAt: -1, month: -1 });
   const rows = payments.map(toPaymentRow);
@@ -507,19 +623,29 @@ export async function getStudentPayments(student: StudentDetail) {
 
 // ---------- To'lovlar ----------
 
-export type PaymentFilter = { q: string; method: string; day: string };
+export type PaymentFilter = {
+  q: string;
+  method: string;
+  day: string;
+  /** true — barcha oylar to'lovlari (tanlangan oy emas) */
+  all?: boolean;
+};
 
 /**
  * To'lovlar tarixi: tanlangan oy uchun to'lovlar. Kun tanlansa — o'sha kuni qabul qilingan
  * barcha to'lovlar (qaysi oy uchunligidan qat'i nazar).
  */
 export async function listPayments(month: string, f: PaymentFilter) {
-  await requireAuth();
+  const v = await viewer();
   await connectDB();
   const dayStart = f.day ? isoToDate(f.day) : null;
+  // O'qituvchiga — faqat o'z o'quvchilarining to'lovlari
+  const own = v.teacherId ? { student: { $in: (await visibleStudents(v)).map((s) => s._id) } } : {};
   const filter = dayStart
-    ? { ...LIVE, paidAt: { $gte: dayStart, $lt: new Date(dayStart.getTime() + 24 * 3600_000) } }
-    : { ...LIVE, month };
+    ? { ...LIVE, ...own, paidAt: { $gte: dayStart, $lt: new Date(dayStart.getTime() + 24 * 3600_000) } }
+    : f.all
+      ? { ...LIVE, ...own }
+      : { ...LIVE, ...own, month };
   const payments = await findPayments(filter, { paidAt: -1, createdAt: -1 });
   const nq = normalizeText(f.q);
   const rows = payments
@@ -545,12 +671,12 @@ export async function countArchivedPayments(): Promise<number> {
   return Payment.countDocuments({ archivedAt: { $ne: null } });
 }
 
-/** To'lov formasi uchun: faol o'quvchilar va tanlangan oy atrofidagi to'lovlari. */
+/** To'lov formasi uchun (rahbar va administrator): faol o'quvchilar va tanlangan oy atrofidagi to'lovlari. */
 export async function listStudentOptions(month: string): Promise<StudentOption[]> {
-  await requireAuth();
+  await requireRole(["owner", "admin"]);
   await connectDB();
   const [students, agg] = await Promise.all([
-    Student.find({ active: true }, { fullName: 1, monthlyFee: 1, feeHistory: 1 }).sort({ fullName: 1 }).lean<StudentLean[]>(),
+    Student.find({ active: true }, { fullName: 1, monthlyFee: 1, feeHistory: 1, group: 1 }).sort({ fullName: 1 }).lean<StudentLean[]>(),
     Payment.aggregate<{ _id: { student: mongoose.Types.ObjectId; month: string }; total: number }>([
       { $match: { ...LIVE, month: { $gte: shiftMonth(month, -12), $lte: shiftMonth(month, 12) } } },
       { $group: { _id: { student: "$student", month: "$month" }, total: { $sum: "$amount" } } },
@@ -564,6 +690,7 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
   return students.map((s) => ({
     id: String(s._id),
     name: s.fullName,
+    group: s.group ?? "",
     monthlyFee: s.monthlyFee,
     feeHistory: feeHistoryOf(s),
     paid: paid.get(String(s._id)) ?? {},
@@ -573,14 +700,14 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
 // ---------- Sozlamalar ----------
 
 export async function getSettingsPageData(month: string) {
-  await requireOwner();
+  const session = await requireOwner();
   await connectDB();
-  const overview = await getMonthOverview(month);
-  const [settings, share, logs, active] = await Promise.all([
+  const [settings, logs, active, roles, syncAlert] = await Promise.all([
     getSettings({ fresh: true }),
-    getShareSummary(month, overview.totals.collected),
     SmsLog.find({}).sort({ createdAt: -1 }).limit(8).lean(),
-    Student.find({ active: true }, { monthlyFee: 1, feeHistory: 1 }).lean<StudentLean[]>(),
+    Student.find({ active: true }, { monthlyFee: 1, feeHistory: 1, group: 1 }).lean<StudentLean[]>(),
+    activeStaffRoles(),
+    syncAlertOn(session),
   ]);
 
   // Joriy oy narxlari: qaysi narxda nechta o'quvchi
@@ -591,17 +718,27 @@ export async function getSettingsPageData(month: string) {
     fees.set(fee, (fees.get(fee) ?? 0) + 1);
   }
   const feeGroups = [...fees.entries()].map(([fee, count]) => ({ fee, count })).sort((a, b) => b.count - a.count || b.fee - a.fee);
+  const courses = courseNames(settings.courses, active.map((s) => s.group ?? "")).map((name) => ({
+    name,
+    fee: courseFee(settings.courses, name),
+    inList: settings.courses.some((c) => sameCourse(c.name, name)),
+    students: active.filter((s) => sameCourse(s.group, name)).length,
+  }));
 
   return {
     centerName: settings.centerName,
+    courses,
+    features: settings.features,
+    autoImport: settings.autoImport,
+    syncAlert,
     /** Yangi o'quvchilar uchun standart narx: hozirgi va rejalashtirilgan o'zgarishlar */
     standardNow: standardFee(settings, now),
     standardNext: changesAfter(settings.feeSchedule, now),
     feeGroups,
     feeChanges: [...settings.feeChanges].reverse().slice(0, 10),
-    percentNow: percentFor(settings.shareHistory, now, sharePercent()),
-    shareHistory: [...settings.shareHistory].sort((a, b) => compareMonths(b.from, a.from)) as PercentChange[],
     ownerPasswordInDb: Boolean(settings.ownerPasswordHash),
+    /** Eski umumiy parollar hali ishlaydimi (shu roldagi faol xodim profili yo'q) */
+    legacy: { owner: !roles.has("owner"), admin: !roles.has("admin") },
     adminEnabled: Boolean(settings.adminPasswordHash),
     sms: settings.sms,
     eskizReady: eskizConfigured(),
@@ -616,8 +753,6 @@ export async function getSettingsPageData(month: string) {
       at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",
     })),
     month,
-    collected: overview.totals.collected,
-    share,
   };
 }
 
@@ -640,6 +775,7 @@ function toRunView(r: Awaited<ReturnType<typeof findRuns>>[number]): SyncRunView
     dateTo: r.dateTo ?? "",
     courseFilter: r.courseFilter ?? "",
     filteredOut: r.filteredOut ?? 0,
+    courseStats: (r.courseStats ?? []).map((c) => ({ course: c.course ?? "", rows: c.rows ?? 0, matched: c.matched ?? 0, ignored: c.ignored ?? 0 })),
     skipped: (r.skipped ?? []).map((s) => ({ row: s.row ?? 0, reason: s.reason ?? "" })),
     autoImported: r.autoImported ?? 0,
     mismatches: (r.mismatches ?? []).map((m) => ({
@@ -677,15 +813,22 @@ export async function getSyncPageData() {
   await connectDB();
   const [settings, runs] = await Promise.all([getSettings({ fresh: true }), findRuns(10)]);
   return {
-    settings: { sheetUrl: settings.sheetUrl, columns: settings.columns, courseFilter: settings.courseFilter, autoImport: settings.autoImport },
+    settings: {
+      sheetUrl: settings.sheetUrl,
+      columns: settings.columns,
+      courseFilter: settings.courseFilter,
+      autoImport: settings.autoImport,
+      courses: settings.courses.map((c) => c.name),
+    },
     runs: runs.map(toRunView),
   };
 }
 
 /** Ogohlantirish uchun: oxirgi tekshiruvdagi hal qilinmagan farqlar soni yoki xato (faqat rahbar ko'radi). */
 export const getSyncAlert = cache(async (): Promise<{ unresolved: number; error: string; at: string } | null> => {
-  const { role } = await requireAuth();
-  if (role !== "owner") return null;
+  const session = await requireAuth();
+  if (session.role !== "owner") return null;
+  if (!(await syncAlertOn(session))) return null;
   await connectDB();
   const last = await SyncRun.findOne({})
     .select("ok error startedAt mismatches.resolved")
@@ -695,4 +838,217 @@ export const getSyncAlert = cache(async (): Promise<{ unresolved: number; error:
   const unresolved = (last.mismatches ?? []).filter((m) => !m.resolved).length;
   if (last.ok && unresolved === 0) return null;
   return { unresolved, error: last.ok ? "" : last.error ?? "", at: last.startedAt.toISOString() };
+});
+
+// ---------- Xodimlar ----------
+
+export type StaffRowView = StaffView & { students: number };
+
+/** «Xodimlar» sahifasi (rahbar): ro'yxat, o'qituvchilarning o'quvchilari soni, eski ulush yozuvlari. */
+export async function getStaffPageData() {
+  await requireOwner();
+  await connectDB();
+  const [docs, students, settings, legacySalaries] = await Promise.all([
+    listStaff(),
+    loadStudents(),
+    getSettings({ fresh: true }),
+    Salary.countDocuments({ staff: null }),
+  ]);
+  const counts = new Map<string, number>();
+  let unassigned = 0;
+  for (const st of students) {
+    if (st.active === false) continue;
+    if (st.teacher) counts.set(String(st.teacher), (counts.get(String(st.teacher)) ?? 0) + 1);
+    else unassigned++;
+  }
+  const order: Record<Role, number> = { owner: 0, teacher: 1, admin: 2 };
+  const staff: StaffRowView[] = docs
+    .map((d) => ({ ...toStaffView(d), students: counts.get(String(d._id)) ?? 0 }))
+    .sort((a, b) => Number(a.status === "disabled") - Number(b.status === "disabled") || order[a.role] - order[b.role] || a.name.localeCompare(b.name));
+  return {
+    staff,
+    unassignedStudents: unassigned,
+    /** Eski (bitta o'qituvchi uchun) ulush foizi va xodimga biriktirilmagan oylik/avans yozuvlari */
+    legacy:
+      !settings.legacyPayStaff && (legacySalaries > 0 || settings.shareHistory.length > 0)
+        ? { salaries: legacySalaries, shareHistory: settings.shareHistory }
+        : null,
+  };
+}
+
+/** Bitta xodim (rahbar uchun): ma'lumotlari, shu oydagi oyligi va olgan oylik/avanslari. */
+export async function getStaffDetail(id: string, month: string) {
+  await requireOwner();
+  if (!mongoose.isValidObjectId(id)) return null;
+  await connectDB();
+  const doc = await getStaffById(id);
+  if (!doc) return null;
+  const [pay, salaries, students] = await Promise.all([staffPay(doc, month), monthSalaries(month), loadStudents()]);
+  const mine = students.filter((st) => String(st.teacher ?? "") === id && st.active !== false);
+  return {
+    staff: toStaffView(doc),
+    pay,
+    salaries: salaries.get(id) ?? [],
+    students: mine.length,
+    shareHistory: [...shareHistoryOf(doc)].sort((a, b) => compareMonths(b.from, a.from)),
+  };
+}
+
+/** «Profilim» (xodim): o'z ma'lumotlari, oyligi va olgan oylik/avanslari. */
+export async function getMyProfile(month: string) {
+  const v = await viewer();
+  if (!v.staffId) return null;
+  await connectDB();
+  const doc = await getStaffById(v.staffId);
+  if (!doc) return null;
+  const [pay, salaries, students] = await Promise.all([staffPay(doc, month), monthSalaries(month), loadStudents()]);
+  return {
+    staff: toStaffView(doc),
+    pay,
+    salaries: salaries.get(v.staffId) ?? [],
+    students: students.filter((st) => String(st.teacher ?? "") === v.staffId && st.active !== false).length,
+  };
+}
+
+/** Tezkor o'quvchi qo'shish oynasi uchun o'qituvchilar (rahbar va administrator). */
+export async function listTeacherChoices(): Promise<{ id: string; name: string; status: StaffStatus }[]> {
+  await requireRole(["owner", "admin"]);
+  return listTeachers();
+}
+
+/** O'quvchi formasi va ro'yxat filtri uchun o'qituvchilar (rahbar). */
+export async function listTeacherOptions(): Promise<{ id: string; name: string; status: StaffStatus }[]> {
+  await requireOwner();
+  return listTeachers();
+}
+
+// ---------- Shaxsiy sozlamalar ----------
+
+/** Google Sheets ogohlantiruvi shu foydalanuvchi uchun yoqilganmi (standart — ha). */
+export async function syncAlertOn(session: Session): Promise<boolean> {
+  if (session.staffId) {
+    const staff = await getStaffById(session.staffId);
+    return staff?.prefs?.syncAlert !== false;
+  }
+  return (await getSettings()).legacyPrefs.syncAlert;
+}
+
+// ---------- Kurslar ----------
+
+export type CourseOption = { name: string; fee: number | null; students: number };
+
+/** Kurslar (tanlash ro'yxatlari uchun): sozlamalardagilar + o'quvchilarda uchraydiganlar, faol o'quvchilar soni bilan. */
+export async function listCourses(): Promise<CourseOption[]> {
+  await requireRole(["owner", "admin", "teacher"]);
+  await connectDB();
+  const [settings, students] = await Promise.all([getSettings(), loadStudents()]);
+  const active = students.filter((s) => s.active !== false);
+  return courseNames(settings.courses, active.map((s) => s.group ?? "")).map((name) => ({
+    name,
+    fee: courseFee(settings.courses, name),
+    students: active.filter((s) => sameCourse(s.group, name)).length,
+  }));
+}
+
+// ---------- To'lov formasi sozlamasi ----------
+
+/** «To'langan sana» maydoni shu rolda ko'rsatiladimi (rahbar Sozlamalar → Funksiyalar bo'limida o'zgartiradi). */
+export async function canPickPaymentDate(role: Role): Promise<boolean> {
+  const { features } = await getSettings();
+  return role === "owner" ? features.paymentDate.owner : role === "admin" ? features.paymentDate.admin : false;
+}
+
+// ---------- Topshiriqlar ----------
+
+/** Administrator: rahbardan kelgan topshiriqlar (ochiqlari va yaqinda bajarilganlari). */
+export async function getMyTasks(): Promise<TaskRow[]> {
+  const s = await requireAuth();
+  if (s.role !== "admin") return [];
+  return tasksFor("admin");
+}
+
+/** Rahbar: eslatma bannerida — har oy uchun yuborilgan topshiriq holati. */
+export async function getTaskStatus(months: string[]): Promise<Record<string, TaskRow>> {
+  const s = await requireAuth();
+  if (s.role !== "owner") return {};
+  return latestTasksByMonth(months);
+}
+
+// ---------- Kassa ----------
+
+/** «Kassa» sahifasi: administrator — o'z kassasi; rahbar — barcha kassalar va qabul qilinishi kutilayotganlar. */
+export async function getKassaPageData() {
+  const s = await requireRole(["owner", "admin"]);
+  if (s.role === "admin") return { role: "admin" as const, ...(await cashierKassa(s.staffId)) };
+  return { role: "owner" as const, ...(await kassaState()) };
+}
+
+/** Administratorning kassasi (To'lovlar sahifasidagi ixcham karta uchun). */
+export async function getMyKassa() {
+  const s = await requireRole(["admin"]);
+  return cashierKassa(s.staffId);
+}
+
+/** Rahbar paneli: qabul qilinishi kutilayotgan topshiruvlar va kassa holati. */
+export async function getOwnerKassa() {
+  await requireOwner();
+  return kassaState();
+}
+
+// ---------- Olingan avans/oylik (xodimning o'zi) ----------
+
+/** «Olingan avans/oylik»: barcha olgan pullari oylar bo'yicha va har oy oyligi (o'qituvchi, administrator). */
+export async function getMySalaryHistory() {
+  const v = await viewer();
+  if (!v.staffId || v.role === "owner") return null;
+  await connectDB();
+  const doc = await getStaffById(v.staffId);
+  if (!doc) return null;
+  const docs = await Salary.find({ staff: v.staffId }).sort({ date: -1, createdAt: -1 }).lean();
+  const rows = docs.map(toSalaryRow);
+  const months = [...new Set([currentMonth(), ...rows.map((r) => r.month)])].sort((a, b) => compareMonths(b, a)).slice(0, 24);
+  const byMonth = await Promise.all(
+    months.map(async (month) => ({
+      month,
+      pay: await staffPay(doc, month),
+      salaries: rows.filter((r) => r.month === month),
+    })),
+  );
+  return {
+    staff: toStaffView(doc),
+    months: byMonth,
+    total: { avans: rows.filter((r) => r.kind === "avans").reduce((s, r) => s + r.amount, 0), oylik: rows.filter((r) => r.kind === "oylik").reduce((s, r) => s + r.amount, 0) },
+  };
+}
+
+// ---------- Faoliyat jurnali ----------
+
+/** Joriy foydalanuvchining amallari (faqat o'ziniki). */
+export async function getMyActivity(opts: { group?: string; before?: string; limit?: number } = {}): Promise<ActivityRow[]> {
+  const s = await requireAuth();
+  const before = opts.before ? new Date(opts.before) : undefined;
+  return listMyActivity(s, { group: opts.group, before: before && !Number.isNaN(before.getTime()) ? before : undefined, limit: opts.limit });
+}
+
+// ---------- Qo'ng'iroqcha ----------
+
+export type BellHandover = { id: string; fromName: string; cash: number; card: number; createdAt: string };
+
+/** Qo'ng'iroqcha uchun: administratorga — ochiq topshiriqlar; rahbarga — qabul qilinishi kutilayotgan kassa topshiruvlari. */
+export const getBellExtras = cache(async (): Promise<{ tasks: TaskRow[]; handovers: BellHandover[] }> => {
+  const s = await requireAuth();
+  if (s.role === "admin") return { tasks: (await tasksFor("admin")).filter((t) => t.status === "open"), handovers: [] };
+  if (s.role !== "owner") return { tasks: [], handovers: [] };
+  await connectDB();
+  const docs = await Handover.find({ status: "pending" }).sort({ createdAt: -1 }).limit(10).lean();
+  return {
+    tasks: [],
+    handovers: docs.map((h) => ({
+      id: String(h._id),
+      fromName: h.fromName || "Administrator",
+      cash: h.cash ?? 0,
+      card: h.card ?? 0,
+      createdAt: (h.createdAt ?? new Date()).toISOString(),
+    })),
+  };
 });

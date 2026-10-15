@@ -28,7 +28,16 @@ export function SidebarNav({ counts, role }: { counts: NavCounts | null; role: R
     <>
       {navFor(role).map((item) => {
         const active = isActivePath(pathname, item.href);
-        const count = item.key === "students" ? counts?.students : item.key === "payments" ? counts?.payments : undefined;
+        const count =
+          item.key === "students"
+            ? counts?.students
+            : item.key === "payments"
+              ? counts?.payments
+              : item.key === "staff"
+                ? counts?.staff
+                : item.key === "kassa" && counts?.kassa
+                  ? counts.kassa
+                  : undefined;
         const dot = item.key === "sync" && counts?.sync ? SYNC_DOT[counts.sync] : null;
         return (
           <Link
@@ -75,7 +84,7 @@ export function BottomNav({ role }: { role: Role }) {
   const hrefFor = useHref();
   return (
     <>
-      {navFor(role).map((item) => {
+      {navFor(role).filter((item) => item.mobile !== false).map((item) => {
         const active = isActivePath(pathname, item.href);
         const Icon = item.icon;
         return (

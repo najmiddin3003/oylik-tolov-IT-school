@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { StudentForm } from "@/components/StudentForm";
 import { Card, PageHeader, Skeleton } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
-import { listGroups, listScheduleTemplates } from "@/lib/data";
+import { listCourses, listScheduleTemplates, listTeacherOptions } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
 import { currentMonth, todayISO } from "@/lib/time";
 
@@ -24,7 +24,7 @@ export default function NewStudentPage() {
 
 async function NewStudentForm() {
   await ownerGuard();
-  const [groups, settings, templates] = await Promise.all([listGroups(), getSettings(), listScheduleTemplates()]);
+  const [courses, settings, templates, teachers] = await Promise.all([listCourses(), getSettings(), listScheduleTemplates(), listTeacherOptions()]);
   const standard = settings.defaultFee === null ? null : { base: settings.defaultFee, schedule: settings.feeSchedule };
-  return <StudentForm groups={groups} today={todayISO()} month={currentMonth()} standard={standard} templates={templates} />;
+  return <StudentForm courses={courses} today={todayISO()} month={currentMonth()} standard={standard} templates={templates} teachers={teachers} />;
 }

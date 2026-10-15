@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Banknote,
   CalendarSearch,
+  ClipboardList,
   CreditCard,
   Download,
   HandCoins,
@@ -17,41 +18,51 @@ import {
   Sparkles,
   Target,
   Trash2,
+  Coins,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { archivePayment, purgePayment, restorePayment } from "@/app/actions/payments";
+import { purgePayment, restorePayment } from "@/app/actions/payments";
 import { FilterForm, SearchInput } from "@/components/FilterForm";
 import { TodayLessons } from "@/components/Lessons";
 import { UnpaidButton } from "@/components/Notifications";
 import { PaymentForm } from "@/components/PaymentForm";
+import { PaymentHistory } from "@/components/PaymentHistory";
 import { DatePicker, Select } from "@/components/pickers";
+import { QuickStudentButton } from "@/components/QuickStudent";
 import { ReminderBanner, SyncAlert } from "@/components/ShellParts";
 import { ConfirmAction } from "@/components/SubmitButton";
+import { CompleteTaskButton } from "@/components/TaskButtons";
 import { Avatar, btn, Card, CountBadge, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Progress, Tag, type Tone } from "@/components/ui";
 import { pageGuard } from "@/lib/auth";
 import {
+  canPickPaymentDate,
   countArchivedPayments,
   getMonthOverview,
-  getShareSummary,
+  getMyKassa,
+  getMyTasks,
+  getStaffPay,
   listArchivedPayments,
+  listCourses,
   listPayments,
+  listScheduleTemplates,
   listStudentOptions,
+  listTeacherChoices,
   listUnpaid,
   type PaymentRow,
-  type ShareSummary,
+  type PayView,
 } from "@/lib/data";
+import { moneyTotal } from "@/lib/kassa";
 import type { PaymentMethod } from "@/lib/models";
 import { dayLabel } from "@/lib/reminders";
-import type { Role } from "@/lib/session";
-import { currentMonth, dateToISO, formatDate, formatDateTime, formatMoney, formatNumber, isoToDate, isValidMonth, MONTH_NAMES, monthLabel, nowMs, todayISO } from "@/lib/time";
+import { currentMonth, formatDate, formatDateTime, formatMoney, formatNumber, isoToDate, isValidMonth, MONTH_NAMES, monthLabel, nowMs, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "To‘lovlar" };
 
-const METHOD: Record<PaymentMethod, { label: string; icon: LucideIcon; cls: string }> = {
-  naqd: { label: "Naqd", icon: Banknote, cls: "bg-emerald-50 text-emerald-700 ring-emerald-100" },
-  karta: { label: "Karta", icon: CreditCard, cls: "bg-brand-50 text-brand-700 ring-brand-100" },
-  otkazma: { label: "O‘tkazma", icon: Landmark, cls: "bg-sky-50 text-sky-700 ring-sky-100" },
+const METHOD: Record<PaymentMethod, { label: string; icon: LucideIcon }> = {
+  naqd: { label: "Naqd", icon: Banknote },
+  karta: { label: "Karta", icon: CreditCard },
+  otkazma: { label: "O‘tkazma", icon: Landmark },
 };
 
 export default function PaymentsPage({ searchParams }: PageProps<"/payments">) {
@@ -63,8 +74,11 @@ export default function PaymentsPage({ searchParams }: PageProps<"/payments">) {
 }
 
 async function Payments({ searchParams }: { searchParams: PageProps<"/payments">["searchParams"] }) {
-  const { role } = await pageGuard();
+  const { role, staffId } = await pageGuard();
   const isOwner = role === "owner";
+  const isAdmin = role === "admin";
+  // O'qituvchi faqat ko'radi: to'lov kiritmaydi, o'chirmaydi
+  const readOnly = role === "teacher";
   const sp = await searchParams;
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
   const month = isValidMonth(sp.month) ? sp.month : currentMonth();
@@ -72,17 +86,23 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
   const q = str("q").slice(0, 100);
   const method = str("method") in METHOD ? str("method") : "";
   const day = isoToDate(str("day")) ? str("day") : "";
+  // Tarix: tanlangan oy uchun yoki barcha oylar (administratorda standart — hammasi, yangilari tepada)
+  const scope = str("scope") === "month" || str("scope") === "all" ? str("scope") : isAdmin ? "all" : "month";
 
-  const [overview, list, students, archivedCount, archived] = await Promise.all([
+  const [overview, list, students, archivedCount, archived, pickDate, courses] = await Promise.all([
     getMonthOverview(month),
-    listPayments(month, { q, method, day }),
-    listStudentOptions(month),
+    listPayments(month, { q, method, day, all: scope === "all" }),
+    readOnly ? Promise.resolve([]) : listStudentOptions(month),
     isOwner ? countArchivedPayments() : Promise.resolve(0),
     view === "arxiv" ? listArchivedPayments() : Promise.resolve([] as PaymentRow[]),
+    canPickPaymentDate(role),
+    readOnly ? Promise.resolve([]) : listCourses(),
   ]);
-  const [share, unpaidList] = await Promise.all([
-    isOwner ? getShareSummary(month, overview.totals.collected) : Promise.resolve(null),
+  const [share, unpaidList, admin] = await Promise.all([
+    // O'qituvchiga — o'z oyligi (o'quvchilari tushumidan foiz)
+    readOnly && staffId ? getStaffPay(staffId, month) : Promise.resolve(null),
     listUnpaid(month),
+    isAdmin ? adminExtras() : Promise.resolve(null),
   ]);
   const { totals, debtors } = overview;
   const preselect = students.some((s) => s.id === str("student")) ? str("student") : undefined;
@@ -92,21 +112,31 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
     .map((r) => ({ id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status, lessons: r.lessons }));
   const unscheduled = debtors.filter((r) => !r.lessons.length).length;
   const planDone = totals.expected - totals.debt;
+  const planPct = totals.expected ? Math.round((planDone / totals.expected) * 100) : 0;
   const exportQs = new URLSearchParams({ month, ...(q ? { q } : {}), ...(method ? { method } : {}), ...(day ? { day } : {}) });
+  const qs = (extra: Record<string, string>) =>
+    `/payments?${new URLSearchParams({ month, ...(q ? { q } : {}), ...(method ? { method } : {}), ...(day ? { day } : {}), ...extra })}`;
 
   return (
     <>
       <PageHeader
-        eyebrow="To‘lovlar boshqaruvi"
+        eyebrow={isAdmin ? "Administrator" : "To‘lovlar boshqaruvi"}
         title="To‘lovlar"
-        subtitle={`${monthLabel(month)}: kutilayotgan tushum, tushgan summa va qolgan qarz.`}
+        subtitle={
+          readOnly
+            ? `${monthLabel(month)}: o‘quvchilaringizning to‘lovlari (faqat ko‘rish).`
+            : `${monthLabel(month)}: oy rejasi, tushgan summa, qolgan qarz va to‘lov kiritish.`
+        }
         actions={
-          <a href={`/api/export/tolovlar?${exportQs}`} className={cx(btn.outline, "group")}>
-            <span className="inline-flex size-6 items-center justify-center rounded-md bg-emerald-600 text-white" aria-hidden>
-              <Download className="icon-wiggle size-3.5" strokeWidth={2.4} />
-            </span>
-            Excel yuklash
-          </a>
+          <>
+            <a href={`/api/export/tolovlar?${exportQs}`} className={cx(btn.outline, "group")}>
+              <span className="inline-flex size-6 items-center justify-center rounded-md bg-emerald-600 text-white" aria-hidden>
+                <Download className="icon-wiggle size-3.5" strokeWidth={2.4} />
+              </span>
+              Excel yuklash
+            </a>
+            {admin ? <QuickStudentButton courses={courses} teachers={admin.teachers} templates={admin.templates} today={todayISO()} /> : null}
+          </>
         }
       />
 
@@ -115,18 +145,24 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
           <SyncAlert />
         </Suspense>
       ) : null}
+      {admin?.tasks.length ? <TasksCard tasks={admin.tasks} lists={admin.taskLists} /> : null}
       <Suspense fallback={null}>
         <ReminderBanner />
       </Suspense>
 
       <div className="mb-6 grid gap-4 md:grid-cols-3 xl:gap-5">
-        <MoneyCard
-          label="Kutilayotgan tushum"
-          value={totals.expected}
-          icon={Target}
-          tone="brand"
-          hint={`${totals.students} ta o‘quvchining ${monthLabel(month)} uchun oylik to‘lovi`}
-        />
+        <MoneyCard label={`${monthLabel(month)} rejasi`} value={totals.expected} icon={Target} tone="brand" hint={`${totals.students} ta o‘quvchining oylik to‘lovi`}>
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="text-ink-500">Bajarildi</span>
+              <span className={cx("num text-sm font-bold", planPct >= 100 ? "text-emerald-600" : "text-brand-600")}>{planPct}%</span>
+            </div>
+            <Progress value={planDone} max={totals.expected} className="h-2" />
+            <p className="num mt-1.5 text-xs text-ink-400">
+              {formatMoney(planDone)} / {formatMoney(totals.expected)}
+            </p>
+          </div>
+        </MoneyCard>
         <MoneyCard
           label="Tushgan summa"
           value={totals.collected}
@@ -138,7 +174,7 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
             </span>
           }
         >
-          {share ? <ShareBox share={share} month={month} /> : null}
+          {share ? <ShareBox share={share} /> : null}
         </MoneyCard>
         <MoneyCard
           label="Qolgan qarz"
@@ -162,24 +198,19 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
               "Bu oyda o‘quvchi yo‘q"
             )
           }
-        >
-          <div className="mt-3">
-            <Progress value={planDone} max={totals.expected} className="h-2" />
-            <p className="num mt-1.5 text-xs text-ink-400">
-              Reja bajarildi: {totals.expected ? Math.round((planDone / totals.expected) * 100) : 0}%
-            </p>
-          </div>
-        </MoneyCard>
+        />
       </div>
 
-      <TodayLessons students={scheduled} month={month} serverNow={nowMs()} role={role} unscheduled={unscheduled} />
+      {admin ? <KassaStrip kassa={admin.kassa} /> : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
-        <Card className="min-w-0 self-start">
+      <TodayLessons students={scheduled} month={month} serverNow={nowMs()} role={role} unscheduled={unscheduled} defaultAll={isAdmin} />
+
+      <div className={cx("grid gap-6", !readOnly && "xl:grid-cols-[minmax(0,1fr)_384px]")}>
+        <Card className="min-w-0 self-start overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5">
             {isOwner ? (
               <nav className="-mb-px flex gap-6" aria-label="Bo‘limlar">
-                <TabLink href={`/payments?${new URLSearchParams({ month })}`} active={view === "list"} count={list.rows.length}>
+                <TabLink href={qs({ scope })} active={view === "list"} count={list.rows.length}>
                   To‘lovlar tarixi
                 </TabLink>
                 <TabLink href={`/payments?${new URLSearchParams({ month, view: "arxiv" })}`} active={view === "arxiv"} count={archivedCount}>
@@ -193,6 +224,24 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
                 <CountBadge n={list.rows.length} />
               </h2>
             )}
+            {view === "list" && !day ? (
+              <div className="mb-3 flex rounded-full bg-slate-100 p-1 text-[13px] font-semibold" role="group" aria-label="Qaysi to‘lovlar">
+                {[
+                  { v: "month", label: `${MONTH_NAMES[Number(month.slice(5, 7)) - 1]} uchun` },
+                  { v: "all", label: "Hammasi" },
+                ].map((o) => (
+                  <Link
+                    key={o.v}
+                    href={qs({ scope: o.v })}
+                    scroll={false}
+                    aria-current={scope === o.v ? "true" : undefined}
+                    className={cx("rounded-full px-3 py-1.5 transition", scope === o.v ? "bg-surface text-ink-900 shadow-card" : "text-ink-500 hover:text-ink-800")}
+                  >
+                    {o.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           {view === "arxiv" ? (
@@ -201,7 +250,8 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
             <>
               <FilterForm action="/payments" className="flex flex-wrap items-center gap-3 border-t border-line-soft px-6 py-5">
                 <input type="hidden" name="month" value={month} />
-                <SearchInput defaultValue={q} placeholder="Ism yoki izoh..." label="To‘lovni qidirish" />
+                <input type="hidden" name="scope" value={scope} />
+                <SearchInput defaultValue={q} placeholder="Ism, kurs yoki izoh..." label="To‘lovni qidirish" />
                 <Select
                   name="method"
                   defaultValue={method}
@@ -235,7 +285,7 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
                     <b className="font-semibold">{dayLabel(day)}</b> kuni qabul qilingan barcha to‘lovlar (qaysi oy uchunligidan qat’i nazar)
                   </span>
                   <Link
-                    href={`/payments?${new URLSearchParams({ month, ...(q ? { q } : {}), ...(method ? { method } : {}) })}`}
+                    href={`/payments?${new URLSearchParams({ month, scope, ...(q ? { q } : {}), ...(method ? { method } : {}) })}`}
                     className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-medium text-brand-700 hover:bg-brand-100"
                     scroll={false}
                   >
@@ -248,13 +298,13 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
               {list.rows.length === 0 ? (
                 <EmptyPayments filtered={Boolean(q || method || day)} />
               ) : (
-                <DayGroups rows={list.rows} month={month} role={role} />
+                <PaymentHistory rows={list.rows} month={month} role={role} readOnly={readOnly} />
               )}
 
               {list.rows.length ? (
                 <div className="num flex flex-wrap items-center justify-between gap-3 border-t border-line px-6 py-4 text-sm">
                   <span className="text-ink-500">
-                    Jami{q || method || day ? " (filtr bo‘yicha)" : ""}: {list.rows.length} ta to‘lov
+                    Jami{q || method || day ? " (filtr bo‘yicha)" : scope === "all" ? " (barcha oylar)" : ""}: {list.rows.length} ta to‘lov
                   </span>
                   <span className="text-[17px] font-bold text-ink-900">{formatMoney(list.total)}</span>
                 </div>
@@ -263,41 +313,133 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
           )}
         </Card>
 
-        <Card id="yangi-tolov" className="order-first scroll-mt-24 self-start p-6 xl:order-none">
-          <div className="group mb-6 flex items-center gap-3.5">
-            <IconTile icon={Plus} tone="brand" variant="solid" />
-            <div>
-              <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Yangi to‘lov</h2>
-              <p className="mt-0.5 text-sm text-ink-500">To‘lov ma’lumotlarini kiriting</p>
+        {readOnly ? null : (
+          <Card id="yangi-tolov" className="order-first scroll-mt-24 self-start p-6 xl:sticky xl:top-24 xl:order-none">
+            <div className="group mb-6 flex items-center gap-3.5">
+              <IconTile icon={Plus} tone="brand" variant="solid" />
+              <div>
+                <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Yangi to‘lov</h2>
+                <p className="mt-0.5 text-sm text-ink-500">Avval kurs, keyin o‘quvchini tanlang</p>
+              </div>
             </div>
-          </div>
-          {students.length ? (
-            <PaymentForm
-              key={`${month}-${preselect ?? ""}`}
-              students={students}
-              defaultStudentId={preselect}
-              defaultMonth={month}
-              today={todayISO()}
-              canPickDate={isOwner}
-            />
-          ) : (
-            <p className="text-sm text-ink-500">
-              {isOwner ? (
-                <>
-                  Avval{" "}
-                  <Link href="/students/new" className="font-medium text-brand-600 hover:underline">
-                    o‘quvchi qo‘shing
-                  </Link>
-                  .
-                </>
-              ) : (
-                "Hali faol o‘quvchi yo‘q."
-              )}
-            </p>
-          )}
-        </Card>
+            {students.length ? (
+              <PaymentForm
+                key={`${month}-${preselect ?? ""}`}
+                students={students}
+                defaultStudentId={preselect}
+                defaultMonth={month}
+                today={todayISO()}
+                canPickDate={pickDate}
+                courses={courses.map((c) => c.name)}
+              />
+            ) : (
+              <p className="text-sm text-ink-500">
+                {isOwner ? (
+                  <>
+                    Avval{" "}
+                    <Link href="/students/new" className="font-medium text-brand-600 hover:underline">
+                      o‘quvchi qo‘shing
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  "Hali faol o‘quvchi yo‘q — «Yangi o‘quvchi» tugmasi bilan qo‘shing."
+                )}
+              </p>
+            )}
+          </Card>
+        )}
       </div>
     </>
+  );
+}
+
+/** Administrator uchun qo'shimcha ma'lumotlar: topshiriqlar, kassa, o'quvchi qo'shish oynasi uchun ro'yxatlar. */
+async function adminExtras() {
+  const [tasks, kassa, teachers, templates] = await Promise.all([getMyTasks(), getMyKassa(), listTeacherChoices(), listScheduleTemplates()]);
+  const months = [...new Set(tasks.filter((t) => t.status === "open").map((t) => t.month))];
+  const lists = await Promise.all(months.map((m) => listUnpaid(m)));
+  return { tasks, kassa: kassa.kassa, teachers, templates, taskLists: Object.fromEntries(months.map((m, i) => [m, lists[i]])) };
+}
+
+/** Rahbardan kelgan topshiriqlar (administrator). */
+function TasksCard({ tasks, lists }: { tasks: Awaited<ReturnType<typeof getMyTasks>>; lists: Record<string, Awaited<ReturnType<typeof listUnpaid>>> }) {
+  return (
+    <Card id="topshiriqlar" className="mb-6 scroll-mt-24 overflow-hidden border-brand-200/80">
+      <div className="group flex items-center gap-3.5 border-b border-brand-100 bg-brand-50/60 px-5 py-4 sm:px-6">
+        <IconTile icon={ClipboardList} tone="brand" variant="solid" />
+        <div>
+          <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Rahbardan topshiriqlar</h2>
+          <p className="mt-0.5 text-sm text-ink-500">Bajarganingizdan keyin «Bajarildi» tugmasini bosing</p>
+        </div>
+      </div>
+      <ul className="divide-y divide-line-soft">
+        {tasks.map((t) => {
+          const live = lists[t.month] ?? [];
+          return (
+            <li key={t.id} className={cx("flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4 sm:px-6", t.status === "done" && "opacity-70")}>
+              <div className="min-w-[240px] flex-1">
+                <p className="text-[15px] font-semibold text-ink-900">
+                  To‘lovlarni yig‘ing: {monthLabel(t.month)} uchun {t.status === "open" ? live.length : t.count} ta o‘quvchi to‘lov qilmabdi
+                </p>
+                <p className="num mt-0.5 text-[13px] text-ink-500">
+                  {t.fromName} · {formatDateTime(t.updatedAt)}
+                  {t.status === "open" && live.length !== t.count ? ` · yuborilganda ${t.count} ta edi` : ""}
+                  {t.status === "done" ? ` · bajarildi ${formatDateTime(t.doneAt)}` : ""}
+                </p>
+              </div>
+              {t.status === "open" ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {live.length ? (
+                    <UnpaidButton month={t.month} students={live} role="admin" className={btn.sm}>
+                      Ro‘yxat ({live.length})
+                    </UnpaidButton>
+                  ) : (
+                    <Tag tone="emerald">Hamma to‘ladi 🎉</Tag>
+                  )}
+                  <CompleteTaskButton id={t.id} />
+                </div>
+              ) : (
+                <Tag tone="emerald">Bajarildi ✓</Tag>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+/** Administrator: kassasidagi pul (naqd/karta) va rahbarga topshirish. */
+function KassaStrip({ kassa }: { kassa: Awaited<ReturnType<typeof getMyKassa>>["kassa"] }) {
+  return (
+    <Link
+      href="/kassa"
+      className="group mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-orange-200/70 bg-linear-to-r from-orange-50/80 to-amber-50/40 px-5 py-4 transition hover:shadow-pop sm:px-6"
+    >
+      <IconTile icon={Coins} tone="orange" variant="solid" />
+      <span className="min-w-[180px] flex-1">
+        <span className="block text-[15px] font-semibold text-ink-900">Mening kassam</span>
+        <span className="num mt-0.5 block text-[13px] text-ink-500">
+          Bugun: {formatMoney(moneyTotal(kassa.today))}
+          {moneyTotal(kassa.pending) ? ` · qabul kutilmoqda ${formatMoney(moneyTotal(kassa.pending))}` : ""}
+        </span>
+      </span>
+      <span className="num flex flex-wrap gap-2 text-sm">
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100">
+          <Banknote className="size-4" aria-hidden />
+          {formatMoney(kassa.balance.cash)}
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 font-semibold text-brand-700 ring-1 ring-inset ring-brand-100">
+          <CreditCard className="size-4" aria-hidden />
+          {formatMoney(kassa.balance.card)}
+        </span>
+      </span>
+      <span className="inline-flex items-center gap-1 text-sm font-semibold text-orange-700">
+        Rahbarga topshirish
+        <ArrowRight className="size-4 transition group-hover:translate-x-0.5" aria-hidden />
+      </span>
+    </Link>
   );
 }
 
@@ -332,17 +474,17 @@ function MoneyCard({
   );
 }
 
-/** Rahbar uchun: tushum ulushi, olingan oylik/avans va qolgani. */
-function ShareBox({ share, month }: { share: ShareSummary; month: string }) {
+/** O'qituvchi uchun: o'z oyligi (o'quvchilari tushumidan foiz), olingan oylik/avans va qolgani. */
+function ShareBox({ share }: { share: PayView }) {
   return (
     <dl className="num mt-3 grid gap-1 rounded-xl bg-linear-to-br from-brand-50 to-violet-50/70 px-3 py-2.5 text-[13px] ring-1 ring-inset ring-brand-100">
       <div className="flex items-center justify-between gap-3">
-        <dt className="text-ink-500">Tushumning {share.percent}%</dt>
+        <dt className="text-ink-500">Mening oyligim ({share.percent}%)</dt>
         <dd className="font-semibold text-ink-900">{formatMoney(share.share)}</dd>
       </div>
       <div className="flex items-center justify-between gap-3">
         <dt className="text-ink-500">
-          <Link href={`/settings?${new URLSearchParams({ month })}#oylik`} className="underline-offset-4 hover:text-brand-700 hover:underline">
+          <Link href="/olinganlar" className="underline-offset-4 hover:text-brand-700 hover:underline">
             Olindi (oylik/avans)
           </Link>
         </dt>
@@ -379,93 +521,6 @@ function forMonth(m: string, pageMonth: string): string {
   return m.slice(0, 4) === pageMonth.slice(0, 4) ? name : `${name} ${m.slice(0, 4)}`;
 }
 
-function MethodBadge({ method }: { method: PaymentMethod }) {
-  const m = METHOD[method];
-  const Icon = m.icon;
-  return (
-    <span className={cx("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium ring-1 ring-inset", m.cls)}>
-      <Icon className="size-3.5" aria-hidden />
-      {m.label}
-    </span>
-  );
-}
-
-/** To'lovlar tarixi: kunlar bo'yicha guruh — har kun sarlavhasida to'lovlar soni va jami summa. */
-function DayGroups({ rows, month, role }: { rows: PaymentRow[]; month: string; role: Role }) {
-  const groups: { day: string; rows: PaymentRow[]; total: number }[] = [];
-  for (const r of rows) {
-    const d = dateToISO(new Date(r.paidAt));
-    const g = groups[groups.length - 1];
-    if (g && g.day === d) {
-      g.rows.push(r);
-      g.total += r.amount;
-    } else groups.push({ day: d, rows: [r], total: r.amount });
-  }
-  const today = todayISO();
-
-  return (
-    <div className="border-t border-line-soft">
-      {groups.map((g) => (
-        <section key={g.day} aria-label={dayLabel(g.day)}>
-          <header className="flex items-center justify-between gap-3 border-b border-line-soft bg-slate-50/80 px-6 py-2.5">
-            <h3 className="text-sm font-semibold text-ink-800 first-letter:uppercase">
-              {dayLabel(g.day)}
-              {g.day === today ? <span className="ml-2 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">bugun</span> : null}
-            </h3>
-            <p className="num text-[13px] text-ink-500">
-              {g.rows.length} ta · <span className="font-semibold text-ink-900">{formatMoney(g.total)}</span>
-            </p>
-          </header>
-          <ul className="divide-y divide-line-soft">
-            {g.rows.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-3.5 transition hover:bg-slate-50/50 sm:flex-nowrap">
-                <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
-                  <Avatar name={p.studentName} />
-                  <div className="min-w-0">
-                    {p.studentId && role === "owner" ? (
-                      <Link href={`/students/${p.studentId}?month=${p.month}`} className="block truncate text-[15px] font-semibold text-ink-900 hover:text-brand-600">
-                        {p.studentName}
-                      </Link>
-                    ) : (
-                      <span className="block truncate text-[15px] font-semibold text-ink-900">{p.studentName}</span>
-                    )}
-                    <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px] text-ink-500">
-                      <span className="shrink-0 rounded-md bg-violet-50 px-1.5 py-px font-medium text-violet-700">{forMonth(p.month, month)} uchun</span>
-                      {p.source === "sheets" ? <Tag tone="emerald">Sheets</Tag> : null}
-                      {p.note ? (
-                        <span className="truncate" title={p.note}>
-                          {p.source === "sheets" ? p.note.replace(/^Google Sheets,?\s*/, "") : p.note}
-                        </span>
-                      ) : null}
-                    </p>
-                  </div>
-                </div>
-                <div className="ml-auto flex items-center gap-3 pl-[52px] sm:pl-0">
-                  <MethodBadge method={p.method} />
-                  <span className="num w-32 whitespace-nowrap text-right text-[16px] font-bold text-ink-900">{formatMoney(p.amount)}</span>
-                  <ConfirmAction
-                    action={archivePayment.bind(null, p.id)}
-                    confirmText={
-                      role === "owner"
-                        ? `${p.studentName}: ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, arxivdan qaytarish mumkin.`
-                        : `${p.studentName}: ${formatMoney(p.amount)} to‘lov o‘chirilsinmi?`
-                    }
-                    className={btn.iconDanger}
-                    pendingText="…"
-                    title={role === "owner" ? "Arxivga o‘tkazish" : "O‘chirish"}
-                  >
-                    <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
-                  </ConfirmAction>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
-  );
-}
-
 /** Arxivlangan to'lovlar (faqat rahbar): ko'rish, tiklash, butunlay o'chirish. */
 function ArchiveList({ rows, month }: { rows: PaymentRow[]; month: string }) {
   if (!rows.length) {
@@ -482,7 +537,7 @@ function ArchiveList({ rows, month }: { rows: PaymentRow[]; month: string }) {
       <p className="border-t border-line-soft bg-slate-50/70 px-6 py-2.5 text-[13px] text-ink-500">
         Arxivdagi to‘lovlar hech qayerda ko‘rinmaydi va hisoblanmaydi. Ularni faqat siz ko‘rasiz.
       </p>
-      <ul className="divide-y divide-line-soft border-t border-line-soft">
+      <ul className="scroll-thin max-h-[min(760px,calc(100dvh-13rem))] divide-y divide-line-soft overflow-y-auto border-t border-line-soft">
         {rows.map((p) => (
           <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 px-6 py-4">
             <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
@@ -541,7 +596,7 @@ function EmptyPayments({ filtered }: { filtered: boolean }) {
       <div className="relative mb-7 h-36 w-48" aria-hidden>
         <span className="absolute inset-x-6 inset-y-1 rounded-full bg-brand-50/70" />
         <span className="absolute left-9 top-5 h-28 w-24 -rotate-12 rounded-2xl border border-line bg-slate-50" />
-        <span className="absolute left-[60px] top-2 flex h-28 w-24 rotate-6 flex-col rounded-2xl border border-line bg-white p-3.5 shadow-card">
+        <span className="absolute left-[60px] top-2 flex h-28 w-24 rotate-6 flex-col rounded-2xl border border-line bg-surface p-3.5 shadow-card">
           <ReceiptText className="size-6 text-brand-600" strokeWidth={1.8} />
           <span className="mt-4 h-1.5 w-14 rounded-full bg-line" />
           <span className="mt-2 h-1.5 w-10 rounded-full bg-line" />
