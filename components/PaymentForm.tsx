@@ -8,7 +8,7 @@ import type { StudentOption } from "@/lib/data";
 import { courseKey } from "@/lib/courses";
 import { feeFor } from "@/lib/fees";
 import type { PaymentMethod } from "@/lib/models";
-import { formatMoney, formatNumber } from "@/lib/time";
+import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
 import { MoneyInput } from "./inputs";
 import { DatePicker, formatDayLong, MonthPicker, Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
@@ -36,6 +36,12 @@ type Props = {
 /** Kursi yo'q o'quvchilar uchun tanlov qiymati */
 const NO_COURSE = "__none";
 const courseOf = (s: StudentOption) => (s.group.trim() ? courseKey(s.group) : NO_COURSE);
+
+/** Shu oy uchun to'liq to'laganmi (bunday o'quvchilar tanlash ro'yxatida ko'rsatilmaydi). */
+function paidInFull(s: StudentOption, month: string): boolean {
+  const fee = feeFor(s, month);
+  return fee > 0 && (s.paid[month] ?? 0) >= fee;
+}
 
 /** To'lov qo'shish formasi (To'lovlar sahifasi va o'quvchi sahifasi). */
 export function PaymentForm(props: Props) {
@@ -82,22 +88,28 @@ function PaymentFields({
   courses = [],
   fe,
 }: Props & { fe: Record<string, string> }) {
-  // Kurslar: sozlamalardagi tartibda, keyin o'quvchilarda uchraydigan boshqalari; o'quvchilar soni bilan
+  const [month, setMonth] = useState(defaultMonth);
+  // Kurslar: sozlamalardagi tartibda, keyin o'quvchilarda uchraydigan boshqalari; shu oy uchun to'lashi kerak bo'lganlar soni bilan
   const courseOptions = useMemo(() => {
-    const count = new Map<string, { label: string; n: number }>();
+    const count = new Map<string, { label: string; open: number }>();
     for (const s of students) {
       const k = courseOf(s);
       const prev = count.get(k);
-      count.set(k, { label: prev?.label ?? (k === NO_COURSE ? "Kursi belgilanmagan" : s.group.trim()), n: (prev?.n ?? 0) + 1 });
+      count.set(k, {
+        label: prev?.label ?? (k === NO_COURSE ? "Kursi belgilanmagan" : s.group.trim()),
+        open: (prev?.open ?? 0) + (paidInFull(s, month) ? 0 : 1),
+      });
     }
     const ordered = [...courses.map(courseKey).filter((k) => count.has(k)), ...[...count.keys()].filter((k) => !courses.some((c) => courseKey(c) === k))];
-    return [...new Set(ordered)].map((k) => ({ value: k, label: count.get(k)!.label, hint: `${count.get(k)!.n} ta` }));
-  }, [students, courses]);
+    return [...new Set(ordered)].map((k) => {
+      const c = count.get(k)!;
+      return { value: k, label: c.label, hint: c.open ? `${c.open} ta` : "hammasi to‘lagan" };
+    });
+  }, [students, courses, month]);
   const initialStudent = students.find((s) => s.id === (fixedStudentId ?? defaultStudentId));
   const [course, setCourse] = useState(initialStudent ? courseOf(initialStudent) : courseOptions.length === 1 ? courseOptions[0].value : "");
   const [openStudents, setOpenStudents] = useState(0);
   const [studentId, setStudentId] = useState(fixedStudentId ?? defaultStudentId ?? "");
-  const [month, setMonth] = useState(defaultMonth);
   const [amount, setAmount] = useState<string | null>(null); // null — avtomatik (qolgan summa)
   const [method, setMethod] = useState<PaymentMethod>("naqd");
   const [showNote, setShowNote] = useState(false);
@@ -109,25 +121,30 @@ function PaymentFields({
   const shown = amount ?? (st ? formatNumber(remaining || fee) : "");
   const chips = [...new Set([roundTo10k(fee / 3), roundTo10k(fee / 2)])].filter((v) => v > 0 && v < fee);
 
-  // O'quvchilar ro'yxati (tanlangan kurs bo'yicha): faqat ism-familiya; o'ngda shu oy holati (to'lagan / qancha qolgan)
+  // O'quvchilar ro'yxati (tanlangan kurs bo'yicha): shu oy uchun to'liq to'laganlar ko'rsatilmaydi (allaqachon tanlangani
+  // bundan mustasno); o'ngda — qisman to'laganlarning qolgan summasi
+  const inCourse = useMemo(() => students.filter((s) => courseOf(s) === course), [students, course]);
   const options = useMemo(
     () =>
-      students.filter((s) => courseOf(s) === course).map((s) => {
-        const f = feeFor(s, month);
-        const p = s.paid[month] ?? 0;
-        return {
-          value: s.id,
-          label: s.name,
-          hint:
-            f > 0 && p >= f ? (
-              <span className="font-medium text-emerald-600">to‘lagan ✓</span>
-            ) : p > 0 ? (
-              <span className="num text-brand-600">qoldi {formatNumber(f - p)}</span>
-            ) : undefined,
-        };
-      }),
-    [students, month, course],
+      inCourse
+        .filter((s) => s.id === studentId || !paidInFull(s, month))
+        .map((s) => {
+          const f = feeFor(s, month);
+          const p = s.paid[month] ?? 0;
+          return {
+            value: s.id,
+            label: s.name,
+            hint:
+              f > 0 && p >= f ? (
+                <span className="font-medium text-emerald-600">to‘lagan ✓</span>
+              ) : p > 0 ? (
+                <span className="num text-brand-600">qoldi {formatNumber(f - p)}</span>
+              ) : undefined,
+          };
+        }),
+    [inCourse, month, studentId],
   );
+  const hiddenPaid = inCourse.filter((s) => s.id !== studentId && paidInFull(s, month)).length;
 
   return (
     <>
@@ -180,12 +197,18 @@ function PaymentFields({
               disabled={!course}
               searchable
               searchPlaceholder="Ism bo‘yicha qidirish..."
-              emptyText="Bu kursda o‘quvchi topilmadi"
+              emptyText={options.length ? "Bu ism bilan o‘quvchi topilmadi" : hiddenPaid ? `${monthLabel(month)} uchun hammasi to‘lagan` : "Bu kursda o‘quvchi yo‘q"}
               size="lg"
               invalid={!!fe.studentId}
               aria-label="O‘quvchi"
             />
-            {fe.studentId ? <p className="mt-1.5 text-xs text-rose-600">{fe.studentId}</p> : null}
+            {fe.studentId ? (
+              <p className="mt-1.5 text-xs text-rose-600">{fe.studentId}</p>
+            ) : course && hiddenPaid ? (
+              <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
+                {monthLabel(month)} uchun to‘liq to‘lagan {hiddenPaid} ta o‘quvchi ro‘yxatda ko‘rsatilmaydi. Boshqa oy uchun to‘lov bo‘lsa — «Qaysi oy uchun»ni o‘zgartiring.
+              </p>
+            ) : null}
           </div>
         </>
       )}
