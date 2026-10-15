@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Check, Eye, EyeOff, HandCoins, KeyRound, MessageSquareText, Percent, Plus, Send, ShieldCheck, Tags, Trash2, Wallet } from "lucide-react";
+import { Check, Eye, EyeOff, HandCoins, KeyRound, MessageSquareText, Percent, Plus, Send, ShieldCheck, Tags, Trash2, Wallet, X } from "lucide-react";
 import { applyFeeChange, changeOwnerPassword, saveCenterName, saveCourses, saveSmsSettings, sendTestSmsAction, setAdminPassword } from "@/app/actions/settings";
 import type { FormState } from "@/app/actions/types";
 import { renderOtpText } from "@/lib/otp-text";
@@ -506,9 +506,9 @@ type CourseDraft = {
   fee: string;
   prev: string;
   students: number;
-  teacher: string;
-  /** Saqlangan holatdagi kurs o'qituvchisi (almashsa — uning shu kursdagi o'quvchilari yangisiga o'tadi) */
-  initialTeacher: string;
+  teachers: string[];
+  /** Saqlangan holatdagi o'qituvchilar (yagona o'qituvchi almashsa — uning shu kursdagi o'quvchilari yangisiga o'tadi) */
+  initialTeachers: string[];
   /** Kursdagi o'qituvchisiz o'quvchilar */
   unassigned: number;
 };
@@ -516,14 +516,15 @@ type CourseDraft = {
 type CourseTeacherOption = { id: string; name: string; status: string };
 
 /**
- * Kurslar ro'yxati: nomi, standart oylik narxi va o'qituvchisi. Nomi o'zgarsa — o'sha kursdagi o'quvchilar ham yangi nomga
- * o'tadi; o'qituvchi tanlansa — kursdagi o'qituvchisiz o'quvchilar unga biriktiriladi (oyligi ularning to'lovidan hisoblanadi).
+ * Kurslar ro'yxati: nomi, standart oylik narxi va o'qituvchilari. Nomi o'zgarsa — o'sha kursdagi o'quvchilar ham yangi nomga
+ * o'tadi. Kursda bitta o'qituvchi bo'lsa — o'qituvchisiz o'quvchilar unga biriktiriladi (oyligi ularning to'lovidan
+ * hisoblanadi); bir nechta bo'lsa — har o'quvchining ustozi qo'lda tanlanadi.
  */
 export function CoursesForm({
   courses,
   teachers,
 }: {
-  courses: { name: string; fee: number | null; teacher: string | null; inList: boolean; students: number; unassigned: number }[];
+  courses: { name: string; fee: number | null; teachers: string[]; inList: boolean; students: number; unassigned: number }[];
   teachers: CourseTeacherOption[];
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(saveCourses, {});
@@ -534,34 +535,30 @@ export function CoursesForm({
       fee: c.fee ? formatNumber(c.fee) : "",
       prev: c.inList || c.students ? c.name : "",
       students: c.students,
-      teacher: c.teacher ?? "",
-      initialTeacher: c.teacher ?? "",
+      teachers: c.teachers,
+      initialTeachers: c.teachers,
       unassigned: c.unassigned,
     })),
   );
   const [nextKey, setNextKey] = useState(courses.length);
   const fe = state.fieldErrors ?? {};
   const update = (key: number, patch: Partial<CourseDraft>) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const payload = JSON.stringify(rows.map((r) => ({ name: r.name, fee: r.fee, prev: r.prev, teacher: r.teacher })));
+  const payload = JSON.stringify(rows.map((r) => ({ name: r.name, fee: r.fee, prev: r.prev, teachers: r.teachers })));
   const teacherName = new Map(teachers.map((t) => [t.id, t.name]));
-  const teacherOptions = [
-    { value: "", label: "Tanlanmagan" },
-    ...teachers.map((t) => ({
-      value: t.id,
-      label: t.name,
-      hint: t.status === "invited" ? "ro‘yxatdan o‘tmagan" : t.status === "disabled" ? "kirishi o‘chirilgan" : undefined,
-    })),
-  ];
-  // Saqlanganda kimlar o'qituvchiga o'tishini oldindan aytib qo'yish
-  const assignHint = (r: CourseDraft) => {
-    if (!r.teacher) return null;
+  const statusHint = (t: CourseTeacherOption) => (t.status === "invited" ? "ro‘yxatdan o‘tmagan" : t.status === "disabled" ? "kirishi o‘chirilgan" : undefined);
+  // Saqlanganda nima bo'lishini oldindan aytib qo'yish
+  const assignHint = (r: CourseDraft): { text: string; warn: boolean } | null => {
+    if (r.teachers.length > 1) return { text: "Bir nechta o‘qituvchi: yangi o‘quvchining ustozi qo‘shishda tanlanadi.", warn: true };
+    if (r.teachers.length !== 1) return null;
+    const sole = r.teachers[0];
+    const prevSole = r.initialTeachers.length === 1 ? r.initialTeachers[0] : null;
     const who = [
       r.unassigned > 0 ? `o‘qituvchisiz ${r.unassigned} ta o‘quvchi` : "",
-      r.initialTeacher && r.initialTeacher !== r.teacher ? `${teacherName.get(r.initialTeacher) ?? "avvalgi o‘qituvchi"}ning o‘quvchilari` : "",
+      prevSole && prevSole !== sole ? `${teacherName.get(prevSole) ?? "avvalgi o‘qituvchi"}ning o‘quvchilari` : "",
     ].filter(Boolean);
-    return who.length ? `Saqlansa, ${who.join(" va ")} ${teacherName.get(r.teacher) ?? "tanlangan o‘qituvchi"}ga o‘tadi` : null;
+    return who.length ? { text: `Saqlansa, ${who.join(" va ")} ${teacherName.get(sole) ?? "tanlangan o‘qituvchi"}ga o‘tadi`, warn: false } : null;
   };
-  const cols = "xl:grid-cols-[minmax(0,1fr)_150px_200px_64px_44px]";
+  const cols = "xl:grid-cols-[minmax(0,1fr)_158px_212px_64px_44px]";
 
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
@@ -570,13 +567,14 @@ export function CoursesForm({
         <div className={cx("hidden gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-400 xl:grid", cols)}>
           <span>Kurs nomi</span>
           <span>Oylik narxi</span>
-          <span>O‘qituvchisi</span>
+          <span>O‘qituvchilari</span>
           <span className="text-right">O‘quvchi</span>
           <span />
         </div>
         <ul className="divide-y divide-line-soft">
           {rows.map((r, i) => {
             const hint = assignHint(r);
+            const remaining = teachers.filter((t) => !r.teachers.includes(t.id));
             return (
               <li key={r.key} className={cx("grid gap-3 px-4 py-3.5 sm:grid-cols-2 xl:items-start", cols)}>
                 <div className="sm:col-span-2 xl:col-span-1">
@@ -599,17 +597,40 @@ export function CoursesForm({
                   <FieldError msg={fe[`fee-${i}`]} />
                 </div>
                 <div>
-                  <Select
-                    value={r.teacher}
-                    onChange={(v) => update(r.key, { teacher: v })}
-                    options={teacherOptions}
-                    searchable={false}
-                    disabled={!teachers.length}
-                    invalid={!!fe[`teacher-${i}`]}
-                    aria-label="Kurs o‘qituvchisi"
-                  />
+                  {r.teachers.length ? (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {r.teachers.map((t) => (
+                        <span key={t} className="inline-flex max-w-full items-center gap-1 rounded-lg bg-brand-50 py-1 pl-2.5 pr-1 text-[13px] font-medium text-brand-800 ring-1 ring-inset ring-brand-100">
+                          <span className="truncate">{teacherName.get(t) ?? "—"}</span>
+                          <button
+                            type="button"
+                            onClick={() => update(r.key, { teachers: r.teachers.filter((x) => x !== t) })}
+                            className="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-brand-500 transition hover:bg-brand-100 hover:text-brand-800"
+                            aria-label={`${teacherName.get(t) ?? "O‘qituvchi"}ni kursdan olib tashlash`}
+                            title="Olib tashlash"
+                          >
+                            <X className="size-3.5" aria-hidden />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {!teachers.length || remaining.length ? (
+                    <Select
+                      value=""
+                      onChange={(v) => {
+                        if (v) update(r.key, { teachers: [...r.teachers, v] });
+                      }}
+                      options={remaining.map((t) => ({ value: t.id, label: t.name, hint: statusHint(t) }))}
+                      placeholder={r.teachers.length ? "Yana qo‘shish" : "O‘qituvchi tanlang"}
+                      searchable={false}
+                      disabled={!teachers.length}
+                      invalid={!!fe[`teacher-${i}`]}
+                      aria-label="Kursga o‘qituvchi qo‘shish"
+                    />
+                  ) : null}
                   <FieldError msg={fe[`teacher-${i}`]} />
-                  {hint ? <p className="mt-1.5 text-xs leading-relaxed text-brand-700">{hint}</p> : null}
+                  {hint ? <p className={cx("mt-1.5 text-xs leading-relaxed", hint.warn ? "text-amber-700" : "text-brand-700")}>{hint.text}</p> : null}
                 </div>
                 <div className="flex items-center justify-between gap-3 sm:col-span-2 xl:contents">
                   <p className="num flex h-11 items-center text-sm text-ink-500 xl:justify-end">
@@ -645,7 +666,7 @@ export function CoursesForm({
         <button
           type="button"
           onClick={() => {
-            setRows((list) => [...list, { key: nextKey, name: "", fee: "", prev: "", students: 0, teacher: "", initialTeacher: "", unassigned: 0 }]);
+            setRows((list) => [...list, { key: nextKey, name: "", fee: "", prev: "", students: 0, teachers: [], initialTeachers: [], unassigned: 0 }]);
             setNextKey((k) => k + 1);
           }}
           className={cx(btn.outline, "h-10")}

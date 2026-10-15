@@ -8,8 +8,8 @@ import { SyncAlert } from "@/components/ShellParts";
 import { StudentsTable } from "@/components/StudentsTable";
 import { btn, Card, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Pagination } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
-import { listCourses, listGroups, listScheduleTemplates, listStudents, listTeacherOptions, type StudentSort, type StudentTab } from "@/lib/data";
-import { parseDayFilter, tashkentClock, WEEKDAY_NAMES } from "@/lib/schedule";
+import { listCourses, listGroups, listScheduleTemplates, listStudents, listTeacherOptions, parseStudentTab, type StudentSort, type StudentTab } from "@/lib/data";
+import { DAY_PRESETS, parseDayFilter, tashkentClock, WEEKDAY_NAMES } from "@/lib/schedule";
 import { currentMonth, isValidMonth, monthLabel, nowMs } from "@/lib/time";
 
 export const metadata: Metadata = { title: "O‘quvchilar" };
@@ -31,17 +31,19 @@ export default function StudentsPage({ searchParams }: PageProps<"/students">) {
 
 async function Students({ searchParams }: { searchParams: PageProps<"/students">["searchParams"] }) {
   const { role } = await roleGuard(["owner", "teacher"]);
-  // O'qituvchi faqat ko'radi (o'z o'quvchilarini): qo'shish, tahrirlash, o'chirish — rahbarda
+  // O'qituvchi — faqat o'z o'quvchilari (tahrirlash — cheklangan maydonlar); qo'shish va o'chirish — rahbarda
   const isOwner = role === "owner";
   const sp = await searchParams;
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
   const month = isValidMonth(sp.month) ? sp.month : currentMonth();
   const q = str("q").slice(0, 100);
-  const group = str("group");
-  const day = parseDayFilter(str("day"));
+  // O'qituvchiga faqat o'z o'quvchilari ko'rinadi — kurs filtri yo'q; dars kuni — faqat toq / juft / har kuni
+  const group = isOwner ? str("group") : "";
+  const dayRaw = parseDayFilter(str("day"));
+  const day = isOwner || dayRaw === "toq" || dayRaw === "juft" || dayRaw === "har" ? dayRaw : "";
   const teacher = isOwner && /^([a-f0-9]{24}|none)$/i.test(str("teacher")) ? str("teacher") : "";
   const status = str("status") === "inactive" || str("status") === "all" ? (str("status") as "inactive" | "all") : "active";
-  const tab: StudentTab = str("tab") === "debt" || str("tab") === "paid" ? (str("tab") as StudentTab) : "all";
+  const tab: StudentTab = parseStudentTab(str("tab"));
   const sort: StudentSort = SORTS.some((s) => s.key === str("sort")) ? (str("sort") as StudentSort) : "name";
   const page = Math.max(1, Number(str("page")) || 1);
 
@@ -53,7 +55,7 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
     isOwner ? listCourses() : Promise.resolve([]),
   ]);
   // Ommaviy «Kurs» amali uchun — faqat Sozlamalar → Kurslar ro'yxatidagilar
-  const courses = courseList.filter((c) => c.inList).map((c) => ({ name: c.name, teacher: c.teacher }));
+  const courses = courseList.filter((c) => c.inList).map((c) => ({ name: c.name, teachers: c.teachers }));
   const { rows, counts, stats } = data;
   const filtered = Boolean(q || group || day || teacher || tab !== "all" || status !== "active");
   const serverNow = nowMs();
@@ -76,14 +78,18 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
     { key: "all", label: "Barcha o‘quvchilar", n: counts.all },
     { key: "debt", label: "Qarzdorlar", n: counts.debt },
     { key: "paid", label: "To‘laganlar", n: counts.paid },
+    { key: "unpaid", label: "To‘lamaganlar", n: counts.unpaid },
+    { key: "partial", label: "Qisman to‘laganlar", n: counts.partial },
   ];
+  // Dars kuni filtri: jadval turlari (toq / juft / har kuni); rahbarda — bugun, hafta kunlari va jadvalsizlar ham
+  const presetOptions = DAY_PRESETS.map((p) => ({ value: p.key, label: p.label, hint: p.hint }));
 
   return (
     <>
       <PageHeader
         eyebrow={isOwner ? "O‘quvchilar bazasi" : "O‘qituvchi profili"}
         title={isOwner ? "O‘quvchilar" : "O‘quvchilarim"}
-        subtitle={isOwner ? "Kurslar, o‘qituvchilar, oylik to‘lovlar va dars jadvalini bir joyda boshqaring." : "Sizga biriktirilgan o‘quvchilar: to‘lov holati va dars jadvali (faqat ko‘rish)."}
+        subtitle={isOwner ? "Kurslar, o‘qituvchilar, oylik to‘lovlar va dars jadvalini bir joyda boshqaring." : "Sizga biriktirilgan o‘quvchilar: to‘lov holati va dars jadvali. Ustun kengligini sarlavha chetini surib o‘zgartirish mumkin."}
         actions={
           <>
             <a href={`/api/export/oquvchilar?${new URLSearchParams({ ...base, ...(tab !== "all" ? { tab } : {}) })}`} className={cx(btn.outline, "group")}>
@@ -148,14 +154,16 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
           {tab !== "all" ? <input type="hidden" name="tab" value={tab} /> : null}
           {sort !== "name" ? <input type="hidden" name="sort" value={sort} /> : null}
           <SearchInput defaultValue={q} placeholder="Ism yoki telefon orqali izlash..." label="Qidirish" className="min-w-[220px]" />
-          <Select
-            name="group"
-            defaultValue={group}
-            autoSubmit
-            aria-label="Kurs"
-            wrapperClassName="w-full sm:w-48"
-            options={[{ value: "", label: "Barcha kurslar" }, ...groups.map((g) => ({ value: g, label: g }))]}
-          />
+          {isOwner ? (
+            <Select
+              name="group"
+              defaultValue={group}
+              autoSubmit
+              aria-label="Kurs"
+              wrapperClassName="w-full sm:w-48"
+              options={[{ value: "", label: "Barcha kurslar" }, ...groups.map((g) => ({ value: g, label: g }))]}
+            />
+          ) : null}
           {isOwner && teachers.length ? (
             <Select
               name="teacher"
@@ -178,12 +186,17 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
             searchable={false}
             aria-label="Dars kuni"
             wrapperClassName="w-full sm:w-52"
-            options={[
-              { value: "", label: "Barcha dars kunlari" },
-              { value: "today", label: "Bugun keladiganlar", hint: todayName },
-              ...WEEKDAY_NAMES.map((n, i) => ({ value: String(i + 1), label: n })),
-              { value: "none", label: "Dars vaqti kiritilmagan" },
-            ]}
+            options={
+              isOwner
+                ? [
+                    { value: "", label: "Barcha dars kunlari" },
+                    { value: "today", label: "Bugun keladiganlar", hint: todayName },
+                    ...presetOptions,
+                    ...WEEKDAY_NAMES.map((n, i) => ({ value: String(i + 1), label: n })),
+                    { value: "none", label: "Dars vaqti kiritilmagan" },
+                  ]
+                : [{ value: "", label: "Barcha dars kunlari" }, ...presetOptions]
+            }
           />
           <Select
             name="status"

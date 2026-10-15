@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { listMyActivity, type ActivityRow } from "./activity";
 import { requireAuth, requireOwner, requireRole, type Session } from "./auth";
-import { courseFee, courseNames, courseTeacher, sameCourse } from "./courses";
+import { courseFee, courseNames, courseTeacher, courseTeachers, sameCourse } from "./courses";
 import { connectDB } from "./db";
 import { eskizConfigured } from "./eskiz";
 import { changesAfter, type FeeChange } from "./fees";
@@ -457,7 +457,13 @@ export async function listUnpaid(month: string, group = ""): Promise<UnpaidStude
 
 // ---------- O'quvchilar ----------
 
-export type StudentTab = "all" | "debt" | "paid";
+/** O'quvchilar bo'limlari: hammasi, qarzdorlar (to'lamagan + qisman), to'laganlar, to'lamaganlar, qisman to'laganlar */
+export type StudentTab = "all" | "debt" | "paid" | "unpaid" | "partial";
+
+/** URL dagi `tab` qiymati (noma'lum — "all"). */
+export function parseStudentTab(v: string): StudentTab {
+  return v === "debt" || v === "paid" || v === "unpaid" || v === "partial" ? v : "all";
+}
 export type StudentSort = "name" | "-name" | "debt";
 
 export async function listStudents(opts: {
@@ -506,11 +512,23 @@ export async function listStudents(opts: {
     const l = weekday ? lessonOn(r.lessons, weekday) : undefined;
     return l ? toMinutes(l.start) : Number.POSITIVE_INFINITY;
   };
-  const isDebtor = (r: StudentRow) => r.active && r.started && r.status !== "paid";
-  const isPaid = (r: StudentRow) => r.active && r.started && r.status === "paid";
-  const counts = { all: filtered.length, debt: filtered.filter(isDebtor).length, paid: filtered.filter(isPaid).length };
+  const owing = (r: StudentRow) => r.active && r.started;
+  const tabTest: Record<StudentTab, (r: StudentRow) => boolean> = {
+    all: () => true,
+    debt: (r) => owing(r) && r.status !== "paid",
+    paid: (r) => owing(r) && r.status === "paid",
+    unpaid: (r) => owing(r) && r.status === "unpaid",
+    partial: (r) => owing(r) && r.status === "partial",
+  };
+  const counts = {
+    all: filtered.length,
+    debt: filtered.filter(tabTest.debt).length,
+    paid: filtered.filter(tabTest.paid).length,
+    unpaid: filtered.filter(tabTest.unpaid).length,
+    partial: filtered.filter(tabTest.partial).length,
+  };
 
-  const tabRows = opts.tab === "debt" ? filtered.filter(isDebtor) : opts.tab === "paid" ? filtered.filter(isPaid) : filtered;
+  const tabRows = filtered.filter(tabTest[opts.tab] ?? tabTest.all);
   const sorted = [...tabRows].sort((a, b) => {
     if (opts.sort === "debt") return b.debt - a.debt || a.fullName.localeCompare(b.fullName);
     if (weekday && opts.sort === "name") return startOf(a) - startOf(b) || a.fullName.localeCompare(b.fullName);
@@ -724,16 +742,16 @@ export async function getSettingsPageData(month: string) {
   const courses = courseNames(settings.courses, active.map((s) => s.group ?? "")).map((name) => ({
     name,
     fee: courseFee(settings.courses, name),
-    teacher: courseTeacher(settings.courses, name),
+    teachers: courseTeachers(settings.courses, name),
     inList: settings.courses.some((c) => sameCourse(c.name, name)),
     students: active.filter((s) => sameCourse(s.group, name)).length,
-    /** Kursdagi o'qituvchisiz o'quvchilar (nofaollari bilan) — kursga o'qituvchi tanlansa, ular unga o'tadi */
+    /** Kursdagi o'qituvchisiz o'quvchilar (nofaollari bilan) — kursga yagona o'qituvchi tanlansa, ular unga o'tadi */
     unassigned: students.filter((s) => !s.teacher && sameCourse(s.group, name)).length,
   }));
   // Kurs o'qituvchisi tanlash ro'yxati: faol o'qituvchilar + kirishi o'chirilgan bo'lsa ham hozir kursga biriktirilganlar
   const teacherChoices = [
     ...teachers,
-    ...[...new Set(settings.courses.flatMap((c) => (c.teacher ? [c.teacher] : [])))]
+    ...[...new Set(settings.courses.flatMap((c) => c.teachers))]
       .filter((id) => !teachers.some((t) => t.id === id) && names.has(id))
       .map((id) => ({ id, name: names.get(id)!, status: "disabled" as StaffStatus })),
   ];
@@ -884,14 +902,14 @@ export async function getStaffPageData() {
     .map((d) => ({
       ...toStaffView(d),
       students: counts.get(String(d._id)) ?? 0,
-      courses: settings.courses.filter((c) => c.teacher === String(d._id)).map((c) => c.name),
+      courses: settings.courses.filter((c) => c.teachers.includes(String(d._id))).map((c) => c.name),
     }))
     .sort((a, b) => Number(a.status === "disabled") - Number(b.status === "disabled") || order[a.role] - order[b.role] || a.name.localeCompare(b.name));
   const nameOf = new Map(staff.map((s) => [s.id, s.name]));
   return {
     staff,
-    /** Yangi o'qituvchi formasidagi «Kursi» tanlovi: kurslar va hozirgi o'qituvchisi */
-    courses: settings.courses.map((c) => ({ name: c.name, teacherName: c.teacher ? (nameOf.get(c.teacher) ?? null) : null })),
+    /** Yangi o'qituvchi formasidagi «Kursi» tanlovi: kurslar va hozirgi o'qituvchilari */
+    courses: settings.courses.map((c) => ({ name: c.name, teacherNames: c.teachers.flatMap((t) => (nameOf.has(t) ? [nameOf.get(t)!] : [])) })),
     unassignedStudents: unassigned,
     /** Eski (bitta o'qituvchi uchun) ulush foizi va xodimga biriktirilmagan oylik/avans yozuvlari */
     legacy:
@@ -968,8 +986,10 @@ export type CourseOption = {
   students: number;
   /** Sozlamalar → Kurslar ro'yxatida bormi (yo'q — faqat o'quvchilarda uchraydigan eski nom) */
   inList: boolean;
-  /** Kurs o'qituvchisi (rahbar va administratorga; o'quvchi formasida o'zi tanlanadi). Kirishi o'chirilgan bo'lsa — null */
+  /** Kursning yagona o'qituvchisi (o'quvchi formasida o'zi tanlanadi); o'qituvchi yo'q yoki bir nechta bo'lsa — null */
   teacher: string | null;
+  /** Kursning barcha o'qituvchilari (rahbar va administratorga; kirishi o'chirilganlar bundan mustasno) */
+  teachers: string[];
 };
 
 /** Kurslar (tanlash ro'yxatlari uchun): sozlamalardagilar + o'quvchilarda uchraydiganlar, faol o'quvchilar soni bilan. */
@@ -987,6 +1007,7 @@ export async function listCourses(): Promise<CourseOption[]> {
       students: active.filter((s) => sameCourse(s.group, name)).length,
       inList: settings.courses.some((c) => sameCourse(c.name, name)),
       teacher: teacher && usable.has(teacher) ? teacher : null,
+      teachers: courseTeachers(settings.courses, name).filter((t) => usable.has(t)),
     };
   });
 }

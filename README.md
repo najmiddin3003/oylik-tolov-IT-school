@@ -29,16 +29,19 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   - **Rahbar** — hamma bo‘limlar. Bosh sahifa o‘rniga **«Rahbar paneli»**: jami tushum, xodimlar oyligi, shu oy berilgan
     avans/oylik, qolgan qarz va har bir xodimning kartasi (o‘quvchilari, tushumi, oyligi), o‘qituvchi bo‘yicha filtr.
     **«Xodimlar»** bo‘limida xodim qo‘shadi, foizini va oylik/avanslarini yozadi, kirishini o‘chiradi yoki parolini tiklaydi.
-  - **O‘qituvchi** — faqat **ko‘radi**: o‘z o‘quvchilari (profili, dars jadvali, qarzi), ularning to‘lovlari, «Bugun darsga keladi»,
-    o‘z oyligi va Excel eksport. Boshqa o‘qituvchilarning o‘quvchilari, markaz tushumi va sozlamalar unga ko‘rinmaydi.
+  - **O‘qituvchi** — o‘z o‘quvchilari (profili, dars jadvali, qarzi), ularning to‘lovlari, «Bugun darsga keladi», o‘z oyligi va
+    Excel eksport. **O‘z o‘quvchisini tahrirlaydi:** ism-familiya, telefonlar, izoh va dars jadvali; kurs, oylik to‘lov, boshlagan
+    sana va holat (qarz va oylik hisobiga ta’sir qiladi) — faqat rahbarda. Boshqa o‘qituvchilarning o‘quvchilari, markaz tushumi
+    va sozlamalar unga ko‘rinmaydi.
     **«Olingan avans/oylik»** bo‘limida o‘zi olgan pulni yozib boradi (oyligidan ayiriladi), butun tarixi oylar bo‘yicha.
   - **Administrator** — «To‘lovlar»: oy rejasi va bajarilish foizi, bugun keladigan o‘quvchilar, to‘lov kiritish (avval kurs,
     keyin o‘quvchi; sana — sozlamaga qarab), **«Yangi o‘quvchi»** oynasi (kurs, oylik to‘lov, dars vaqti), rahbardan kelgan
     **topshiriqlar**; **«Kassa»** — o‘zi yig‘gan pul va rahbarga topshirish; «Olingan avans/oylik» va «Profilim».
-  - **Kurs o‘qituvchisi** — Sozlamalar → Kurslar’da (yoki o‘qituvchi qo‘shishda «Kursi») kursga o‘qituvchi tanlansa, shu kursdagi
-    o‘qituvchisiz o‘quvchilar unga o‘zi biriktiriladi; yangi o‘quvchi, Sheets’dan import va ro‘yxatdagi ommaviy «Kurs» amali ham
-    kurs o‘qituvchisini o‘zi qo‘yadi. Kurs o‘qituvchisi almashsa, avvalgisining shu kursdagi o‘quvchilari yangisiga o‘tadi;
-    boshqa o‘qituvchiga alohida biriktirilganlar o‘zgarmaydi.
+  - **Kurs o‘qituvchilari** — Sozlamalar → Kurslar’da (yoki o‘qituvchi qo‘shishda «Kursi») kursga bir yoki bir nechta o‘qituvchi
+    biriktiriladi. Kursda **bitta** o‘qituvchi bo‘lsa, shu kursdagi o‘qituvchisiz o‘quvchilar unga o‘zi biriktiriladi; yangi
+    o‘quvchi, Sheets’dan import va ro‘yxatdagi ommaviy «Kurs» amali ham uni o‘zi qo‘yadi; yagona o‘qituvchi almashsa, avvalgisining
+    shu kursdagi o‘quvchilari yangisiga o‘tadi. **Bir nechta** o‘qituvchi bo‘lsa, avtomatik biriktirilmaydi — o‘quvchi qo‘shishda
+    ustozi tanlanadi (ro‘yxatda «shu kurs» belgisi bilan). Boshqa o‘qituvchiga alohida biriktirilganlar o‘zgarmaydi.
   - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
     rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). **Administratorda foiz yo‘q — belgilangan oylik**
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.

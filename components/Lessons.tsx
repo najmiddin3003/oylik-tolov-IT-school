@@ -40,22 +40,33 @@ export function LiveDot({ className = "" }: { className?: string }) {
  * Jadval ustuni: yuqorida — keyingi dars (jonli), pastda — kunlar ("Toq kunlar").
  * To'liq jadval (vaqtlari bilan) — sichqoncha ustiga borganda. Nofaol o'quvchida — faqat jadval.
  */
-export function NextLessonCell({ lessons, serverNow, muted = false }: { lessons: Lesson[]; serverNow: number; muted?: boolean }) {
+export function NextLessonCell({
+  lessons,
+  serverNow,
+  muted = false,
+  fluid = false,
+}: {
+  lessons: Lesson[];
+  serverNow: number;
+  muted?: boolean;
+  /** Ustun kengligiga moslashadi (o'zgaruvchan kenglikdagi jadvalda); aks holda 180px gacha */
+  fluid?: boolean;
+}) {
   const now = useNow(serverNow);
   if (!lessons.length) return <span className="text-[13px] text-ink-300">Kiritilmagan</span>;
   const next = muted ? null : nextLesson(lessons, tashkentClock(now));
   const full = scheduleLabel(lessons);
   return (
-    <div className={cx("min-w-0 max-w-[180px]", muted && "opacity-60")} title={full}>
+    <div className={cx("min-w-0", !fluid && "max-w-[180px]", muted && "opacity-60")} title={full}>
       {next ? (
         <p
           className={cx(
-            "num flex items-center gap-1.5 whitespace-nowrap text-sm font-medium",
+            "num flex min-w-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium",
             next.now ? "text-emerald-700" : next.inDays === 0 ? "text-brand-700" : "text-ink-800",
           )}
         >
           {next.now ? <LiveDot /> : <CalendarClock className="size-3.5 shrink-0 opacity-70" aria-hidden />}
-          {nextLessonLabel(next, true)}
+          <span className="truncate">{nextLessonLabel(next, true)}</span>
         </p>
       ) : null}
       <p className={cx("num truncate text-[13px] text-ink-400", next && "mt-0.5")}>{next ? daysLabel(lessons.map((l) => l.day)) : full}</p>

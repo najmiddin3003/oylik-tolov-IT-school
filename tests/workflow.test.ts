@@ -7,8 +7,10 @@ import {
   courseFee,
   courseKey,
   courseNames,
+  coursesForStorage,
   courseStudentsToAssign,
   courseTeacher,
+  courseTeachers,
   DEFAULT_COURSES,
   normalizeCourses,
   sameCourse,
@@ -45,8 +47,8 @@ test("kurslar: ro'yxat, taqqoslash va narx", () => {
   assert.deepEqual(
     normalizeCourses([{ name: " Web dasturlash ", fee: 300000 }, { name: "web dasturlash", fee: 1 }, { name: "", fee: 5 }, { name: "Grafik dizayn", fee: -5 }]),
     [
-      { name: "Web dasturlash", fee: 300000, teacher: null },
-      { name: "Grafik dizayn", fee: null, teacher: null },
+      { name: "Web dasturlash", fee: 300000, teachers: [] },
+      { name: "Grafik dizayn", fee: null, teachers: [] },
     ],
   );
   // O'quvchilarda uchraydigan, ro'yxatda yo'q nomlar ham tanlovga qo'shiladi (takrorsiz)
@@ -59,19 +61,26 @@ test("kurs o'qituvchisi: kursga biriktirish va kurs almashganda o'qituvchi", () 
   const A = "a".repeat(24);
   const B = "b".repeat(24);
   const C = "c".repeat(24);
-  // Bazadan o'qilgan o'qituvchi (ObjectId ham, satr ham) saqlanadi; noto'g'ri qiymat — tashlab yuboriladi
+  // Bazadan o'qilgan o'qituvchilar (ObjectId ham, satr ham) saqlanadi; eski yozuvdagi yagona "teacher" ham o'qiladi;
+  // noto'g'ri qiymat va takrorlar tashlab yuboriladi
   const courses = normalizeCourses([
     { name: "Web dasturlash", fee: 300000, teacher: { toString: () => A } },
     { name: "Grafik dizayn", fee: 300000, teacher: "noto'g'ri" },
-    { name: "Kompyuter savodxonligi", fee: 250000, teacher: null },
+    { name: "Kompyuter savodxonligi", fee: 250000, teachers: [B, { toString: () => C }, B, "x"], teacher: B },
+    { name: "Ingliz tili", fee: null, teachers: [], teacher: null },
   ]);
   assert.deepEqual(
-    courses.map((c) => c.teacher),
-    [A, null, null],
+    courses.map((c) => c.teachers),
+    [[A], [], [B, C], []],
   );
+  // Avtomatik biriktirish — faqat yagona o'qituvchi bo'lsa
   assert.equal(courseTeacher(courses, "web  DASTURLASH"), A);
   assert.equal(courseTeacher(courses, "Grafik dizayn"), null);
+  assert.equal(courseTeacher(courses, "Kompyuter savodxonligi"), null, "bir nechta o'qituvchi — qo'lda tanlanadi");
+  assert.deepEqual(courseTeachers(courses, "kompyuter savodxonligi"), [B, C]);
   assert.equal(courseTeacher(courses, ""), null);
+  // Bazaga yozish: yagona o'qituvchi eski versiya uchun "teacher" maydoniga ham yoziladi
+  assert.deepEqual(coursesForStorage(courses).map((c) => c.teacher), [A, null, null, null]);
 
   // Kursga o'qituvchi biriktirilganda: o'qituvchisizlar o'tadi, boshqa o'qituvchinikilar va boshqa kurslar o'zgarmaydi
   const students = [
@@ -94,6 +103,10 @@ test("kurs o'qituvchisi: kursga biriktirish va kurs almashganda o'qituvchi", () 
   assert.equal(teacherOnCourseChange(C, A, B), C, "boshqa o'qituvchi tanlangan — o'zgarmaydi");
   assert.equal(teacherOnCourseChange(C, null, B), C);
   assert.equal(teacherOnCourseChange(null, A, null), null);
+  // Yangi kursda bir nechta o'qituvchi: joriy o'qituvchi ulardan biri bo'lsa — qoladi, bo'lmasa (avvalgi kursniki) — bo'sh
+  assert.equal(teacherOnCourseChange(B, B, null, [B, C]), B, "Sardorbek savodxonlikka ham dars beradi — qoladi");
+  assert.equal(teacherOnCourseChange(A, A, null, [B, C]), null, "yangi kursda dars bermaydi — qo'lda tanlanadi");
+  assert.equal(teacherOnCourseChange(null, null, null, [B, C]), null);
 });
 
 test("faoliyat jurnali: amal guruhi va qurilma nomi", () => {

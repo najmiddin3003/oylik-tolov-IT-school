@@ -71,7 +71,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
             icon={BookOpen}
             tone="emerald"
             title="Kurslar"
-            subtitle="Markazdagi kurslar, standart oylik narxi va o‘qituvchisi. Kursga o‘qituvchi tanlansa, shu kursdagi o‘quvchilar unga biriktiriladi va oyligi ularning to‘lovlaridan hisoblanadi."
+            subtitle="Markazdagi kurslar, standart oylik narxi va o‘qituvchilari. Kursda bitta o‘qituvchi bo‘lsa, shu kursdagi o‘quvchilar unga biriktiriladi va oyligi ularning to‘lovlaridan hisoblanadi; bir nechta bo‘lsa — o‘quvchi qo‘shishda ustozi tanlanadi."
           >
             <CoursesForm courses={d.courses} teachers={d.teachers} />
           </Section>

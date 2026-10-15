@@ -11,6 +11,7 @@ import {
   parseDayFilter,
   parseLessons,
   popularSchedules,
+  scheduleKind,
   scheduleLabel,
   shiftEnd,
   tashkentClock,
@@ -134,4 +135,23 @@ test("jadval: ko'p uchraydiganlar va kun filtri", () => {
   assert.equal(matchesDayFilter(juft, "6", 1), true);
   assert.equal(matchesDayFilter([], "none", 1), true);
   assert.equal(matchesDayFilter(toq, "none", 1), false);
+
+  // Jadval turi bo'yicha filtr: toq / juft / har kuni
+  assert.equal(parseDayFilter("toq"), "toq");
+  assert.equal(parseDayFilter("juft"), "juft");
+  assert.equal(parseDayFilter("har"), "har");
+  const at = (days: number[]): Lesson[] => days.map((day) => ({ day, start: "14:00", end: "16:00" }));
+  assert.equal(scheduleKind(at([1, 3, 5])), "toq");
+  assert.equal(scheduleKind(at([1, 3])), "toq", "faqat toq kunlar (dushanba, chorshanba)");
+  assert.equal(scheduleKind(at([2, 4, 6])), "juft");
+  assert.equal(scheduleKind(at([1, 2, 3, 4, 5, 6])), "har");
+  assert.equal(scheduleKind(at([1, 2, 3, 4, 5, 6, 7])), "har", "yakshanba bilan ham");
+  assert.equal(scheduleKind(at([1, 2])), null, "aralash");
+  assert.equal(scheduleKind([]), null);
+  assert.equal(matchesDayFilter(toq, "toq", 2), true);
+  assert.equal(matchesDayFilter(toq, "juft", 2), false);
+  assert.equal(matchesDayFilter(juft, "juft", 1), true);
+  assert.equal(matchesDayFilter(at([1, 2, 3, 4, 5, 6]), "har", 1), true);
+  assert.equal(matchesDayFilter(at([1, 2, 3, 4, 5, 6]), "toq", 1), false, "har kungi o'quvchi toq kunlarga kirmaydi");
+  assert.equal(matchesDayFilter([], "toq", 1), false);
 });

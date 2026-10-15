@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { BookOpen, CalendarClock, Check, Eye, GraduationCap, Pencil, Trash2, UserCheck, UserX, X, type LucideIcon } from "lucide-react";
 import { bulkStudents, deleteStudent, setCourseBulk, setLessonsBulk, setTeacherBulk } from "@/app/actions/students";
 import { sameCourse } from "@/lib/courses";
@@ -9,6 +9,7 @@ import type { StudentRow } from "@/lib/data";
 import { lessonsKey, type Lesson } from "@/lib/schedule";
 import { formatMoney } from "@/lib/time";
 import { StudentCell } from "./cells";
+import { ColumnResizer, useColumnWidths } from "./ColumnWidths";
 import { NextLessonCell } from "./Lessons";
 import { useDialog } from "./Modal";
 import { Select } from "./pickers";
@@ -17,7 +18,13 @@ import { ConfirmAction } from "./SubmitButton";
 import { btn, cx, GroupChip, IconTile, StatusBadge, Tag, td, th } from "./ui";
 
 type TeacherOption = { id: string; name: string; status: string };
-type CourseOption = { name: string; teacher: string | null };
+
+// Ustunlar (o'zgaruvchan kenglik, px): standart qiymatlar; foydalanuvchi o'zgartirganini brauzer eslab qoladi
+type ColKey = "student" | "teacher" | "group" | "lesson" | "fee" | "debt" | "status";
+const COL_DEFAULTS: Record<ColKey, number> = { student: 300, teacher: 180, group: 170, lesson: 220, fee: 170, debt: 170, status: 190 };
+const COL_STORAGE = "tt-students-cols-v1";
+const CHECK_WIDTH = 48;
+type CourseOption = { name: string; teachers: string[] };
 
 export function StudentsTable({
   rows,
@@ -55,6 +62,28 @@ export function StudentsTable({
   const allChecked = ids.length > 0 && visibleSelected.length === ids.length;
   const teacherName = useMemo(() => new Map(teachers.map((t) => [t.id, t.name])), [teachers]);
   const showTeacher = !readOnly && teachers.length > 0;
+  // Ustun kengliklari: standart holatda avtomatik; surilganda — qo'lda (hozirgi kengliklar o'lchanib, shundan boshlanadi)
+  const headRow = useRef<HTMLTableRowElement>(null);
+  const measure = () => {
+    const out: Partial<Record<ColKey, number>> = {};
+    headRow.current?.querySelectorAll<HTMLElement>("th[data-col]").forEach((el) => {
+      // Yuqoriga yaxlitlab +1px: avtomatik holatdagi sarlavha matni qo'lda boshqarishda ham sig'sin
+      out[el.dataset.col as ColKey] = Math.ceil(el.getBoundingClientRect().width) + 1;
+    });
+    return out;
+  };
+  const { custom, widthOf, startResize, resizeBy, reset } = useColumnWidths<ColKey>(COL_STORAGE, measure, COL_DEFAULTS);
+  const cols: { key: ColKey; label: string; right?: boolean }[] = [
+    { key: "student", label: "O‘quvchi" },
+    ...(showTeacher ? [{ key: "teacher" as const, label: "O‘qituvchi" }] : []),
+    ...(showGroup ? [{ key: "group" as const, label: "Kurs" }] : []),
+    { key: "lesson", label: "Dars vaqti" },
+    { key: "fee", label: "Oylik to‘lov", right: true },
+    { key: "debt", label: "Qolgan to‘lov", right: true },
+    { key: "status", label: monthTitle },
+  ];
+  const actionsWidth = readOnly ? 104 : 136;
+  const tableMin = (readOnly ? 0 : CHECK_WIDTH) + cols.reduce((sum, c) => sum + widthOf(c.key), 0) + actionsWidth;
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -167,10 +196,13 @@ export function StudentsTable({
             count={visibleSelected.length}
             initial={commonCourse}
             options={[
-              ...courses.map((c) => ({ value: c.name, label: c.name, hint: c.teacher && teacherName.get(c.teacher) ? `o‘qituvchisi: ${teacherName.get(c.teacher)}` : undefined })),
+              ...courses.map((c) => {
+                const names = c.teachers.flatMap((t) => (teacherName.has(t) ? [teacherName.get(t)!] : []));
+                return { value: c.name, label: c.name, hint: names.length ? `${names.length > 1 ? "o‘qituvchilari" : "o‘qituvchisi"}: ${names.join(", ")}` : undefined };
+              }),
               { value: "", label: "Kurs tanlanmagan" },
             ]}
-            hint="Kursning o‘qituvchisi bo‘lsa, o‘qituvchisi yo‘q o‘quvchilar unga biriktiriladi va oyligi ularning to‘lovlaridan hisoblanadi. Boshqa o‘qituvchiga biriktirilganlar o‘zgarmaydi."
+            hint="Kursda bitta o‘qituvchi bo‘lsa, o‘qituvchisi yo‘q o‘quvchilar unga biriktiriladi va oyligi ularning to‘lovlaridan hisoblanadi. Bir nechta o‘qituvchi bo‘lsa — keyin «O‘qituvchi» tugmasi bilan tanlaysiz. Boshqa o‘qituvchiga biriktirilganlar o‘zgarmaydi."
             onSave={async (course) => {
               const res = await setCourseBulk(visibleSelected, course);
               if (res.error) return res.error;
@@ -182,11 +214,26 @@ export function StudentsTable({
       ) : null}
 
       <div className="relative overflow-x-auto border-t border-line-soft">
-        <table className={cx("w-full", showGroup || showTeacher ? "min-w-[1120px]" : readOnly ? "min-w-[860px]" : "min-w-[940px]")}>
+        {/* Standart holatda ustunlar mazmunga qarab joylashadi. Sarlavha cheti surilsa — aniq kengliklar (bo'sh joyni
+            «Amallar» oldidagi ustun oladi, kengliklar ekrandan oshsa — jadval yonga suriladi) */}
+        <table
+          className={cx("w-full", custom ? "table-fixed" : showGroup || showTeacher ? "min-w-[1120px]" : readOnly ? "min-w-[860px]" : "min-w-[940px]")}
+          style={custom ? { minWidth: tableMin } : undefined}
+        >
+          {custom ? (
+            <colgroup>
+              {readOnly ? null : <col style={{ width: CHECK_WIDTH }} />}
+              {cols.map((c) => (
+                <col key={c.key} style={{ width: widthOf(c.key) }} />
+              ))}
+              <col />
+              <col style={{ width: actionsWidth }} />
+            </colgroup>
+          ) : null}
           <thead className="bg-slate-50/70">
-            <tr>
+            <tr ref={headRow}>
               {readOnly ? null : (
-                <th className={cx(th, "w-12 pr-0")}>
+                <th className={cx(th, "pr-0")}>
                   <input
                     type="checkbox"
                     className={checkbox}
@@ -196,14 +243,14 @@ export function StudentsTable({
                   />
                 </th>
               )}
-              <th className={cx(th, !readOnly && "pl-3")}>O‘quvchi</th>
-              {showTeacher ? <th className={th}>O‘qituvchi</th> : null}
-              {showGroup ? <th className={th}>Kurs</th> : null}
-              <th className={th}>Dars vaqti</th>
-              <th className={cx(th, "text-right")}>Oylik to‘lov</th>
-              <th className={cx(th, "text-right")}>Qolgan to‘lov</th>
-              <th className={th}>{monthTitle}</th>
-              <th className={cx(th, "pl-2 text-right")}>{readOnly ? <span className="sr-only">Ko‘rish</span> : "Amallar"}</th>
+              {cols.map((c, i) => (
+                <th key={c.key} data-col={c.key} className={cx(th, "relative", c.right && "text-right", i === 0 && !readOnly && "pl-3")}>
+                  <span className={cx("block", custom ? "truncate" : "whitespace-nowrap", c.right && "pr-2")}>{c.label}</span>
+                  <ColumnResizer label={c.label} onPointerDown={(e) => startResize(c.key, e)} onReset={reset} onStep={(d) => resizeBy(c.key, d)} />
+                </th>
+              ))}
+              <th aria-hidden className="p-0" />
+              <th className={cx(th, "pl-2 text-right")}>{readOnly ? <span className="sr-only">Amallar</span> : "Amallar"}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line-soft">
@@ -212,15 +259,15 @@ export function StudentsTable({
               return (
                 <tr key={r.id} className={cx("transition", isSel ? "bg-brand-50/40" : "hover:bg-slate-50/50")}>
                   {readOnly ? null : (
-                    <td className={cx(td, "w-12 pr-0")}>
+                    <td className={cx(td, "pr-0")}>
                       <input type="checkbox" className={checkbox} checked={isSel} onChange={() => toggle(r.id)} aria-label={`${r.fullName}ni tanlash`} />
                     </td>
                   )}
-                  <td className={cx(td, !readOnly && "pl-3")}>
+                  <td className={cx(td, "overflow-hidden", !readOnly && "pl-3")}>
                     <StudentCell id={r.id} name={r.fullName} seq={r.seq} phone={r.phone} href={`/students/${r.id}?month=${month}`} muted={!r.active} />
                   </td>
                   {showTeacher ? (
-                    <td className={cx(td, "max-w-[160px]")}>
+                    <td className={cx(td, "overflow-hidden")}>
                       {r.teacherId ? (
                         <span className="flex min-w-0 items-center gap-1.5 font-medium text-ink-700" title={teacherName.get(r.teacherId) ?? ""}>
                           <GraduationCap className="size-3.5 shrink-0 text-brand-500" aria-hidden />
@@ -232,40 +279,46 @@ export function StudentsTable({
                     </td>
                   ) : null}
                   {showGroup ? (
-                    <td className={td}>
+                    <td className={cx(td, "overflow-hidden")}>
                       <GroupChip name={r.group} />
                     </td>
                   ) : null}
-                  <td className={td}>
-                    <NextLessonCell lessons={r.lessons} serverNow={serverNow} muted={!r.active} />
+                  <td className={cx(td, "overflow-hidden")}>
+                    <NextLessonCell lessons={r.lessons} serverNow={serverNow} muted={!r.active} fluid={custom} />
                   </td>
-                  <td className={cx(td, "num whitespace-nowrap text-right text-[15px] font-medium text-ink-900")}>{formatMoney(r.monthlyFee)}</td>
-                  <td className={cx(td, "num whitespace-nowrap text-right text-[15px] font-medium", r.active && r.started && r.debt ? "text-ink-900" : "text-ink-300")}>
+                  <td className={cx(td, "num overflow-hidden text-ellipsis whitespace-nowrap text-right text-[15px] font-medium text-ink-900")}>{formatMoney(r.monthlyFee)}</td>
+                  <td
+                    className={cx(
+                      td,
+                      "num overflow-hidden text-ellipsis whitespace-nowrap text-right text-[15px] font-medium",
+                      r.active && r.started && r.debt ? "text-ink-900" : "text-ink-300",
+                    )}
+                  >
                     {r.active && r.started ? formatMoney(r.debt) : "—"}
                   </td>
-                  <td className={td}>
+                  <td className={cx(td, "overflow-hidden")}>
                     {!r.active ? <Tag>Nofaol</Tag> : !r.started ? <Tag tone="brand">Hali boshlamagan</Tag> : <StatusBadge status={r.status} />}
                   </td>
+                  <td aria-hidden className="p-0" />
                   <td className={cx(td, "pl-2 text-right")}>
                     <div className="flex items-center justify-end gap-0.5">
                       <Link href={`/students/${r.id}?month=${month}`} className={btn.icon} aria-label="Ko‘rish" title="Ko‘rish">
                         <Eye className="size-[18px]" strokeWidth={1.8} aria-hidden />
                       </Link>
+                      {/* Tahrirlash — o'qituvchiga ham (o'z o'quvchilari, cheklangan maydonlar); o'chirish — faqat rahbar */}
+                      <Link href={`/students/${r.id}/edit`} className={btn.icon} aria-label="Tahrirlash" title="Tahrirlash">
+                        <Pencil className="size-[17px]" strokeWidth={1.8} aria-hidden />
+                      </Link>
                       {readOnly ? null : (
-                        <>
-                          <Link href={`/students/${r.id}/edit`} className={btn.icon} aria-label="Tahrirlash" title="Tahrirlash">
-                            <Pencil className="size-[17px]" strokeWidth={1.8} aria-hidden />
-                          </Link>
-                          <ConfirmAction
-                            action={deleteStudent.bind(null, r.id, null)}
-                            confirmText={`${r.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
-                            className={btn.iconDanger}
-                            pendingText="…"
-                            title="O‘chirish"
-                          >
-                            <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
-                          </ConfirmAction>
-                        </>
+                        <ConfirmAction
+                          action={deleteStudent.bind(null, r.id, null)}
+                          confirmText={`${r.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
+                          className={btn.iconDanger}
+                          pendingText="…"
+                          title="O‘chirish"
+                        >
+                          <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
+                        </ConfirmAction>
                       )}
                     </div>
                   </td>

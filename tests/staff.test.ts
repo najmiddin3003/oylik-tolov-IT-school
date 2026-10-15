@@ -40,11 +40,11 @@ test("rollar bo'yicha kirish huquqi", async () => {
   assert.equal(canAccess("admin", "/me"), true);
   assert.equal(canAccess("admin", "/api/export/tolovlar"), true);
   for (const p of ["/", "/students", "/staff", "/settings", "/sync", "/api/export/oquvchilar"]) assert.equal(canAccess("admin", p), false, p);
-  // o'qituvchi — o'z sahifasi, o'quvchilari (faqat ko'rish), to'lovlar, profil
-  for (const p of ["/", "/students", "/students/6ac9dcf90698aca8bd508d6c", "/payments", "/me", "/api/export/oquvchilar", "/api/export/tolovlar"]) {
+  // o'qituvchi — o'z sahifasi, o'quvchilari (ko'rish va o'z o'quvchisini tahrirlash), to'lovlar, profil
+  for (const p of ["/", "/students", "/students/6ac9dcf90698aca8bd508d6c", "/students/6ac9dcf90698aca8bd508d6c/edit", "/payments", "/me", "/api/export/oquvchilar", "/api/export/tolovlar"]) {
     assert.equal(canAccess("teacher", p), true, p);
   }
-  for (const p of ["/students/new", "/students/6ac9dcf90698aca8bd508d6c/edit", "/staff", "/settings", "/sync", "/api/export/hisobot"]) {
+  for (const p of ["/students/new", "/students/abc/edit", "/students/6ac9dcf90698aca8bd508d6c/edit/x", "/staff", "/settings", "/sync", "/api/export/hisobot"]) {
     assert.equal(canAccess("teacher", p), false, p);
   }
   assert.equal(homeFor("owner"), "/");

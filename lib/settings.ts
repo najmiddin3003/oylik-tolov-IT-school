@@ -55,7 +55,7 @@ type Doc = Record<string, unknown> & {
   courseFilter?: string;
   autoImport?: boolean;
   centerName?: string;
-  courses?: { name?: string | null; fee?: number | null; teacher?: unknown }[] | null;
+  courses?: { name?: string | null; fee?: number | null; teacher?: unknown; teachers?: unknown }[] | null;
   features?: { paymentDateOwner?: boolean | null; paymentDateAdmin?: boolean | null } | null;
   legacyPrefs?: { syncAlert?: boolean | null } | null;
   defaultFee?: number;

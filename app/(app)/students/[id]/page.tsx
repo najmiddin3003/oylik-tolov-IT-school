@@ -109,23 +109,24 @@ async function StudentView({
             </div>
           </div>
         </div>
-        {readOnly ? null : (
+        {/* Tahrirlash — rahbar va o'qituvchi (o'z o'quvchisi, cheklangan maydonlar); o'chirish — faqat rahbar */}
         <div className="flex flex-wrap items-center gap-3">
           <Link href={`/students/${student.id}/edit`} className={btn.outline}>
             <Pencil className="size-[17px]" strokeWidth={1.8} aria-hidden />
             Tahrirlash
           </Link>
-          <ConfirmAction
-            action={deleteStudent.bind(null, student.id, "/students")}
-            confirmText={`${student.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
-            className={btn.danger}
-            pendingText="O‘chirilmoqda…"
-          >
-            <Trash2 className="size-[17px]" strokeWidth={1.8} aria-hidden />
-            O‘chirish
-          </ConfirmAction>
+          {readOnly ? null : (
+            <ConfirmAction
+              action={deleteStudent.bind(null, student.id, "/students")}
+              confirmText={`${student.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
+              className={btn.danger}
+              pendingText="O‘chirilmoqda…"
+            >
+              <Trash2 className="size-[17px]" strokeWidth={1.8} aria-hidden />
+              O‘chirish
+            </ConfirmAction>
+          )}
         </div>
-        )}
       </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">

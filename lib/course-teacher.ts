@@ -2,7 +2,7 @@
 // biriktiriladi — oyligi shu o'quvchilar to'lovlaridan hisoblanadi. Ruxsat tekshiruvi chaqiruvchida.
 // "server-only" qo'yilmagan: Sheets importi orqali ichki rejalashtiruvchi (instrumentation) ham ishlatadi.
 import { connectDB } from "./db";
-import { courseStudentsToAssign, courseTeacher, type Course } from "./courses";
+import { courseStudentsToAssign, coursesForStorage, courseTeacher, sameCourse, type Course } from "./courses";
 import { Staff, Student } from "./models";
 import { getSettings, updateSettings } from "./settings";
 
@@ -41,10 +41,25 @@ export async function assignCourseStudents(course: string, teacher: string, prev
   return res.modifiedCount;
 }
 
-/** Xodim o'qituvchi bo'lmay qolsa yoki o'chirilsa — kurslardagi o'qituvchi belgisi olib tashlanadi (o'quvchilari o'zgarmaydi). */
+/** Xodim o'qituvchi bo'lmay qolsa yoki o'chirilsa — kurslar o'qituvchilari ro'yxatidan olib tashlanadi (o'quvchilari o'zgarmaydi). */
 export async function clearCourseTeacher(staffId: string): Promise<void> {
   const { courses } = await getSettings({ fresh: true });
-  if (!courses.some((c) => c.teacher === staffId)) return;
-  const next: Course[] = courses.map((c) => (c.teacher === staffId ? { ...c, teacher: null } : c));
-  await updateSettings({ $set: { courses: next } });
+  if (!courses.some((c) => c.teachers.includes(staffId))) return;
+  const next: Course[] = courses.map((c) => (c.teachers.includes(staffId) ? { ...c, teachers: c.teachers.filter((t) => t !== staffId) } : c));
+  await updateSettings({ $set: { courses: coursesForStorage(next) } });
+}
+
+/**
+ * Kursga o'qituvchi qo'shish (mavjudlari qoladi). Kursda shu bitta o'qituvchi bo'lib qolsa — kursdagi o'qituvchisiz
+ * o'quvchilar unga biriktiriladi; bir nechta bo'lsa — o'quvchilar o'zgarmaydi (ustoz qo'lda tanlanadi).
+ * Nechta o'quvchi biriktirilganini qaytaradi; kurs topilmasa — null.
+ */
+export async function addCourseTeacher(courseName: string, staffId: string): Promise<{ course: string; assigned: number; teachers: number } | null> {
+  const { courses } = await getSettings({ fresh: true });
+  const course = courses.find((c) => sameCourse(c.name, courseName));
+  if (!course) return null;
+  const teachers = course.teachers.includes(staffId) ? course.teachers : [...course.teachers, staffId];
+  await updateSettings({ $set: { courses: coursesForStorage(courses.map((c) => (c === course ? { ...c, teachers } : c))) } });
+  const assigned = teachers.length === 1 ? await assignCourseStudents(course.name, staffId, null) : 0;
+  return { course: course.name, assigned, teachers: teachers.length };
 }

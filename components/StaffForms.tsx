@@ -36,7 +36,7 @@ function Result({ state }: { state: FormState }) {
 
 const ROLE_OPTIONS = (["teacher", "admin", "owner"] as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r], hint: r === "owner" ? "hamma bo‘limlar" : undefined }));
 
-type CourseChoice = { name: string; teacherName: string | null };
+type CourseChoice = { name: string; teacherNames: string[] };
 
 /** Yangi xodim: ism, telefon, lavozim, oyligi (foiz yoki administratorda — belgilangan summa); o'qituvchi uchun — kursi. */
 export function StaffAddForm({ courses = [] }: { courses?: CourseChoice[] }) {
@@ -59,7 +59,7 @@ function StaffAddFields({ fe, courses }: { fe: Record<string, string>; courses: 
   const [role, setRole] = useState<Role>("teacher");
   const [percent, setPercent] = useState(String(defaultPercent("teacher")));
   const [course, setCourse] = useState("");
-  const taken = courses.find((c) => c.name === course)?.teacherName;
+  const taken = courses.find((c) => c.name === course)?.teacherNames ?? [];
   return (
     <>
       <div>
@@ -135,7 +135,7 @@ function StaffAddFields({ fe, courses }: { fe: Record<string, string>; courses: 
             onChange={setCourse}
             options={[
               { value: "", label: "Keyinroq tanlayman" },
-              ...courses.map((c) => ({ value: c.name, label: c.name, hint: c.teacherName ? `hozir: ${c.teacherName}` : undefined })),
+              ...courses.map((c) => ({ value: c.name, label: c.name, hint: c.teacherNames.length ? `hozir: ${c.teacherNames.join(", ")}` : undefined })),
             ]}
             searchable={false}
             invalid={!!fe.course}
@@ -143,8 +143,8 @@ function StaffAddFields({ fe, courses }: { fe: Record<string, string>; courses: 
           />
           <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
             {course
-              ? taken
-                ? `Kurs o‘qituvchisi ${taken} o‘rniga shu xodim bo‘ladi va kursdagi o‘quvchilar unga o‘tadi.`
+              ? taken.length
+                ? `Kursning o‘qituvchilariga qo‘shiladi (hozir: ${taken.join(", ")}). O‘quvchilarini «O‘quvchilar» ro‘yxatida «O‘qituvchi» tugmasi bilan biriktirasiz.`
                 : "Kursdagi o‘quvchilar unga biriktiriladi va oyligi ularning to‘lovlaridan hisoblanadi."
               : "Kursni keyin Sozlamalar → Kurslar bo‘limida ham tanlash mumkin."}
           </p>

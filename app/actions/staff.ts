@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { requireOwner } from "@/lib/auth";
-import { assignCourseStudents, clearCourseTeacher } from "@/lib/course-teacher";
+import { addCourseTeacher, clearCourseTeacher } from "@/lib/course-teacher";
 import { sameCourse } from "@/lib/courses";
 import { connectDB } from "@/lib/db";
 import { applyAmountFrom, applyPercentFrom } from "@/lib/fees";
@@ -69,14 +69,16 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
     salaryHistory: salary ? [{ from: currentMonth(), amount: salary }] : [],
   });
 
-  // Kurs o'qituvchisi: kurs unga biriktiriladi, kursdagi o'qituvchisiz (va avvalgi kurs o'qituvchisidagi) o'quvchilar unga o'tadi
+  // Kurs o'qituvchilariga qo'shiladi (mavjudlari qoladi). Kursda yagona o'qituvchi bo'lsa — o'qituvchisiz o'quvchilar unga o'tadi
   let courseNote = "";
   if (courseIndex >= 0) {
-    const id = String(created._id);
-    const course = settings.courses[courseIndex];
-    await updateSettings({ $set: { courses: settings.courses.map((c, i) => (i === courseIndex ? { ...c, teacher: id } : c)) } });
-    const assigned = await assignCourseStudents(course.name, id, course.teacher);
-    courseNote = `«${course.name}» kursi${assigned ? ` va uning ${assigned} ta o‘quvchisi` : ""} unga biriktirildi`;
+    const res = await addCourseTeacher(settings.courses[courseIndex].name, String(created._id));
+    if (res) {
+      courseNote =
+        res.teachers > 1
+          ? `«${res.course}» kursining o‘qituvchilariga qo‘shildi (o‘quvchilarini qo‘lda biriktirasiz)`
+          : `«${res.course}» kursi${res.assigned ? ` va uning ${res.assigned} ta o‘quvchisi` : ""} unga biriktirildi`;
+    }
   }
   await logActivity(
     session,

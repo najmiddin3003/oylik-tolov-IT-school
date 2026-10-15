@@ -73,8 +73,8 @@ export function canAccess(role: Role, pathname: string): boolean {
   if (role === "admin" && under(pathname, "/kassa")) return true;
   if (role === "teacher") {
     if (pathname === "/" || pathname === "/students" || pathname === "/api/export/oquvchilar") return true;
-    // O'quvchi profili — faqat ko'rish (yangi qo'shish va tahrirlash — rahbarda)
-    return /^\/students\/[a-f0-9]{24}$/i.test(pathname);
+    // O'quvchi profili va o'z o'quvchisini tahrirlash (cheklangan maydonlar; yangi qo'shish — rahbarda)
+    return /^\/students\/[a-f0-9]{24}(\/edit)?$/i.test(pathname);
   }
   return false;
 }

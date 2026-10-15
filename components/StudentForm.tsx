@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Check, Info } from "lucide-react";
-import { saveStudent } from "@/app/actions/students";
+import { Check, Info, Lock } from "lucide-react";
+import { saveStudent, saveStudentByTeacher } from "@/app/actions/students";
 import type { FormState } from "@/app/actions/types";
-import { courseTeacher, teacherOnCourseChange } from "@/lib/courses";
+import { sameCourse, teacherOnCourseChange } from "@/lib/courses";
 import type { StudentDetail } from "@/lib/data";
 import { feeFor, type FeeChange } from "@/lib/fees";
 import type { Lesson } from "@/lib/schedule";
-import { dateToISO, formatNumber } from "@/lib/time";
+import { dateToISO, formatDate, formatMoney, formatNumber } from "@/lib/time";
 import { MoneyInput, PhoneInput } from "./inputs";
 import { DatePicker, MonthPicker, Select } from "./pickers";
 import { ScheduleField } from "./ScheduleField";
@@ -43,7 +43,7 @@ export function StudentForm({
 }: {
   student?: StudentDetail;
   /** Kurslar (Sozlamalar → Kurslar): standart oylik narxi va o'qituvchisi */
-  courses: { name: string; fee: number | null; teacher?: string | null }[];
+  courses: { name: string; fee: number | null; teacher?: string | null; teachers?: string[] }[];
   /** O'qituvchilar (biriktirish uchun) */
   teachers?: { id: string; name: string; status: string }[];
   /** Boshqa o'quvchilarda ko'p uchraydigan dars jadvallari */
@@ -65,11 +65,14 @@ export function StudentForm({
   const [feeTouched, setFeeTouched] = useState(false);
   const [group, setGroup] = useState(student?.group ?? "");
   // Kurs o'qituvchisi: kurs tanlanganda (o'qituvchi bo'sh yoki avvalgi kursniki bo'lsa) o'zi qo'yiladi
-  const teacherOf = (name: string) => courseTeacher(courses.map((c) => ({ name: c.name, fee: c.fee, teacher: c.teacher ?? null })), name);
+  const courseOf = (name: string) => courses.find((c) => sameCourse(c.name, name));
+  // Kursning yagona o'qituvchisi (o'zi qo'yiladi) va barcha o'qituvchilari (ro'yxatda «shu kurs» belgisi)
+  const teacherOf = (name: string) => courseOf(name)?.teacher ?? null;
+  const teachersOf = (name: string) => courseOf(name)?.teachers ?? [];
   const [teacher, setTeacher] = useState(() =>
     student ? (student.teacherId ?? teacherOf(student.group) ?? "") : teachers.length === 1 ? teachers[0].id : "",
   );
-  const anyCourseTeacher = courses.some((c) => c.teacher);
+  const anyCourseTeacher = courses.some((c) => c.teacher || c.teachers?.length);
   const feeChanged = student !== undefined && feeAtFrom !== null && Number(fee.replace(/\D/g, "")) !== feeAtFrom;
 
   return (
@@ -114,7 +117,7 @@ export function StudentForm({
             name="group"
             value={group}
             onChange={(v) => {
-              setTeacher((cur) => teacherOnCourseChange(cur || null, teacherOf(group), teacherOf(v)) ?? "");
+              setTeacher((cur) => teacherOnCourseChange(cur || null, teacherOf(group), teacherOf(v), teachersOf(v)) ?? "");
               setGroup(v);
               // Yangi o'quvchida narx hali o'zgartirilmagan bo'lsa — kursning standart narxi qo'yiladi
               const courseFee = courses.find((c) => c.name === v)?.fee;
@@ -191,11 +194,19 @@ export function StudentForm({
               invalid={!!fe.teacher}
               options={[
                 { value: "", label: teacherOf(group) ? "Kurs o‘qituvchisi" : "Biriktirilmagan" },
-                ...teachers.map((t) => ({ value: t.id, label: t.name, hint: t.status === "invited" ? "ro‘yxatdan o‘tmagan" : undefined })),
+                ...teachers.map((t) => ({
+                  value: t.id,
+                  label: t.name,
+                  hint: teachersOf(group).includes(t.id) ? "shu kurs" : t.status === "invited" ? "ro‘yxatdan o‘tmagan" : undefined,
+                })),
               ]}
             />
             <FieldError msg={fe.teacher} />
-            {anyCourseTeacher ? <p className="mt-1.5 text-xs text-ink-400">Kurs tanlanganda kurs o‘qituvchisi o‘zi qo‘yiladi.</p> : null}
+            {teachersOf(group).length > 1 ? (
+              <p className="mt-1.5 text-xs text-amber-700">Bu kursda bir nechta o‘qituvchi bor — o‘quvchining ustozini tanlang.</p>
+            ) : anyCourseTeacher ? (
+              <p className="mt-1.5 text-xs text-ink-400">Kurs tanlanganda kurs o‘qituvchisi o‘zi qo‘yiladi.</p>
+            ) : null}
           </div>
         ) : null}
         <div>
@@ -233,6 +244,88 @@ export function StudentForm({
         <button type="submit" disabled={pending} className={btn.primary}>
           <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
           {pending ? "Saqlanmoqda…" : student ? "O‘zgarishlarni saqlash" : "O‘quvchini qo‘shish"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * O'qituvchi uchun: o'z o'quvchisining ism-familiyasi, telefonlari, izohi va dars jadvali. Kurs, oylik to'lov, boshlagan sana,
+ * o'qituvchi va holat qarz va oylik hisobiga ta'sir qiladi — ularni faqat rahbar o'zgartiradi (bu yerda faqat ko'rinadi).
+ */
+export function TeacherStudentForm({ student }: { student: StudentDetail }) {
+  const action = saveStudentByTeacher.bind(null, student.id);
+  const [state, onSubmit, pending] = useActionForm<FormState>(action, {});
+  const fe = state.fieldErrors ?? {};
+  const fixed: [string, string][] = [
+    ["Kurs", student.group || "Kurs tanlanmagan"],
+    ["Oylik to‘lov", formatMoney(student.currentFee)],
+    ["O‘qishni boshlagan sana", formatDate(student.startDate)],
+    ["Holati", student.active ? "Faol (o‘qiyapti)" : "Nofaol"],
+  ];
+
+  return (
+    <form onSubmit={onSubmit} noValidate>
+      {state.error ? (
+        <p className="mx-6 mt-6 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+
+      <Section title="Shaxsiy ma’lumotlar" hint="Ism-familiya Google Sheets’dagi bilan bir xil yozilsa, solishtirish aniq bo‘ladi.">
+        <div className="sm:col-span-2">
+          <label htmlFor="fullName" className={labelCls}>
+            Ism-familiya <span className="text-brand-600">*</span>
+          </label>
+          <input id="fullName" name="fullName" required defaultValue={student.fullName} className={inputCls} placeholder="O‘quvchining ism-familiyasi" aria-invalid={!!fe.fullName} />
+          <FieldError msg={fe.fullName} />
+        </div>
+        <div>
+          <label htmlFor="phone" className={labelCls}>
+            Telefon
+          </label>
+          <PhoneInput id="phone" name="phone" defaultValue={student.phone} placeholder="90 123 45 67" invalid={!!fe.phone} />
+          <FieldError msg={fe.phone} />
+        </div>
+        <div>
+          <label htmlFor="parentPhone" className={labelCls}>
+            Ota-ona telefoni
+          </label>
+          <PhoneInput id="parentPhone" name="parentPhone" defaultValue={student.parentPhone} placeholder="90 123 45 67" invalid={!!fe.parentPhone} />
+          <FieldError msg={fe.parentPhone} />
+        </div>
+      </Section>
+
+      <Section title="O‘qish va to‘lov" hint="Kurs, oylik to‘lov, boshlagan sana va holat qarz hamda oylik hisobiga ta’sir qiladi — ularni rahbar o‘zgartiradi.">
+        {fixed.map(([label, value]) => (
+          <div key={label}>
+            <span className={labelCls}>{label}</span>
+            <p className="num flex h-11 items-center gap-2 rounded-xl border border-line bg-slate-50 px-3.5 text-[15px] text-ink-600">
+              <Lock className="size-3.5 shrink-0 text-ink-300" aria-hidden />
+              <span className="truncate">{value}</span>
+            </p>
+          </div>
+        ))}
+        <div className="sm:col-span-2">
+          <label htmlFor="note" className={labelCls}>
+            Izoh
+          </label>
+          <textarea id="note" name="note" rows={3} defaultValue={student.note} className={cx(inputCls, "h-auto py-2.5")} placeholder="O‘quvchi haqida qisqacha" />
+        </div>
+      </Section>
+
+      <Section title="Dars jadvali" hint="Qaysi kunlari, soat nechida darsga keladi. «Bugun darsga keladi» ro‘yxatida shu bo‘yicha ko‘rinadi." wide>
+        <ScheduleField name="schedule" defaultValue={student.lessons} templates={[]} error={fe.schedule} errorStamp={state.fieldErrors} />
+      </Section>
+
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line px-6 py-5">
+        <Link href={`/students/${student.id}`} className={btn.outline}>
+          Bekor qilish
+        </Link>
+        <button type="submit" disabled={pending} className={btn.primary}>
+          <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          {pending ? "Saqlanmoqda…" : "O‘zgarishlarni saqlash"}
         </button>
       </div>
     </form>

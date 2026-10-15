@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { courseTeacherResolver } from "@/lib/course-teacher";
-import { cleanCourseName, courseTeacher, sameCourse, teacherOnCourseChange } from "@/lib/courses";
+import { cleanCourseName, courseTeacher, courseTeachers, sameCourse, teacherOnCourseChange } from "@/lib/courses";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
 import { applyFeeFrom, changesAfter } from "@/lib/fees";
@@ -113,6 +113,42 @@ export async function saveStudent(
   redirect(`/students/${savedId}`);
 }
 
+/**
+ * O'qituvchi o'z o'quvchisining ma'lumotlarini tahrirlaydi: ism-familiya, telefonlar, izoh va dars jadvali.
+ * Kurs, oylik to'lov, boshlagan sana, o'qituvchi va holat (qarz va oylik hisobiga ta'sir qiladi) — faqat rahbarda.
+ */
+export async function saveStudentByTeacher(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireRole(["teacher"], { fresh: true });
+  if (!isId(id) || !session.staffId) return { error: "O‘quvchi topilmadi" };
+
+  const fullName = str(formData, "fullName").replace(/\s+/g, " ");
+  const phone = cleanPhone(str(formData, "phone"));
+  const parentPhone = cleanPhone(str(formData, "parentPhone"));
+  const note = str(formData, "note").slice(0, 1000);
+  const hasSchedule = formData.has("schedule");
+  const schedule = parseLessons(str(formData, "schedule"));
+
+  const fieldErrors: Record<string, string> = {};
+  if (fullName.length < 3) fieldErrors.fullName = "Ism-familiyani to‘liq kiriting";
+  if (fullName.length > 120) fieldErrors.fullName = "Juda uzun";
+  for (const [key, value] of [["phone", phone], ["parentPhone", parentPhone]] as const) {
+    if (value && value.replace(/\D/g, "").length < 9) fieldErrors[key] = "Telefon raqam noto‘g‘ri";
+  }
+  if ("error" in schedule) fieldErrors.schedule = schedule.error;
+  if (Object.keys(fieldErrors).length) return { fieldErrors };
+
+  await connectDB();
+  // Faqat o'ziga biriktirilgan o'quvchi
+  const res = await Student.updateOne(
+    { _id: id, teacher: session.staffId },
+    { $set: { fullName, phone, parentPhone, note, ...(hasSchedule && "lessons" in schedule ? { lessons: schedule.lessons } : {}) } },
+    { runValidators: true },
+  );
+  if (!res.matchedCount) return { error: "Bu o‘quvchi sizga biriktirilmagan" };
+  await logActivity(session, "student.edit", `O‘quvchi ma’lumotlari o‘zgartirildi: ${fullName}`);
+  redirect(`/students/${id}`);
+}
+
 /** O'quvchini va uning barcha to'lovlarini (arxivdagilari bilan) o'chiradi. */
 export async function deleteStudent(id: string, redirectTo: string | null): Promise<void> {
   const session = await requireOwner({ fresh: true });
@@ -195,7 +231,7 @@ export async function setCourseBulk(ids: string[], course: string): Promise<{ er
   let assigned = 0;
   const ops = students.map((s) => {
     const current = s.teacher ? String(s.teacher) : null;
-    const teacher = teacherOnCourseChange(current, courseTeacher(settings.courses, s.group), newTeacher);
+    const teacher = teacherOnCourseChange(current, courseTeacher(settings.courses, s.group), newTeacher, courseTeachers(settings.courses, group));
     if (teacher && teacher !== current) assigned++;
     return { updateOne: { filter: { _id: s._id }, update: { $set: { group, teacher } } } };
   });

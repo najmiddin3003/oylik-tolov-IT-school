@@ -15,7 +15,7 @@ import { ScheduleField } from "./ScheduleField";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
 
-type Course = { name: string; fee: number | null; teacher?: string | null };
+type Course = { name: string; fee: number | null; teacher?: string | null; teachers?: string[] };
 type Teacher = { id: string; name: string; status: string };
 
 export function QuickStudentButton({
@@ -91,6 +91,7 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
   const [feeTouched, setFeeTouched] = useState(false);
   // Kurs o'qituvchisi: kurs tanlanganda (o'qituvchi bo'sh yoki avvalgi kursniki bo'lsa) o'zi qo'yiladi
   const teacherOf = (name: string) => courses.find((c) => c.name === name)?.teacher ?? null;
+  const teachersOf = (name: string) => courses.find((c) => c.name === name)?.teachers ?? [];
   const [teacher, setTeacher] = useState(() => (courses.length === 1 ? (courses[0].teacher ?? "") : ""));
   const err = (k: string) => (fe[k] ? <p className="mt-1.5 text-xs text-rose-600">{fe[k]}</p> : null);
 
@@ -127,7 +128,7 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
             name="group"
             value={group}
             onChange={(v) => {
-              setTeacher((cur) => teacherOnCourseChange(cur || null, teacherOf(group), teacherOf(v)) ?? "");
+              setTeacher((cur) => teacherOnCourseChange(cur || null, teacherOf(group), teacherOf(v), teachersOf(v)) ?? "");
               setGroup(v);
               const f = courses.find((c) => c.name === v)?.fee;
               if (!feeTouched && f) setFee(formatNumber(f));
@@ -173,12 +174,18 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
             name="teacher"
             value={teacher}
             onChange={setTeacher}
-            options={[{ value: "", label: teacherOf(group) ? "Kurs o‘qituvchisi" : "Hozircha biriktirilmagan" }, ...teachers.map((t) => ({ value: t.id, label: t.name }))]}
+            options={[
+              { value: "", label: teacherOf(group) ? "Kurs o‘qituvchisi" : "Hozircha biriktirilmagan" },
+              ...teachers.map((t) => ({ value: t.id, label: t.name, hint: teachersOf(group).includes(t.id) ? "shu kurs" : undefined })),
+            ]}
             searchable={false}
             invalid={!!fe.teacher}
             aria-label="O‘qituvchisi"
           />
           {err("teacher")}
+          {teachersOf(group).length > 1 && !fe.teacher ? (
+            <p className="mt-1.5 text-xs text-amber-700">Bu kursda bir nechta o‘qituvchi bor — o‘quvchining ustozini tanlang.</p>
+          ) : null}
         </div>
       ) : null}
       <div>

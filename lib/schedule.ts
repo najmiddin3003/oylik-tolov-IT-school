@@ -219,13 +219,29 @@ export function untilLabel(minutes: number): string {
 
 // ---------- O'quvchilar ro'yxatidagi "Dars kuni" filtri ----------
 
-export type DayFilter = "" | "today" | "none" | "1" | "2" | "3" | "4" | "5" | "6" | "7";
+/** Jadval turi: toq kunlar (Du · Ch · Ju), juft kunlar (Se · Pa · Sh), har kuni (Du – Sh). */
+export type ScheduleKind = (typeof DAY_PRESETS)[number]["key"];
+
+export type DayFilter = "" | "today" | "none" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | ScheduleKind;
 
 export function parseDayFilter(v: unknown): DayFilter {
-  return typeof v === "string" && /^(today|none|[1-7])$/.test(v) ? (v as DayFilter) : "";
+  return typeof v === "string" && /^(today|none|[1-7]|toq|juft|har)$/.test(v) ? (v as DayFilter) : "";
 }
 
-/** Filtrdagi hafta kuni (bugun — joriy kun); "none" va bo'sh filtrda — null. */
+/**
+ * Jadval qaysi turga kiradi: faqat toq kunlarda (Du, Ch, Ju) — "toq", faqat juft kunlarda (Se, Pa, Sh) — "juft",
+ * dushanbadan shanbagacha har kuni — "har"; aralash yoki jadvalsiz — null.
+ */
+export function scheduleKind(lessons: Lesson[]): ScheduleKind | null {
+  const days = new Set(lessons.map((l) => l.day));
+  if (!days.size) return null;
+  if ([1, 2, 3, 4, 5, 6].every((d) => days.has(d))) return "har";
+  if ([...days].every((d) => d === 1 || d === 3 || d === 5)) return "toq";
+  if ([...days].every((d) => d === 2 || d === 4 || d === 6)) return "juft";
+  return null;
+}
+
+/** Filtrdagi hafta kuni (bugun — joriy kun); "none", jadval turi va bo'sh filtrda — null. */
 export function filterWeekday(f: DayFilter, todayWeekday: number): number | null {
   if (f === "today") return todayWeekday;
   return /^[1-7]$/.test(f) ? Number(f) : null;
@@ -234,6 +250,7 @@ export function filterWeekday(f: DayFilter, todayWeekday: number): number | null
 export function matchesDayFilter(lessons: Lesson[], f: DayFilter, todayWeekday: number): boolean {
   if (!f) return true;
   if (f === "none") return lessons.length === 0;
+  if (f === "toq" || f === "juft" || f === "har") return scheduleKind(lessons) === f;
   const wd = filterWeekday(f, todayWeekday);
   return wd !== null && lessons.some((l) => l.day === wd);
 }

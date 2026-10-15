@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
 import { isOwnerPassword, passwordVersion, requireOwner } from "@/lib/auth";
 import { assignCourseStudents } from "@/lib/course-teacher";
-import { cleanCourseName, courseKey, courseTeacher, sameCourse, type Course } from "@/lib/courses";
+import { cleanCourseName, courseKey, coursesForStorage, courseTeacher, sameCourse, type Course } from "@/lib/courses";
 import { connectDB } from "@/lib/db";
 import { normalizeUzPhone } from "@/lib/eskiz";
 import { applyFeeFrom, feeFor, type FeeChange } from "@/lib/fees";
@@ -104,10 +104,10 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
   const courses: Course[] = onlyCourse
     ? settings.courses.some((c) => sameCourse(c.name, onlyCourse))
       ? settings.courses.map((c) => (sameCourse(c.name, onlyCourse) ? { ...c, fee: fee! } : c))
-      : [...settings.courses, { name: onlyCourse, fee: fee!, teacher: null }]
+      : [...settings.courses, { name: onlyCourse, fee: fee!, teachers: [] }]
     : settings.courses;
   await updateSettings({
-    $set: { defaultFee: base, feeSchedule: schedule, ...(onlyCourse ? { courses } : {}) },
+    $set: { defaultFee: base, feeSchedule: schedule, ...(onlyCourse ? { courses: coursesForStorage(courses) } : {}) },
     $push: { feeChanges: { $each: [{ from, fee, count: ops.length, at: new Date() }], $slice: -30 } },
   });
   const target = onlyCourse ? `«${onlyCourse}» kursiga` : onlyFee !== null ? `hozir ${formatMoney(onlyFee)} to‘layotganlarga` : "barcha o‘quvchilarga";
@@ -278,17 +278,17 @@ export async function saveCourses(_prev: FormState, fd: FormData): Promise<FormS
   const prevNames: string[] = [];
   const seen = new Set<string>();
   raw.forEach((item, i) => {
-    const r = (item ?? {}) as { name?: unknown; fee?: unknown; prev?: unknown; teacher?: unknown };
+    const r = (item ?? {}) as { name?: unknown; fee?: unknown; prev?: unknown; teachers?: unknown };
     const name = cleanCourseName(String(r.name ?? ""));
     const feeText = String(r.fee ?? "").trim();
     const fee = feeText ? parseAmount(feeText) : null;
-    const teacher = String(r.teacher ?? "").trim();
+    const teachers = Array.isArray(r.teachers) ? [...new Set(r.teachers.map((t) => String(t ?? "").trim()).filter(Boolean))].slice(0, 20) : [];
     if (name.length < 2) fieldErrors[`name-${i}`] = "Kurs nomini kiriting";
     else if (seen.has(courseKey(name))) fieldErrors[`name-${i}`] = "Bu nom takrorlangan";
     if (feeText && (fee === null || fee <= 0 || fee > 100_000_000)) fieldErrors[`fee-${i}`] = "Narx noto‘g‘ri";
-    if (teacher && !isId(teacher)) fieldErrors[`teacher-${i}`] = "O‘qituvchi topilmadi";
+    if (teachers.some((t) => !isId(t))) fieldErrors[`teacher-${i}`] = "O‘qituvchi topilmadi";
     seen.add(courseKey(name));
-    courses.push({ name, fee: fee && fee > 0 ? fee : null, teacher: teacher || null });
+    courses.push({ name, fee: fee && fee > 0 ? fee : null, teachers });
     const prev = cleanCourseName(String(r.prev ?? ""));
     prevNames.push(prev || name);
     if (prev && name.length >= 2 && !sameCourse(prev, name)) renames.push({ from: prev, to: name });
@@ -298,13 +298,13 @@ export async function saveCourses(_prev: FormState, fd: FormData): Promise<FormS
 
   await connectDB();
   // Kurs o'qituvchisi faqat o'qituvchi lavozimidagi xodim bo'la oladi
-  const teacherIds = [...new Set(courses.flatMap((c) => (c.teacher ? [c.teacher] : [])))];
+  const teacherIds = [...new Set(courses.flatMap((c) => c.teachers))];
   const teacherDocs = teacherIds.length
     ? await Staff.find({ _id: { $in: teacherIds }, role: "teacher" }, { name: 1 }).lean<{ _id: unknown; name: string }[]>()
     : [];
   const teacherName = new Map(teacherDocs.map((t) => [String(t._id), t.name]));
   courses.forEach((c, i) => {
-    if (c.teacher && !teacherName.has(c.teacher)) fieldErrors[`teacher-${i}`] = "O‘qituvchi topilmadi — sahifani yangilang";
+    if (c.teachers.some((t) => !teacherName.has(t))) fieldErrors[`teacher-${i}`] = "O‘qituvchi topilmadi — sahifani yangilang";
   });
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
@@ -321,14 +321,16 @@ export async function saveCourses(_prev: FormState, fd: FormData): Promise<FormS
       moved = ops.length;
     }
   }
-  await updateSettings({ $set: { courses } });
+  await updateSettings({ $set: { courses: coursesForStorage(courses) } });
 
-  // Kurs o'qituvchisi: kursdagi o'qituvchisiz o'quvchilar (va o'qituvchi almashgan bo'lsa — avvalgisining o'quvchilari) unga o'tadi
+  // Kursda yagona o'qituvchi bo'lsa: kursdagi o'qituvchisiz o'quvchilar (va yagona o'qituvchi almashgan bo'lsa — avvalgisining
+  // o'quvchilari) unga o'tadi. Bir nechta o'qituvchi bo'lsa — o'quvchilar o'zgarmaydi (ustoz qo'lda tanlanadi).
   let assigned = 0;
   for (const [i, c] of courses.entries()) {
-    if (!c.teacher) continue;
+    const sole = courseTeacher(courses, c.name);
+    if (!sole) continue;
     const previous = courseTeacher(before.courses, prevNames[i]);
-    assigned += await assignCourseStudents(c.name, c.teacher, previous !== c.teacher ? previous : null);
+    assigned += await assignCourseStudents(c.name, sole, previous !== sole ? previous : null);
   }
 
   const notes = [
@@ -336,7 +338,7 @@ export async function saveCourses(_prev: FormState, fd: FormData): Promise<FormS
     assigned ? `${assigned} ta o‘quvchi kurs o‘qituvchisiga biriktirildi` : "",
   ].filter(Boolean);
   const describe = (c: Course) => {
-    const extra = [c.fee ? formatMoney(c.fee) : "", c.teacher ? (teacherName.get(c.teacher) ?? "") : ""].filter(Boolean);
+    const extra = [c.fee ? formatMoney(c.fee) : "", c.teachers.map((t) => teacherName.get(t) ?? "").filter(Boolean).join(" va ")].filter(Boolean);
     return extra.length ? `${c.name} (${extra.join(", ")})` : c.name;
   };
   await logActivity(session, "settings.courses", `Kurslar: ${courses.map(describe).join(", ")}${notes.length ? ` · ${notes.join(" · ")}` : ""}`);

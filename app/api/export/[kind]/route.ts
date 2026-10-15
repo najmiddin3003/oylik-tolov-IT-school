@@ -6,6 +6,7 @@ import {
   getTeamOverview,
   listPayments,
   listStudents,
+  parseStudentTab,
   type PayStatus,
   type StudentSort,
   type StudentTab,
@@ -166,7 +167,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
 
   if (kind === "oquvchilar") {
     const status = p("status") === "inactive" || p("status") === "all" ? (p("status") as "inactive" | "all") : "active";
-    const tab: StudentTab = p("tab") === "debt" || p("tab") === "paid" ? (p("tab") as StudentTab) : "all";
+    const tab: StudentTab = parseStudentTab(p("tab"));
     const { rows } = await listStudents({
       q: p("q"),
       group: p("group"),

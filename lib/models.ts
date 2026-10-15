@@ -97,7 +97,17 @@ const settingSchema = new Schema(
      * (shu kurs o'quvchilari unga biriktiriladi). Maydon yo'q — standart ro'yxat
      */
     courses: {
-      type: [{ name: String, fee: Number, teacher: { type: Schema.Types.ObjectId, ref: "Staff", default: null }, _id: false }],
+      type: [
+        {
+          name: String,
+          fee: Number,
+          /** Kurs o'qituvchilari (bir nechta bo'lishi mumkin) */
+          teachers: { type: [{ type: Schema.Types.ObjectId, ref: "Staff" }], default: [] },
+          /** Eski versiya uchun: yagona o'qituvchi (o'qituvchi bitta bo'lsa — o'sha, aks holda bo'sh) */
+          teacher: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
+          _id: false,
+        },
+      ],
       default: undefined,
     },
     /** Yoqib-o'chiriladigan imkoniyatlar (rahbar Sozlamalar → Funksiyalar bo'limida) */
