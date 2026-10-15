@@ -7,7 +7,7 @@ import type { AmountChange, PercentChange } from "./fees";
 import { Staff } from "./models";
 import { fingerprint } from "./passwords";
 import type { Role } from "./session";
-import type { ShareBase, StaffStatus } from "./staff-rules";
+import { ownerPhone, type ShareBase, type StaffStatus } from "./staff-rules";
 
 export type StaffLean = {
   _id: mongoose.Types.ObjectId;
@@ -83,6 +83,25 @@ export const getStaffById = cache(async (id: string): Promise<StaffLean | null> 
 export async function findStaffByPhone(phone: string): Promise<StaffLean | null> {
   await connectDB();
   return Staff.findOne({ phone }).lean<StaffLean>();
+}
+
+/**
+ * Rahbarning birinchi kirishi: rahbar profili hali umuman yo'q bo'lsa va kiritilgan raqam rahbarniki (OWNER_PHONE)
+ * bo'lsa — profil «ro'yxatdan o'tmagan» holatda yaratiladi, keyin odatdagidek SMS kod bilan o'zi parol qo'yadi.
+ * Rahbar profili bor bo'lsa (yoki raqam boshqa xodimniki) — hech narsa qilinmaydi. Yaratilgan bo'lsa — true.
+ */
+export async function ensureOwnerInvite(phone: string): Promise<boolean> {
+  if (phone !== ownerPhone(process.env.OWNER_PHONE)) return false;
+  await connectDB();
+  if (await Staff.exists({ $or: [{ role: "owner" }, { phone }] })) return false;
+  try {
+    await Staff.create({ name: "Rahbar", phone, role: "owner", status: "invited", shareBase: "center" });
+    return true;
+  } catch (err) {
+    // Bir vaqtda ikki so'rov kelgan bo'lsa — birinchisi yaratgan (telefon noyob)
+    if ((err as { code?: number }).code === 11000) return false;
+    throw err;
+  }
 }
 
 /** Qaysi rollarda faol xodim profili bor (eski umumiy parollarni o'chirish uchun). */

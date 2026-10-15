@@ -12,9 +12,11 @@ import {
 } from "../lib/otp-code";
 import { formatUzPhone, normalizeUzPhone } from "../lib/phone";
 import {
+  DEFAULT_OWNER_PHONE,
   defaultPercent,
   defaultShareBase,
   fixedPayOf,
+  ownerPhone,
   legacyLoginAllowed,
   parsePercent,
   payKindOf,
@@ -59,6 +61,15 @@ test("sessiya tokeni: xodim ID si bilan", async () => {
   assert.equal(await readSessionToken(await createSessionToken("teacher", "pv-3")), null);
   // eski umumiy parol sessiyasi (xodim ID sisiz)
   assert.deepEqual(await readSessionToken(await createSessionToken("admin", "pv-4")), { role: "admin", pv: "pv-4" });
+});
+
+test("rahbar raqami (birinchi kirishda profil o'zi yaratiladi)", () => {
+  assert.equal(DEFAULT_OWNER_PHONE, "998941761405");
+  assert.equal(normalizeUzPhone("94 176 14 05"), DEFAULT_OWNER_PHONE);
+  assert.equal(ownerPhone(undefined), DEFAULT_OWNER_PHONE);
+  assert.equal(ownerPhone(""), DEFAULT_OWNER_PHONE);
+  assert.equal(ownerPhone("+998 90 123 45 67"), "998901234567", "OWNER_PHONE bilan almashtirish");
+  assert.equal(ownerPhone("123"), DEFAULT_OWNER_PHONE, "noto'g'ri qiymat — standart");
 });
 
 test("eski umumiy parol faqat o'tish davrida", () => {

@@ -46,7 +46,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
         target = { role: staff.role, pv: staffPasswordVersion(sid, staff.passwordHash), sid };
         await Staff.updateOne({ _id: staff._id }, { $set: { lastLoginAt: new Date() } });
       } else if (staff?.status === "invited") {
-        error = "Siz hali ro‘yxatdan o‘tmagansiz: «Ro‘yxatdan o‘tish» orqali SMS kod bilan parol yarating.";
+        error = "Siz hali ro‘yxatdan o‘tmagansiz: telefon raqamingizni kiritib «Davom etish»ni bosing — SMS kod keladi.";
       } else if (staff?.status === "disabled") {
         error = "Kirishingiz o‘chirilgan. Rahbarga murojaat qiling.";
       } else {
@@ -88,10 +88,11 @@ export async function logout() {
   redirect("/login");
 }
 
-// ---------- Ro'yxatdan o'tish / parolni tiklash (SMS kod) ----------
+// ---------- Ro'yxatdan o'tish (birinchi kirish) / parolni tiklash (SMS kod) ----------
 
 export type CodeState = {
-  step: "phone" | "code";
+  /** phone — raqam kiritish; code — SMS kod va yangi parol; password — ro'yxatdan o'tgan xodim, parol so'raladi (kirish sahifasi) */
+  step: "phone" | "code" | "password";
   phone?: string;
   /** Kimga: ro'yxatdan o'tish yoki parolni tiklash */
   purpose?: "activate" | "reset";
@@ -131,6 +132,26 @@ export async function requestCode(prev: CodeState, formData: FormData): Promise<
     console.error("[otp]", err);
     return { step: "phone", phone: raw, error: "Ma’lumotlar bazasiga ulanib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring." };
   }
+}
+
+/**
+ * Kirish (1-qadam): telefon raqam. Ro'yxatdan o'tgan xodimdan parol so'raladi; birinchi marta kirayotgan (hali parol
+ * qo'ymagan) xodimga — SMS kod yuboriladi va parol qo'yish oynasi ochiladi. Keyingi safar — faqat o'z paroli bilan.
+ */
+export async function checkLoginPhone(prev: CodeState, formData: FormData): Promise<CodeState> {
+  const raw = String(formData.get("phone") ?? "").slice(0, 40);
+  const phone = normalizeUzPhone(raw);
+  if (!phone) return { step: "phone", phone: raw, error: "Telefon raqamni to‘liq kiriting, masalan: 90 123 45 67" };
+  try {
+    const staff = await findStaffByPhone(phone);
+    if (staff?.status === "active" && staff.passwordHash) return { step: "password", phone };
+    if (staff?.status === "disabled") return { step: "phone", phone: raw, error: "Kirishingiz o‘chirilgan. Rahbarga murojaat qiling." };
+  } catch (err) {
+    console.error("[login]", err);
+    return { step: "phone", phone: raw, error: "Ma’lumotlar bazasiga ulanib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring." };
+  }
+  // Birinchi marta: SMS kod (raqam xodimlar ro'yxatida bo'lmasa — xato qaytadi)
+  return requestCode(prev, formData);
 }
 
 export async function verifyCode(prev: CodeState, formData: FormData): Promise<CodeState> {

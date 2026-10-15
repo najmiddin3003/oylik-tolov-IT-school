@@ -35,10 +35,10 @@ export function StaffHelpButton() {
               Siz uni «Xodimlar» sahifasida telefon raqami bilan qo‘shasiz.
             </Step>
             <Step icon={Smartphone} n={2}>
-              U saytda <b className="font-semibold text-ink-800">«Ro‘yxatdan o‘tish»</b> ni bosib, telefon raqamini kiritadi — raqamiga SMS kod keladi.
+              U kirish sahifasida telefon raqamini kiritadi — <b className="font-semibold text-ink-800">birinchi marta</b> raqamiga SMS kod keladi.
             </Step>
             <Step icon={KeyRound} n={3}>
-              Kodni kiritib, o‘zi parol yaratadi. Keyin telefon raqami va paroli bilan kiradi. Parolni unutsa — «Parolni unutdingizmi?» orqali tiklaydi.
+              Kodni kiritib, o‘zi parol qo‘yadi. Keyingi safar SMS kelmaydi — telefon raqami va o‘z paroli bilan kiradi. Parolni unutsa — «Parolni unutdingizmi?» orqali tiklaydi.
             </Step>
           </ol>
           <Link

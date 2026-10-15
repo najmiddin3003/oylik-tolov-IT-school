@@ -86,7 +86,7 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
             {staff.status === "active" ? (
               <ConfirmAction
                 action={setStaffAccess.bind(null, staff.id, "reset")}
-                confirmText={`${staff.name}ning paroli bekor qilinsinmi? U qayta «Ro‘yxatdan o‘tish» orqali SMS kod bilan yangi parol yaratadi.`}
+                confirmText={`${staff.name}ning paroli bekor qilinsinmi? Keyingi kirishda telefon raqamini kiritadi — SMS kod keladi va yangi parol qo‘yadi.`}
                 className={btn.outline}
                 pendingText="…"
               >
@@ -113,8 +113,8 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3.5 text-sm leading-relaxed text-amber-900 sm:px-5">
           <KeyRound className="mt-0.5 size-[18px] shrink-0 text-amber-600" aria-hidden />
           <span>
-            {staff.name} hali ro‘yxatdan o‘tmagan. Unga ayting: saytda <b className="font-semibold">«Ro‘yxatdan o‘tish»</b> ni bosib, {formatUzPhone(staff.phone)} raqamini kiritsin —
-            SMS kod keladi, so‘ng o‘zi parol yaratadi.
+            {staff.name} hali ro‘yxatdan o‘tmagan. Unga ayting: kirish sahifasida <b className="font-semibold">{formatUzPhone(staff.phone)}</b> raqamini kiritsin — birinchi
+            marta SMS kod keladi, so‘ng o‘zi parol qo‘yadi.
           </span>
         </div>
       ) : null}

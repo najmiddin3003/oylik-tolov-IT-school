@@ -1,7 +1,19 @@
 // Xodimlar: rollar nomi, oylik foizi va sessiya barmoq izi (sof funksiyalar — server, brauzer va testlarda).
 // Brauzerda ham ishlatiladi — node:crypto ga bog'liq narsa bu yerda yo'q.
 import { amountFor, percentFor, type AmountChange, type PercentChange } from "./fees";
+import { normalizeUzPhone } from "./phone";
 import type { Role } from "./session";
+
+/**
+ * Rahbarning telefon raqami: rahbar profili hali umuman yo'q bo'lsa, shu raqam kirish sahifasida birinchi marta
+ * kiritilganda profil o'zi yaratiladi va SMS kod yuboriladi. Vercel'da OWNER_PHONE bilan almashtirsa bo'ladi.
+ */
+export const DEFAULT_OWNER_PHONE = "998941761405";
+
+/** Rahbar raqami: OWNER_PHONE (to'g'ri bo'lsa) yoki standart. */
+export function ownerPhone(envValue: string | undefined): string {
+  return normalizeUzPhone(envValue ?? "") ?? DEFAULT_OWNER_PHONE;
+}
 
 export type StaffStatus = "invited" | "active" | "disabled";
 export type ShareBase = "students" | "center";

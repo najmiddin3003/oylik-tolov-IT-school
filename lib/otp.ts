@@ -17,7 +17,7 @@ import {
   renderOtpText,
 } from "./otp-code";
 import { getSettings } from "./settings";
-import { findStaffByPhone, type StaffLean } from "./staff";
+import { ensureOwnerInvite, findStaffByPhone, type StaffLean } from "./staff";
 
 export type OtpPurpose = "activate" | "reset";
 
@@ -35,7 +35,9 @@ function devMode(): boolean {
 
 export async function sendOtp(phone: string, ip: string): Promise<SendOtpResult> {
   await connectDB();
-  const staff = await findStaffByPhone(phone);
+  let staff = await findStaffByPhone(phone);
+  // Rahbarning birinchi kirishi: profili hali yo'q bo'lsa — shu yerda yaratiladi (faqat rahbar raqami uchun)
+  if (!staff && (await ensureOwnerInvite(phone))) staff = await findStaffByPhone(phone);
   if (!staff) {
     return { ok: false, error: "Bu raqam xodimlar ro‘yxatida yo‘q. Rahbar sizni «Xodimlar» bo‘limida qo‘shgan bo‘lishi kerak." };
   }

@@ -86,7 +86,7 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
   refresh();
   return {
     ok: true,
-    message: `${name} (${ROLE_LABEL[role as Role]}) qo‘shildi.${courseNote ? ` ${courseNote}.` : ""} Endi u saytda «Ro‘yxatdan o‘tish» bosib, ${formatUzPhone(phone!)} raqamiga kelgan SMS kod bilan parol yaratadi.`,
+    message: `${name} (${ROLE_LABEL[role as Role]}) qo‘shildi.${courseNote ? ` ${courseNote}.` : ""} Endi u kirish sahifasida ${formatUzPhone(phone!)} raqamini kiritadi — birinchi marta SMS kod keladi va o‘zi parol qo‘yadi.`,
     nonce: Date.now(),
   };
 }

@@ -44,10 +44,13 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
   - O‘quvchini o‘qituvchiga biriktirish — o‘quvchi formasidagi «O‘qituvchisi» maydoni yoki «O‘quvchilar» ro‘yxatida belgilab,
     «O‘qituvchi» tugmasi bilan (bir nechtasiga birdan).
-  - **Ro‘yxatdan o‘tish SMS bilan:** rahbar xodimni telefon raqami bilan qo‘shadi → xodim saytda «Ro‘yxatdan o‘tish» ni bosib
-    raqamini kiritadi → raqamiga 6 xonali kod keladi → kodni kiritib o‘zi parol yaratadi. Parolni unutsa — «Parolni
-    unutdingizmi?», yo‘li xuddi shunday. Kod 10 daqiqa amal qiladi, 5 marta xato kiritilsa bekor bo‘ladi, qayta yuborish —
-    1 daqiqadan keyin (bir raqamga kuniga ko‘pi bilan 5 ta). Bazada kodning o‘zi emas, faqat izi saqlanadi; parollar — scrypt.
+  - **Birinchi kirish SMS bilan:** rahbar xodimni telefon raqami bilan qo‘shadi → xodim kirish sahifasida raqamini kiritadi →
+    birinchi marta raqamiga 6 xonali kod keladi → kodni kiritib o‘zi parol qo‘yadi. Keyingi safar SMS kelmaydi — raqam va
+    o‘z paroli bilan kiradi. Parolni unutsa — «Parolni unutdingizmi?», yo‘li xuddi shunday. Kod 10 daqiqa amal qiladi,
+    5 marta xato kiritilsa bekor bo‘ladi, qayta yuborish — 1 daqiqadan keyin (bir raqamga kuniga ko‘pi bilan 5 ta). Bazada
+    kodning o‘zi emas, faqat izi saqlanadi; parollar — scrypt.
+  - **Rahbarning birinchi kirishi:** rahbar profili hali yo‘q bo‘lsa, rahbar raqami (`OWNER_PHONE`, standart — 94 176 14 05)
+    kirish sahifasida kiritilganda profil o‘zi yaratiladi va SMS kod yuboriladi; boshqa notanish raqamlar uchun — xato.
   - Bir marta kirilsa — 30 kun eslab qolinadi. Parol almashsa, kirishi o‘chirilsa yoki lavozimi o‘zgarsa — eski sessiyalar
     avtomatik bekor bo‘ladi.
 - **To‘lovlar** sahifasi: oy rejasi (bajarilish foizi bilan), tushgan summa, qolgan qarz (bosilsa — to‘lamaganlar ro‘yxati).
@@ -184,7 +187,7 @@ xodimlarni ulab olish uchun. Tartib:
 3. O'quvchilarni o'qituvchilarga biriktiring (O'quvchilar → belgilash → «O'qituvchi»). «Xodimlar» sahifasi biriktirilmaganlar
    sonini ko'rsatib turadi.
 4. Eskiz'da tasdiqlash kodi matnini tasdiqlating (yuqoridagi 4-qadam).
-5. Har xodim saytda «Ro'yxatdan o'tish» → telefon → SMS kod → o'z paroli.
+5. Har xodim kirish sahifasida telefon raqamini kiritadi → birinchi marta SMS kod → o'z paroli (keyingi safar — faqat parol).
 6. Rahbar ro'yxatdan o'tgach — rahbarning umumiy paroli, administrator ro'yxatdan o'tgach — administratorning umumiy paroli
    o'z-o'zidan o'chadi; keyin hamma faqat telefon raqami va o'z paroli bilan kiradi.
 
