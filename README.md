@@ -40,8 +40,8 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     kurs o‘qituvchisini o‘zi qo‘yadi. Kurs o‘qituvchisi almashsa, avvalgisining shu kursdagi o‘quvchilari yangisiga o‘tadi;
     boshqa o‘qituvchiga alohida biriktirilganlar o‘zgarmaydi.
   - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
-    administrator va rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). Foiz «falon oydan boshlab» o‘zgaradi —
-    o‘tgan oylar o‘zgarmaydi.
+    rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). **Administratorda foiz yo‘q — belgilangan oylik**
+    (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
   - O‘quvchini o‘qituvchiga biriktirish — o‘quvchi formasidagi «O‘qituvchisi» maydoni yoki «O‘quvchilar» ro‘yxatida belgilab,
     «O‘qituvchi» tugmasi bilan (bir nechtasiga birdan).
   - **Ro‘yxatdan o‘tish SMS bilan:** rahbar xodimni telefon raqami bilan qo‘shadi → xodim saytda «Ro‘yxatdan o‘tish» ni bosib

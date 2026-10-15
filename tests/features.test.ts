@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { allocateAmount } from "../lib/allocate";
 import { formatUzPhone, normalizeUzPhone } from "../lib/eskiz";
-import { applyFeeFrom, applyPercentFrom, changesAfter, feeFor, percentFor } from "../lib/fees";
+import { amountFor, applyAmountFrom, applyFeeFrom, applyPercentFrom, changesAfter, feeFor, percentFor } from "../lib/fees";
 import { fingerprint, hashPassword, safeEqualText, verifyPassword } from "../lib/passwords";
 import { dayLabel, daysInMonth, daysLeftInMonth, monthEndReminderActive, normalizeStartDay, renderSmsText, smsCandidateMonths, templateHasCount } from "../lib/reminders";
 
@@ -180,4 +180,22 @@ test("sessiya tokeni: rol va parol izi", async () => {
   assert.equal(adminCanAccess("/students"), false);
   assert.equal(adminCanAccess("/settings"), false);
   assert.equal(adminCanAccess("/api/export/hisobot"), false);
+});
+
+test("amountFor / applyAmountFrom (belgilangan oylik)", () => {
+  assert.equal(amountFor([], "2026-10", 0), 0);
+  const h = applyAmountFrom([], "2026-10", 3_000_000);
+  assert.equal(amountFor(h, "2026-09", 0), 0);
+  assert.equal(amountFor(h, "2026-10", 0), 3_000_000);
+  // Keyinroq oydan oshirish: undan oldingi oylar o'zgarmaydi
+  const h2 = applyAmountFrom(h, "2027-01", 3_500_000);
+  assert.equal(amountFor(h2, "2026-12", 0), 3_000_000);
+  assert.equal(amountFor(h2, "2027-01", 0), 3_500_000);
+  // Oldingi oydan qayta belgilansa — undan keyingi eski o'zgarishlar bekor bo'ladi
+  const h3 = applyAmountFrom(h2, "2026-11", 2_800_000);
+  assert.deepEqual(h3, [
+    { from: "2026-10", amount: 3_000_000 },
+    { from: "2026-11", amount: 2_800_000 },
+  ]);
+  assert.equal(amountFor(h3, "2027-05", 0), 2_800_000);
 });

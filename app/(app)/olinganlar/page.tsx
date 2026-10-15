@@ -7,6 +7,7 @@ import { ConfirmAction } from "@/components/SubmitButton";
 import { btn, Card, cx, EmptyState, IconTile, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
 import { getMySalaryHistory } from "@/lib/data";
+import { payLabel } from "@/lib/staff-rules";
 import { currentMonth, formatDate, formatMoney, formatNumber, monthLabel, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Olingan avans/oylik" };
@@ -48,7 +49,7 @@ async function MySalaries() {
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
-        <MiniStat label={`${monthLabel(now.month)}: oylik (${now.pay.percent}%)`} value={formatMoney(now.pay.share)} icon={PiggyBank} tone="brand" />
+        <MiniStat label={`${monthLabel(now.month)}: ${payLabel(now.pay).toLowerCase()}`} value={formatMoney(now.pay.share)} icon={PiggyBank} tone="brand" />
         <MiniStat label={`${monthLabel(now.month)}: olindi`} value={formatMoney(now.pay.taken)} icon={HandCoins} tone="orange" />
         <MiniStat
           label={`${monthLabel(now.month)}: qoldi`}
@@ -82,7 +83,7 @@ async function MySalaries() {
                   <div>
                     <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">{monthLabel(m.month)}</h2>
                     <p className="num mt-0.5 text-sm text-ink-500">
-                      Oylik ({m.pay.percent}%) {formatMoney(m.pay.share)} · olindi {formatMoney(m.pay.taken)}
+                      {payLabel(m.pay)} {formatMoney(m.pay.share)} · olindi {formatMoney(m.pay.taken)}
                     </p>
                   </div>
                   <span

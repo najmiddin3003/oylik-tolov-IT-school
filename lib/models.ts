@@ -249,6 +249,8 @@ const staffSchema = new Schema(
     shareHistory: { type: [{ from: String, percent: Number, _id: false }], default: [] },
     /** Foiz nimadan olinadi: o'z o'quvchilari to'lovlaridan yoki butun markaz tushumidan */
     shareBase: { type: String, enum: ["students", "center"], default: "students" },
+    /** Belgilangan oylik (administrator): har oy shu summa, "from" oyidan boshlab */
+    salaryHistory: { type: [{ from: String, amount: Number, _id: false }], default: [] },
     activatedAt: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
     /** Shaxsiy sozlamalar: Google Sheets ogohlantiruvini ko'rsatish (maydon yo'q — ko'rsatiladi) */

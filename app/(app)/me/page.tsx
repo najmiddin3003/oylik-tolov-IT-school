@@ -9,7 +9,7 @@ import { btn, Card, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Tag, typ
 import { pageGuard } from "@/lib/auth";
 import { getMyActivity, getMyProfile } from "@/lib/data";
 import { formatUzPhone } from "@/lib/phone";
-import { ROLE_LABEL, staffInitials } from "@/lib/staff-rules";
+import { payLabel, ROLE_LABEL, staffInitials } from "@/lib/staff-rules";
 import { currentMonth, formatDate, formatMoney, isValidMonth, monthLabel } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Profilim" };
@@ -51,6 +51,7 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
 
   const { staff, pay } = me;
   const isOwner = staff.role === "owner";
+  const fixed = pay.kind === "fixed";
   const showPay = staff.role !== "owner" || pay.percent > 0 || me.salaries.length > 0;
 
   return (
@@ -84,11 +85,15 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
                 icon={PiggyBank}
                 tone="emerald"
                 title={`Mening oyligim — ${monthLabel(month)}`}
-                subtitle={`${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz to‘lagan pullardan"} ${pay.percent}%. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring.`}
+                subtitle={
+                  fixed
+                    ? `${pay.share ? "Belgilangan oylik — har oy bir xil summa." : "Oylik hali belgilanmagan — rahbar «Xodimlar» bo‘limida belgilaydi."} Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring.`
+                    : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz to‘lagan pullardan"} ${pay.percent}%. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring.`
+                }
               />
-              <div className="mb-6 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-                <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilarim tushumi"} value={formatMoney(pay.base)} />
-                <Figure label={`Oylik (${pay.percent}%)`} value={formatMoney(pay.share)} tone="brand" />
+              <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
+                {fixed ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilarim tushumi"} value={formatMoney(pay.base)} />}
+                <Figure label={payLabel(pay)} value={formatMoney(pay.share)} tone="brand" />
                 <Figure label="Olindi (oylik/avans)" value={`− ${formatMoney(pay.taken)}`} tone="amber" />
                 <Figure label="Qoldi" value={formatMoney(pay.left)} tone={pay.left < 0 ? "rose" : "emerald"} strong />
               </div>

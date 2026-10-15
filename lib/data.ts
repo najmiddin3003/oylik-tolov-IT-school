@@ -38,7 +38,7 @@ import {
 } from "./schedule";
 import { getSettings, standardFee } from "./settings";
 import type { Role } from "./session";
-import { activeStaffRoles, getStaffById, listStaff, listTeachers, shareHistoryOf, teacherNames, toStaffView, type StaffView } from "./staff";
+import { activeStaffRoles, getStaffById, listStaff, listTeachers, salaryHistoryOf, shareHistoryOf, teacherNames, toStaffView, type StaffView } from "./staff";
 import type { StaffStatus } from "./staff-rules";
 import { latestTasksByMonth, tasksFor, type TaskRow } from "./tasks";
 import { compareMonths, currentMonth, isoToDate, monthOfDate, nowMs, shiftMonth, todayISO } from "./time";
@@ -916,6 +916,8 @@ export async function getStaffDetail(id: string, month: string) {
     salaries: salaries.get(id) ?? [],
     students: mine.length,
     shareHistory: [...shareHistoryOf(doc)].sort((a, b) => compareMonths(b.from, a.from)),
+    /** Belgilangan oylik tarixi (administrator) — eng yangisi tepada */
+    salaryHistory: [...salaryHistoryOf(doc)].sort((a, b) => compareMonths(b.from, a.from)),
   };
 }
 

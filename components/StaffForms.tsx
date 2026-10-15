@@ -6,8 +6,8 @@ import { ArrowRightLeft, Check, Percent, UserPlus } from "lucide-react";
 import { addStaff, assignLegacyPay } from "@/app/actions/staff";
 import type { FormState } from "@/app/actions/types";
 import type { Role } from "@/lib/session";
-import { defaultPercent, ROLE_HINT, ROLE_LABEL } from "@/lib/staff-rules";
-import { PhoneInput } from "./inputs";
+import { defaultPercent, payKindOf, ROLE_HINT, ROLE_LABEL } from "@/lib/staff-rules";
+import { MoneyInput, PhoneInput } from "./inputs";
 import { Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
@@ -38,7 +38,7 @@ const ROLE_OPTIONS = (["teacher", "admin", "owner"] as Role[]).map((r) => ({ val
 
 type CourseChoice = { name: string; teacherName: string | null };
 
-/** Yangi xodim: ism, telefon, lavozim, oylik foizi; o'qituvchi uchun — kursi. */
+/** Yangi xodim: ism, telefon, lavozim, oyligi (foiz yoki administratorda — belgilangan summa); o'qituvchi uchun — kursi. */
 export function StaffAddForm({ courses = [] }: { courses?: CourseChoice[] }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(addStaff, {});
   return (
@@ -93,27 +93,36 @@ function StaffAddFields({ fe, courses }: { fe: Record<string, string>; courses: 
           />
           <p className="mt-1.5 text-xs leading-relaxed text-ink-400">{ROLE_HINT[role]}</p>
         </div>
-        <div>
-          <label htmlFor="st-percent" className={labelCls}>
-            Oylik foizi
-          </label>
-          <div className="relative">
-            <input
-              id="st-percent"
-              name="percent"
-              inputMode="decimal"
-              value={percent}
-              onChange={(e) => setPercent(e.target.value.replace(/[^\d.,]/g, "").slice(0, 6))}
-              className={cx(inputCls, "num pr-10")}
-              aria-invalid={!!fe.percent}
-            />
-            <Percent className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-400" aria-hidden />
+        {payKindOf(role) === "fixed" ? (
+          <div>
+            <label htmlFor="st-salary" className={labelCls}>
+              Oylik
+            </label>
+            <MoneyInput id="st-salary" name="salary" placeholder="Har oylik summa" maxDigits={9} invalid={!!fe.salary} />
+            <p className="mt-1.5 text-xs leading-relaxed text-ink-400">Har oy belgilangan summa, shu oydan boshlab</p>
+            <FieldError msg={fe.salary} />
           </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
-            {role === "teacher" ? "O‘z o‘quvchilari to‘lovlaridan" : role === "admin" ? "Butun markaz tushumidan (0 — hisoblanmaydi)" : "Odatda 0"}
-          </p>
-          <FieldError msg={fe.percent} />
-        </div>
+        ) : (
+          <div>
+            <label htmlFor="st-percent" className={labelCls}>
+              Oylik foizi
+            </label>
+            <div className="relative">
+              <input
+                id="st-percent"
+                name="percent"
+                inputMode="decimal"
+                value={percent}
+                onChange={(e) => setPercent(e.target.value.replace(/[^\d.,]/g, "").slice(0, 6))}
+                className={cx(inputCls, "num pr-10")}
+                aria-invalid={!!fe.percent}
+              />
+              <Percent className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-400" aria-hidden />
+            </div>
+            <p className="mt-1.5 text-xs leading-relaxed text-ink-400">{role === "teacher" ? "O‘z o‘quvchilari to‘lovlaridan" : "Odatda 0"}</p>
+            <FieldError msg={fe.percent} />
+          </div>
+        )}
       </div>
       {role === "teacher" && courses.length ? (
         <div>
@@ -163,6 +172,7 @@ export function StaffEditForm({
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(action, {});
   const fe = state.fieldErrors ?? {};
+  const [roleNow, setRoleNow] = useState<Role>(role);
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
       <div>
@@ -181,22 +191,39 @@ export function StaffEditForm({
               <p className="flex h-11 items-center rounded-xl border border-line bg-slate-50 px-3.5 text-[15px] text-ink-600">{ROLE_LABEL[role]} (o‘zingiz)</p>
             </>
           ) : (
-            <Select name="role" defaultValue={role} options={ROLE_OPTIONS} searchable={false} aria-label="Lavozimi" invalid={!!fe.role} />
+            <Select
+              name="role"
+              value={roleNow}
+              onChange={(v) => setRoleNow(v as Role)}
+              options={ROLE_OPTIONS}
+              searchable={false}
+              aria-label="Lavozimi"
+              invalid={!!fe.role}
+            />
           )}
         </div>
-        <div>
-          <span className={labelCls}>Oylik foizi nimadan</span>
-          <Select
-            name="shareBase"
-            defaultValue={shareBase}
-            searchable={false}
-            aria-label="Oylik foizi nimadan"
-            options={[
-              { value: "students", label: "O‘z o‘quvchilari to‘lovlaridan" },
-              { value: "center", label: "Butun markaz tushumidan" },
-            ]}
-          />
-        </div>
+        {payKindOf(roleNow) === "fixed" ? (
+          <div>
+            {/* Administratorga oylik foizda emas, belgilangan summada — foiz asosi kerak emas (o'zgarmasdan saqlanadi) */}
+            <input type="hidden" name="shareBase" value={shareBase} />
+            <span className={labelCls}>Oylik turi</span>
+            <p className="flex h-11 items-center rounded-xl border border-line bg-slate-50 px-3.5 text-[15px] text-ink-600">Belgilangan oylik</p>
+          </div>
+        ) : (
+          <div>
+            <span className={labelCls}>Oylik foizi nimadan</span>
+            <Select
+              name="shareBase"
+              defaultValue={shareBase}
+              searchable={false}
+              aria-label="Oylik foizi nimadan"
+              options={[
+                { value: "students", label: "O‘z o‘quvchilari to‘lovlaridan" },
+                { value: "center", label: "Butun markaz tushumidan" },
+              ]}
+            />
+          </div>
+        )}
       </div>
       <Result state={state} />
       <div>

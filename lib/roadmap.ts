@@ -159,7 +159,14 @@ export const DONE: DoneGroup[] = [
         title: "SMS kod bilan ro‘yxatdan o‘tish",
         details: ["Rahbar xodimni telefon raqami bilan qo‘shadi — xodim SMS kod orqali o‘zi parol yaratadi.", "Parolni unutsa — xuddi shu yo‘l bilan tiklaydi."],
       },
-      { title: "Xodimlar oyligi", details: ["Foiz «falon oydan boshlab», asos — o‘z o‘quvchilari yoki butun markaz tushumi.", "Oylik va avanslar oy hisobidan ayiriladi."] },
+      {
+        title: "Xodimlar oyligi",
+        details: [
+          "O‘qituvchiga foiz «falon oydan boshlab», asos — o‘z o‘quvchilari yoki butun markaz tushumi.",
+          "Administratorga — belgilangan oylik (har oy bir xil summa), u ham «falon oydan boshlab».",
+          "Oylik va avanslar oy hisobidan ayiriladi.",
+        ],
+      },
     ],
   },
   {

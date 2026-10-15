@@ -1,13 +1,14 @@
 import "server-only";
-// Xodimlar oyligi: foiz × tushum (o'qituvchi — o'z o'quvchilari to'lovlaridan, administrator — butun markazdan),
-// shu oy uchun olingan oylik va avanslar ayiriladi. Hisob "qaysi oy uchun" to'langan pullar bo'yicha (hozirgidek).
+// Xodimlar oyligi: o'qituvchi — o'z o'quvchilari to'lovlaridan foiz, rahbar — butun markaz tushumidan foiz,
+// administrator — belgilangan oylik (har oy bir xil summa). Shu oy uchun olingan oylik va avanslar ayiriladi.
+// Hisob "qaysi oy uchun" to'langan pullar bo'yicha (hozirgidek).
 import mongoose from "mongoose";
 import { cache } from "react";
 import { connectDB } from "./db";
 import { LIVE, loadStudents } from "./ledger";
 import { Payment, Salary } from "./models";
-import { shareHistoryOf, type StaffLean } from "./staff";
-import { payOf, staffPercent } from "./staff-rules";
+import { salaryHistoryOf, shareHistoryOf, type StaffLean } from "./staff";
+import { fixedPayOf, payKindOf, payOf, staffPercent, staffSalary, type PayKind } from "./staff-rules";
 
 export type SalaryRow = {
   id: string;
@@ -44,9 +45,13 @@ export function toSalaryRow(x: SalaryLean): SalaryRow {
 
 export type StaffPay = {
   staffId: string;
+  /** Oylik turi: tushumdan foiz yoki belgilangan summa (administrator) */
+  kind: PayKind;
+  /** Foiz (belgilangan oylikda — 0) */
   percent: number;
-  /** Foiz olinadigan summa: o'z o'quvchilari yoki butun markaz tushumi */
+  /** Foiz olinadigan summa: o'z o'quvchilari yoki butun markaz tushumi (belgilangan oylikda — 0) */
   base: number;
+  /** Shu oy uchun oylik */
   share: number;
   taken: number;
   left: number;
@@ -90,7 +95,8 @@ export const monthSalaries = cache(async (month: string) => {
 export async function staffPay(staff: StaffLean, month: string): Promise<StaffPay> {
   const [collections, salaries] = await Promise.all([monthCollections(month), monthSalaries(month)]);
   const id = String(staff._id);
-  const base = staff.shareBase === "center" ? collections.total : (collections.byTeacher.get(id) ?? 0);
   const taken = (salaries.get(id) ?? []).reduce((s, x) => s + x.amount, 0);
+  if (payKindOf(staff.role) === "fixed") return { staffId: id, ...fixedPayOf(staffSalary(salaryHistoryOf(staff), month), taken) };
+  const base = staff.shareBase === "center" ? collections.total : (collections.byTeacher.get(id) ?? 0);
   return { staffId: id, ...payOf(base, staffPercent(shareHistoryOf(staff), month), taken) };
 }

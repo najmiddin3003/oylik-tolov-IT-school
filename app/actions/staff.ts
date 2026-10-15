@@ -8,16 +8,18 @@ import { requireOwner } from "@/lib/auth";
 import { assignCourseStudents, clearCourseTeacher } from "@/lib/course-teacher";
 import { sameCourse } from "@/lib/courses";
 import { connectDB } from "@/lib/db";
-import { applyPercentFrom } from "@/lib/fees";
+import { applyAmountFrom, applyPercentFrom } from "@/lib/fees";
 import { isId } from "@/lib/ids";
 import { Salary, Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 import { ROLES, type Role } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
-import { getStaffById, shareHistoryOf } from "@/lib/staff";
-import { defaultShareBase, parsePercent, ROLE_LABEL } from "@/lib/staff-rules";
-import { formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
+import { getStaffById, salaryHistoryOf, shareHistoryOf } from "@/lib/staff";
+import { defaultShareBase, parsePercent, payKindOf, ROLE_LABEL } from "@/lib/staff-rules";
+import { currentMonth, formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
+
+const MAX_SALARY = 100_000_000;
 import type { FormState } from "./types";
 
 function str(fd: FormData, key: string, max = 200): string {
@@ -27,16 +29,20 @@ function str(fd: FormData, key: string, max = 200): string {
 const isRole = (v: string): v is Role => (ROLES as readonly string[]).includes(v);
 
 /**
- * Yangi xodim: ism, telefon, rol, oylik foizi; o'qituvchi uchun — kursi (ixtiyoriy: kurs unga biriktiriladi va shu kurs
- * o'quvchilari unga o'tadi). Xodim keyin o'zi SMS kod orqali ro'yxatdan o'tadi.
+ * Yangi xodim: ism, telefon, rol; oyligi — o'qituvchi va rahbarda foiz, administratorda belgilangan summa (shu oydan
+ * boshlab); o'qituvchi uchun — kursi (ixtiyoriy: kurs unga biriktiriladi va shu kurs o'quvchilari unga o'tadi).
+ * Xodim keyin o'zi SMS kod orqali ro'yxatdan o'tadi.
  */
 export async function addStaff(_prev: FormState, fd: FormData): Promise<FormState> {
   const session = await requireOwner({ fresh: true });
   const name = str(fd, "name", 80).replace(/\s+/g, " ");
   const phone = normalizeUzPhone(str(fd, "phone", 40));
   const role = str(fd, "role");
-  const percentRaw = str(fd, "percent");
+  const fixed = isRole(role) && payKindOf(role) === "fixed";
+  const percentRaw = fixed ? "" : str(fd, "percent");
   const percent = percentRaw ? parsePercent(percentRaw) : 0;
+  const salaryRaw = fixed ? str(fd, "salary") : "";
+  const salary = salaryRaw ? parseAmount(salaryRaw) : 0;
   const courseRaw = role === "teacher" ? str(fd, "course", 80) : "";
 
   const fieldErrors: Record<string, string> = {};
@@ -44,6 +50,7 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
   if (!phone) fieldErrors.phone = "Telefon raqamni to‘liq kiriting, masalan: 90 123 45 67";
   if (!isRole(role)) fieldErrors.role = "Lavozimni tanlang";
   if (percent === null) fieldErrors.percent = "0 dan 100 gacha son kiriting";
+  if (salary === null || salary < 0 || salary > MAX_SALARY) fieldErrors.salary = "Oylik summasi noto‘g‘ri";
   const settings = await getSettings({ fresh: true });
   const courseIndex = courseRaw ? settings.courses.findIndex((c) => sameCourse(c.name, courseRaw)) : -1;
   if (courseRaw && courseIndex < 0) fieldErrors.course = "Kurs topilmadi — sahifani yangilang";
@@ -58,6 +65,8 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
     status: "invited",
     shareHistory: percent ? [{ from: "0000-01", percent }] : [],
     shareBase: defaultShareBase(role as Role),
+    // Belgilangan oylik — qo'shilgan oydan boshlab (avvalgi oylarga yozilmaydi; kerak bo'lsa profilida o'zgartiriladi)
+    salaryHistory: salary ? [{ from: currentMonth(), amount: salary }] : [],
   });
 
   // Kurs o'qituvchisi: kurs unga biriktiriladi, kursdagi o'qituvchisiz (va avvalgi kurs o'qituvchisidagi) o'quvchilar unga o'tadi
@@ -72,7 +81,7 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
   await logActivity(
     session,
     "staff.add",
-    `Xodim qo‘shildi: ${name} (${ROLE_LABEL[role as Role]}, ${formatUzPhone(phone!)}${percent ? `, ${percent}%` : ""})${courseNote ? ` · ${courseNote}` : ""}`,
+    `Xodim qo‘shildi: ${name} (${ROLE_LABEL[role as Role]}, ${formatUzPhone(phone!)}${percent ? `, ${percent}%` : ""}${salary ? `, oylik ${formatMoney(salary)}` : ""})${courseNote ? ` · ${courseNote}` : ""}`,
   );
   refresh();
   return {
@@ -123,6 +132,27 @@ export async function setStaffPercent(id: string, _prev: FormState, fd: FormData
   await logActivity(session, "staff.percent", `${staff.name}: oylik foizi ${monthLabel(from)} dan ${percent}%`);
   refresh();
   return { ok: true, message: `${monthLabel(from)} oyidan boshlab ${percent}%`, nonce: Date.now() };
+}
+
+/** Belgilangan oylik (administrator): tanlangan oydan boshlab har oy shu summa (o'tgan oylar hisobi o'zgarmaydi). */
+export async function setStaffSalary(id: string, _prev: FormState, fd: FormData): Promise<FormState> {
+  const session = await requireOwner({ fresh: true });
+  if (!isId(id)) return { error: "Xodim topilmadi" };
+  const raw = str(fd, "salary");
+  const amount = raw ? parseAmount(raw) : null;
+  const from = str(fd, "from");
+  const fieldErrors: Record<string, string> = {};
+  if (amount === null || amount < 0 || amount > MAX_SALARY) fieldErrors.salary = "Oylik summasini kiriting";
+  if (!isValidMonth(from)) fieldErrors.from = "Qaysi oydan boshlab — tanlang";
+  if (Object.keys(fieldErrors).length) return { fieldErrors };
+
+  await connectDB();
+  const staff = await getStaffById(id);
+  if (!staff) return { error: "Xodim topilmadi" };
+  await Staff.updateOne({ _id: id }, { $set: { salaryHistory: applyAmountFrom(salaryHistoryOf(staff), from, amount!) } });
+  await logActivity(session, "staff.salary", `${staff.name}: oylik ${monthLabel(from)} dan ${formatMoney(amount!)}`);
+  refresh();
+  return { ok: true, message: `${monthLabel(from)} oyidan boshlab ${formatMoney(amount!)}`, nonce: Date.now() };
 }
 
 /**

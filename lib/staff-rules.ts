@@ -1,10 +1,12 @@
 // Xodimlar: rollar nomi, oylik foizi va sessiya barmoq izi (sof funksiyalar — server, brauzer va testlarda).
 // Brauzerda ham ishlatiladi — node:crypto ga bog'liq narsa bu yerda yo'q.
-import { percentFor, type PercentChange } from "./fees";
+import { amountFor, percentFor, type AmountChange, type PercentChange } from "./fees";
 import type { Role } from "./session";
 
 export type StaffStatus = "invited" | "active" | "disabled";
 export type ShareBase = "students" | "center";
+/** Oylik turi: tushumdan foiz yoki belgilangan summa */
+export type PayKind = "percent" | "fixed";
 
 export const ROLE_LABEL: Record<Role, string> = {
   owner: "Rahbar",
@@ -24,7 +26,12 @@ export const STATUS_LABEL: Record<StaffStatus, string> = {
   disabled: "Kirishi o‘chirilgan",
 };
 
-/** Oylik foizi nimadan: o'qituvchi — o'z o'quvchilari to'lovlaridan, administrator — butun markaz tushumidan. */
+/** Oylik turi: administrator — belgilangan oylik (har oy bir xil summa), o'qituvchi va rahbar — tushumdan foiz. */
+export function payKindOf(role: Role): PayKind {
+  return role === "admin" ? "fixed" : "percent";
+}
+
+/** Oylik foizi nimadan: o'qituvchi — o'z o'quvchilari to'lovlaridan, rahbar — butun markaz tushumidan. */
 export function defaultShareBase(role: Role): ShareBase {
   return role === "teacher" ? "students" : "center";
 }
@@ -47,10 +54,25 @@ export function staffPercent(history: PercentChange[], month: string): number {
   return percentFor(history, month, 0);
 }
 
-/** Oylik: foiz × asos (tushum), olingan oylik/avans ayiriladi. */
+/** Xodimning shu oydagi belgilangan oyligi (tarix bo'lmasa — 0). */
+export function staffSalary(history: AmountChange[], month: string): number {
+  return amountFor(history, month, 0);
+}
+
+/** Foizli oylik: foiz × asos (tushum), olingan oylik/avans ayiriladi. */
 export function payOf(base: number, percent: number, taken: number) {
   const share = Math.round((base * percent) / 100);
-  return { base, percent, share, taken, left: share - taken };
+  return { kind: "percent" as PayKind, base, percent, share, taken, left: share - taken };
+}
+
+/** Belgilangan oylik: shu oy uchun summa, olingan oylik/avans ayiriladi. */
+export function fixedPayOf(amount: number, taken: number) {
+  return { kind: "fixed" as PayKind, base: 0, percent: 0, share: amount, taken, left: amount - taken };
+}
+
+/** Oylik yozuvi: foizda — "Oylik (40%)", belgilangan oylikda — "Oylik". */
+export function payLabel(pay: { kind: PayKind; percent: number }): string {
+  return pay.kind === "fixed" ? "Oylik" : `Oylik (${pay.percent}%)`;
 }
 
 /**

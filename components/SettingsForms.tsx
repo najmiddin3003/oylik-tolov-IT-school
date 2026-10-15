@@ -249,6 +249,37 @@ export function PercentForm({ month, current, action }: { month: string; current
   );
 }
 
+/** Belgilangan oylik (administrator) "falon oydan boshlab" (`action` — xodimga bog'langan server action). */
+export function FixedPayForm({ month, current, action }: { month: string; current: number; action: FormAction }) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(action, {});
+  const fe = state.fieldErrors ?? {};
+  return (
+    <form onSubmit={onSubmit} className="grid gap-4" noValidate>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="fixed-pay" className={labelCls}>
+            Oylik (so‘m)
+          </label>
+          <MoneyInput id="fixed-pay" name="salary" defaultValue={current ? formatNumber(current) : ""} placeholder="Har oylik summa" maxDigits={9} invalid={!!fe.salary} />
+          <FieldError msg={fe.salary} />
+        </div>
+        <div>
+          <span className={labelCls}>Qaysi oydan boshlab</span>
+          <MonthPicker name="from" defaultValue={month} invalid={!!fe.from} aria-label="Qaysi oydan boshlab" />
+          <FieldError msg={fe.from} />
+        </div>
+      </div>
+      <Result state={state} />
+      <div>
+        <Submit pending={pending}>
+          <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          Saqlash
+        </Submit>
+      </div>
+    </form>
+  );
+}
+
 // ---------- Parollar ----------
 
 function PasswordInput({ id, name, label, error, autoComplete }: { id: string; name: string; label: string; error?: string; autoComplete: string }) {

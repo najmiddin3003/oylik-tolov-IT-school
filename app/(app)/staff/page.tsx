@@ -8,8 +8,8 @@ import { Card, CardHeader, cx, EmptyState, IconTile, PageHeader, PageSkeleton, T
 import { ownerGuard } from "@/lib/auth";
 import { getStaffPageData, type StaffRowView } from "@/lib/data";
 import { formatUzPhone } from "@/lib/phone";
-import { ROLE_LABEL, STATUS_LABEL, staffInitials, staffPercent } from "@/lib/staff-rules";
-import { currentMonth, formatDateTime, isValidMonth } from "@/lib/time";
+import { payKindOf, ROLE_LABEL, STATUS_LABEL, staffInitials, staffPercent, staffSalary } from "@/lib/staff-rules";
+import { currentMonth, formatDateTime, formatMoney, isValidMonth } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Xodimlar" };
 
@@ -107,7 +107,7 @@ async function StaffView({ searchParams }: { searchParams: PageProps<"/staff">["
             <IconTile icon={UserPlus} tone="brand" variant="solid" />
             <div>
               <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Yangi xodim</h2>
-              <p className="mt-0.5 text-sm text-ink-500">Ism, telefon, lavozim va oylik foizi</p>
+              <p className="mt-0.5 text-sm text-ink-500">Ism, telefon, lavozim va oyligi</p>
             </div>
           </div>
           <StaffAddForm courses={d.courses} />
@@ -118,7 +118,10 @@ async function StaffView({ searchParams }: { searchParams: PageProps<"/staff">["
 }
 
 function StaffRow({ s, month, self }: { s: StaffRowView; month: string; self: boolean }) {
-  const percent = staffPercent(s.shareHistory, month);
+  // Administrator — belgilangan oylik (summa), boshqalar — foiz
+  const fixed = payKindOf(s.role) === "fixed";
+  const percent = fixed ? 0 : staffPercent(s.shareHistory, month);
+  const salary = fixed ? staffSalary(s.salaryHistory, month) : 0;
   const isOwner = s.role === "owner";
   return (
     <li>
@@ -158,6 +161,7 @@ function StaffRow({ s, month, self }: { s: StaffRowView; month: string; self: bo
         <span className="num flex shrink-0 items-center gap-2 text-[13px] text-ink-500">
           {s.role === "teacher" ? <span className="rounded-lg bg-violet-50 px-2 py-1 font-medium text-violet-700">{s.students} ta o‘quvchi</span> : null}
           {percent ? <span className="rounded-lg bg-slate-100 px-2 py-1 font-semibold text-ink-700">{percent}%</span> : null}
+          {salary ? <span className="rounded-lg bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">oylik {formatMoney(salary)}</span> : null}
           <ArrowRight className="size-4 text-ink-300" aria-hidden />
         </span>
       </Link>

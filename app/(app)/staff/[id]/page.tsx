@@ -3,15 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { BadgePercent, CircleSlash, Crown, HandCoins, KeyRound, PiggyBank, RotateCcw, Trash2, UserCheck, UserCog, Wallet } from "lucide-react";
-import { addSalary, deleteSalary, deleteStaff, setStaffAccess, setStaffPercent, updateStaff } from "@/app/actions/staff";
-import { PercentForm, SalaryForm } from "@/components/SettingsForms";
+import { addSalary, deleteSalary, deleteStaff, setStaffAccess, setStaffPercent, setStaffSalary, updateStaff } from "@/app/actions/staff";
+import { FixedPayForm, PercentForm, SalaryForm } from "@/components/SettingsForms";
 import { StaffEditForm } from "@/components/StaffForms";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { btn, Card, cx, IconTile, PageSkeleton, Tag, type Tone } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
 import { getStaffDetail } from "@/lib/data";
 import { formatUzPhone } from "@/lib/phone";
-import { ROLE_HINT, ROLE_LABEL, STATUS_LABEL, staffInitials } from "@/lib/staff-rules";
+import { payKindOf, payLabel, ROLE_HINT, ROLE_LABEL, STATUS_LABEL, staffInitials, staffSalary } from "@/lib/staff-rules";
 import { currentMonth, formatDate, formatDateTime, formatMoney, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Xodim" };
@@ -33,6 +33,9 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
   const { staff, pay } = d;
   const self = session.staffId === staff.id;
   const isOwner = staff.role === "owner";
+  // Administrator — belgilangan oylik (foiz emas)
+  const fixed = payKindOf(staff.role) === "fixed";
+  const salaryNow = staffSalary(staff.salaryHistory, currentMonth());
 
   return (
     <>
@@ -125,14 +128,16 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
               tone="emerald"
               title={`Oylik — ${monthLabel(month)}`}
               subtitle={
-                staff.shareBase === "center"
-                  ? "Butun markaz tushumidan foiz. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
-                  : "O‘z o‘quvchilari to‘lagan pullardan foiz. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
+                fixed
+                  ? "Belgilangan oylik — har oy bir xil summa. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
+                  : staff.shareBase === "center"
+                    ? "Butun markaz tushumidan foiz. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
+                    : "O‘z o‘quvchilari to‘lagan pullardan foiz. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
               }
             />
-            <div className="mb-6 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-              <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilari tushumi"} value={formatMoney(pay.base)} />
-              <Figure label={`Oylik (${pay.percent}%)`} value={formatMoney(pay.share)} tone="brand" />
+            <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
+              {fixed ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilari tushumi"} value={formatMoney(pay.base)} />}
+              <Figure label={payLabel(pay)} value={formatMoney(pay.share)} tone="brand" />
               <Figure label="Olindi (oylik/avans)" value={`− ${formatMoney(pay.taken)}`} tone="amber" />
               <Figure label="Qoldi" value={formatMoney(pay.left)} tone={pay.left < 0 ? "rose" : "emerald"} strong />
             </div>
@@ -174,11 +179,28 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
             </div>
           </Card>
 
-          {/* Foiz */}
-          <Card className="p-6">
-            <SectionTitle icon={BadgePercent} tone="brand" title="Oylik foizi" subtitle={`Hozir: ${pay.percent}%. O‘zgartirilsa — tanlangan oydan boshlab hisoblanadi, o‘tgan oylar o‘zgarmaydi.`} />
-            <PercentForm month={currentMonth()} current={pay.percent} action={setStaffPercent.bind(null, staff.id)} />
-          </Card>
+          {/* Oylik summasi (administrator) yoki foizi */}
+          {fixed ? (
+            <Card className="p-6">
+              <SectionTitle
+                icon={Wallet}
+                tone="brand"
+                title="Belgilangan oylik"
+                subtitle={`Hozir: ${salaryNow ? formatMoney(salaryNow) : "belgilanmagan"}. O‘zgartirilsa — tanlangan oydan boshlab hisoblanadi, o‘tgan oylar o‘zgarmaydi.`}
+              />
+              <FixedPayForm month={currentMonth()} current={salaryNow} action={setStaffSalary.bind(null, staff.id)} />
+              {d.salaryHistory.length > 1 ? (
+                <p className="num mt-4 text-[13px] leading-relaxed text-ink-500">
+                  Tarix: {d.salaryHistory.map((h) => `${monthLabel(h.from)} dan ${formatMoney(h.amount)}`).join(" · ")}
+                </p>
+              ) : null}
+            </Card>
+          ) : (
+            <Card className="p-6">
+              <SectionTitle icon={BadgePercent} tone="brand" title="Oylik foizi" subtitle={`Hozir: ${pay.percent}%. O‘zgartirilsa — tanlangan oydan boshlab hisoblanadi, o‘tgan oylar o‘zgarmaydi.`} />
+              <PercentForm month={currentMonth()} current={pay.percent} action={setStaffPercent.bind(null, staff.id)} />
+            </Card>
+          )}
         </div>
 
         <div className="grid gap-6 self-start">

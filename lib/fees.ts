@@ -60,6 +60,28 @@ export function applyPercentFrom(history: PercentChange[] | null | undefined, fr
   return [...kept, { from, percent }];
 }
 
+// ---------- Belgilangan oylik tarixi (masalan, administrator: har oy 3 000 000 so'm) ----------
+
+export type AmountChange = { from: string; amount: number };
+
+/** Berilgan oy uchun summa: `from <= oy` bo'lgan eng oxirgi o'zgarish, bo'lmasa — standart. */
+export function amountFor(history: AmountChange[] | null | undefined, month: string, fallback: number): number {
+  let a = fallback;
+  for (const h of [...(history ?? [])].sort((x, y) => compareMonths(x.from, y.from))) {
+    if (compareMonths(h.from, month) <= 0) a = h.amount;
+    else break;
+  }
+  return a;
+}
+
+/** "`from` oyidan boshlab summa = `amount`": undan keyingi eski o'zgarishlar bekor bo'ladi. */
+export function applyAmountFrom(history: AmountChange[] | null | undefined, from: string, amount: number): AmountChange[] {
+  const kept = [...(history ?? [])]
+    .filter((h) => compareMonths(h.from, from) < 0)
+    .sort((a, b) => compareMonths(a.from, b.from));
+  return [...kept, { from, amount }];
+}
+
 export function shareOf(amount: number, percent: number): number {
   return Math.round((amount * percent) / 100);
 }

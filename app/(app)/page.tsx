@@ -45,7 +45,7 @@ import {
 import { pageGuard, type Session } from "@/lib/auth";
 import { getBellExtras, getMonthOverview, getMyProfile, getTeamOverview, listGroups, listTeacherOptions, type StudentRow, type TeamMember } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
-import { ROLE_LABEL, staffInitials } from "@/lib/staff-rules";
+import { payLabel, ROLE_LABEL, staffInitials } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, formatNumber, isValidMonth, monthLabel, nowMs } from "@/lib/time";
 
 const PAGE_SIZE = 10;
@@ -399,13 +399,19 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
         </>
       ) : (
         <p className="mt-4 text-sm text-ink-500">
-          {m.pay.percent ? `Butun markaz tushumidan ${m.pay.percent}%` : "Oylik foizi belgilanmagan"}
+          {m.pay.kind === "fixed"
+            ? m.pay.share
+              ? "Belgilangan oylik"
+              : "Oylik belgilanmagan"
+            : m.pay.percent
+              ? `Butun markaz tushumidan ${m.pay.percent}%`
+              : "Oylik foizi belgilanmagan"}
         </p>
       )}
 
       <div className="num mt-4 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[13px] ring-1 ring-inset ring-line-soft">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-ink-500">Oylik ({m.pay.percent}%)</span>
+          <span className="text-ink-500">{payLabel(m.pay)}</span>
           <span className="font-semibold text-ink-900">{formatMoney(m.pay.share)}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">

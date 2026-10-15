@@ -3,7 +3,7 @@ import "server-only";
 import mongoose from "mongoose";
 import { cache } from "react";
 import { connectDB } from "./db";
-import type { PercentChange } from "./fees";
+import type { AmountChange, PercentChange } from "./fees";
 import { Staff } from "./models";
 import { fingerprint } from "./passwords";
 import type { Role } from "./session";
@@ -18,6 +18,8 @@ export type StaffLean = {
   passwordHash?: string | null;
   shareHistory?: { from?: string | null; percent?: number | null }[] | null;
   shareBase?: ShareBase | null;
+  /** Belgilangan oylik tarixi (administrator) */
+  salaryHistory?: { from?: string | null; amount?: number | null }[] | null;
   activatedAt?: Date | null;
   lastLoginAt?: Date | null;
   createdAt?: Date;
@@ -34,6 +36,7 @@ export type StaffView = {
   status: StaffStatus;
   shareHistory: PercentChange[];
   shareBase: ShareBase;
+  salaryHistory: AmountChange[];
   activatedAt: string | null;
   lastLoginAt: string | null;
 };
@@ -42,6 +45,12 @@ export function shareHistoryOf(s: Pick<StaffLean, "shareHistory">): PercentChang
   return (s.shareHistory ?? [])
     .filter((h) => h && typeof h.from === "string" && typeof h.percent === "number")
     .map((h) => ({ from: h.from!, percent: h.percent! }));
+}
+
+export function salaryHistoryOf(s: Pick<StaffLean, "salaryHistory">): AmountChange[] {
+  return (s.salaryHistory ?? [])
+    .filter((h) => h && typeof h.from === "string" && typeof h.amount === "number")
+    .map((h) => ({ from: h.from!, amount: h.amount! }));
 }
 
 export function toStaffView(s: StaffLean): StaffView {
@@ -53,6 +62,7 @@ export function toStaffView(s: StaffLean): StaffView {
     status: s.status,
     shareHistory: shareHistoryOf(s),
     shareBase: s.shareBase === "center" ? "center" : "students",
+    salaryHistory: salaryHistoryOf(s),
     activatedAt: s.activatedAt ? s.activatedAt.toISOString() : null,
     lastLoginAt: s.lastLoginAt ? s.lastLoginAt.toISOString() : null,
   };

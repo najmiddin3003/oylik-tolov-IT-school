@@ -14,11 +14,15 @@ import { formatUzPhone, normalizeUzPhone } from "../lib/phone";
 import {
   defaultPercent,
   defaultShareBase,
+  fixedPayOf,
   legacyLoginAllowed,
   parsePercent,
+  payKindOf,
+  payLabel,
   payOf,
   staffInitials,
   staffPercent,
+  staffSalary,
 } from "../lib/staff-rules";
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-123";
@@ -84,8 +88,20 @@ test("xodim oyligi: foiz, asos va olinganlar", () => {
   assert.equal(staffPercent(history, "2026-10"), 40);
   assert.equal(staffPercent(history, "2026-11"), 45);
   assert.equal(staffPercent([], "2026-10"), 0);
-  assert.deepEqual(payOf(3_000_000, 40, 300_000), { base: 3_000_000, percent: 40, share: 1_200_000, taken: 300_000, left: 900_000 });
-  assert.deepEqual(payOf(0, 40, 100_000), { base: 0, percent: 40, share: 0, taken: 100_000, left: -100_000 });
+  assert.deepEqual(payOf(3_000_000, 40, 300_000), { kind: "percent", base: 3_000_000, percent: 40, share: 1_200_000, taken: 300_000, left: 900_000 });
+  assert.deepEqual(payOf(0, 40, 100_000), { kind: "percent", base: 0, percent: 40, share: 0, taken: 100_000, left: -100_000 });
+  // Administrator — belgilangan oylik (foiz emas)
+  assert.equal(payKindOf("admin"), "fixed");
+  assert.equal(payKindOf("teacher"), "percent");
+  assert.equal(payKindOf("owner"), "percent");
+  assert.deepEqual(fixedPayOf(3_000_000, 1_000_000), { kind: "fixed", base: 0, percent: 0, share: 3_000_000, taken: 1_000_000, left: 2_000_000 });
+  assert.equal(payLabel(fixedPayOf(3_000_000, 0)), "Oylik");
+  assert.equal(payLabel(payOf(1_000_000, 40, 0)), "Oylik (40%)");
+  const salaries = [{ from: "2026-10", amount: 3_000_000 }, { from: "2027-01", amount: 3_500_000 }];
+  assert.equal(staffSalary(salaries, "2026-09"), 0, "belgilanishidan oldingi oy — 0");
+  assert.equal(staffSalary(salaries, "2026-12"), 3_000_000);
+  assert.equal(staffSalary(salaries, "2027-02"), 3_500_000);
+  assert.equal(staffSalary([], "2026-10"), 0);
   assert.equal(staffInitials("Najmiddin Karimov"), "NK");
   assert.equal(staffInitials("O'ktam"), "O");
 });
