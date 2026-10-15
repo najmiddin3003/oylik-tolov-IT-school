@@ -71,9 +71,9 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
             icon={BookOpen}
             tone="emerald"
             title="Kurslar"
-            subtitle="Markazdagi kurslar va ularning standart oylik narxi. O‘quvchi qo‘shishda, to‘lov kiritishda va hisobotlarda shu ro‘yxat ishlatiladi."
+            subtitle="Markazdagi kurslar, standart oylik narxi va o‘qituvchisi. Kursga o‘qituvchi tanlansa, shu kursdagi o‘quvchilar unga biriktiriladi va oyligi ularning to‘lovlaridan hisoblanadi."
           >
-            <CoursesForm courses={d.courses} />
+            <CoursesForm courses={d.courses} teachers={d.teachers} />
           </Section>
 
           {/* ---------- Oylik to'lov narxi ---------- */}

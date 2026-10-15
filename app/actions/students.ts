@@ -4,7 +4,8 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { requireOwner, requireRole } from "@/lib/auth";
-import { cleanCourseName } from "@/lib/courses";
+import { courseTeacherResolver } from "@/lib/course-teacher";
+import { cleanCourseName, courseTeacher, sameCourse, teacherOnCourseChange } from "@/lib/courses";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
 import { applyFeeFrom, changesAfter } from "@/lib/fees";
@@ -73,6 +74,9 @@ export async function saveStudent(
     if (!isId(teacherRaw) || !(await Staff.exists({ _id: teacherRaw, role: "teacher" }))) return { fieldErrors: { teacher: "O‘qituvchi topilmadi" } };
     teacher = teacherRaw;
   }
+  // O'qituvchi tanlanmagan bo'lsa — kurs o'qituvchisi (Sozlamalar → Kurslar) biriktiriladi
+  const setTeacher = hasTeacher || !id;
+  if (setTeacher && !teacher && group) teacher = (await courseTeacherResolver())(group);
   const base = {
     fullName,
     phone,
@@ -82,7 +86,7 @@ export async function saveStudent(
     note,
     active,
     ...(hasSchedule ? { lessons } : {}),
-    ...(hasTeacher ? { teacher } : {}),
+    ...(setTeacher ? { teacher } : {}),
   };
 
   let savedId: string;
@@ -171,6 +175,42 @@ export async function setTeacherBulk(ids: string[], teacherId: string): Promise<
 }
 
 /**
+ * Tanlangan o'quvchilarga kurs belgilash ("" — kurssiz). Kursning o'qituvchisi bo'lsa, o'qituvchisi yo'q (yoki avvalgi
+ * kursining o'qituvchisidagi) o'quvchilar unga biriktiriladi; boshqa o'qituvchiga biriktirilganlar o'zgarmaydi.
+ */
+export async function setCourseBulk(ids: string[], course: string): Promise<{ error?: string; count?: number; assigned?: number }> {
+  const session = await requireOwner({ fresh: true });
+  if (!Array.isArray(ids) || typeof course !== "string") return { error: "Noto‘g‘ri so‘rov" };
+  const valid = ids.filter(isId).slice(0, 1000);
+  if (!valid.length) return { error: "O‘quvchi tanlanmagan" };
+  await connectDB();
+  const settings = await getSettings({ fresh: true });
+  // Faqat ro'yxatdagi kurslar: yangi kurs Sozlamalar → Kurslar bo'limida qo'shiladi
+  const listed = course ? settings.courses.find((c) => sameCourse(c.name, course)) : undefined;
+  if (course && !listed) return { error: "Kurs topilmadi — Sozlamalar → Kurslar bo‘limida qo‘shing" };
+  const group = listed?.name ?? "";
+  const newTeacher = (await courseTeacherResolver())(group);
+
+  const students = await Student.find({ _id: { $in: valid } }, { group: 1, teacher: 1 }).lean<{ _id: unknown; group?: string | null; teacher?: unknown }[]>();
+  let assigned = 0;
+  const ops = students.map((s) => {
+    const current = s.teacher ? String(s.teacher) : null;
+    const teacher = teacherOnCourseChange(current, courseTeacher(settings.courses, s.group), newTeacher);
+    if (teacher && teacher !== current) assigned++;
+    return { updateOne: { filter: { _id: s._id }, update: { $set: { group, teacher } } } };
+  });
+  if (ops.length) await Student.bulkWrite(ops as Parameters<typeof Student.bulkWrite>[0]);
+  const teacherName = newTeacher && assigned ? ((await Staff.findById(newTeacher, { name: 1 }).lean())?.name ?? "") : "";
+  await logActivity(
+    session,
+    "student.course",
+    `${ops.length} ta o‘quvchi ${group ? `«${group}» kursiga o‘tkazildi` : "kurssiz qoldirildi"}${assigned ? `, ${assigned} tasi ${teacherName || "kurs o‘qituvchisi"}ga biriktirildi` : ""}`,
+  );
+  refresh();
+  return { count: ops.length, assigned };
+}
+
+/**
  * Tezkor qo'shish oynasi (administrator va rahbar, «To'lovlar» sahifasida): ism, telefon, kurs, oylik to'lov,
  * boshlagan sana, kerak bo'lsa o'qituvchi va dars jadvali. Saqlangach oyna yopiladi (sahifadan chiqilmaydi).
  */
@@ -203,6 +243,8 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
     }
     teacher = teacherRaw;
   }
+  // O'qituvchi tanlanmagan bo'lsa — kurs o'qituvchisi biriktiriladi
+  if (!teacher) teacher = (await courseTeacherResolver())(group);
   // Bir xil ismli faol o'quvchi bo'lsa — ogohlantirish (ikki marta qo'shilmasin)
   const dup = await Student.exists({ fullName: new RegExp(`^${fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), active: true });
   if (dup && str(formData, "confirmDuplicate") !== "1") {

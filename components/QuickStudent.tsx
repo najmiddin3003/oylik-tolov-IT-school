@@ -5,6 +5,7 @@ import { useState } from "react";
 import { BookOpen, Check, UserPlus } from "lucide-react";
 import { addStudentQuick } from "@/app/actions/students";
 import type { FormState } from "@/app/actions/types";
+import { teacherOnCourseChange } from "@/lib/courses";
 import type { Lesson } from "@/lib/schedule";
 import { formatNumber } from "@/lib/time";
 import { MoneyInput, PhoneInput } from "./inputs";
@@ -14,7 +15,7 @@ import { ScheduleField } from "./ScheduleField";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
 
-type Course = { name: string; fee: number | null };
+type Course = { name: string; fee: number | null; teacher?: string | null };
 type Teacher = { id: string; name: string; status: string };
 
 export function QuickStudentButton({
@@ -88,7 +89,9 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
   const [group, setGroup] = useState(courses.length === 1 ? courses[0].name : "");
   const [fee, setFee] = useState(courses.length === 1 && courses[0].fee ? formatNumber(courses[0].fee) : "");
   const [feeTouched, setFeeTouched] = useState(false);
-  const [teacher, setTeacher] = useState("");
+  // Kurs o'qituvchisi: kurs tanlanganda (o'qituvchi bo'sh yoki avvalgi kursniki bo'lsa) o'zi qo'yiladi
+  const teacherOf = (name: string) => courses.find((c) => c.name === name)?.teacher ?? null;
+  const [teacher, setTeacher] = useState(() => (courses.length === 1 ? (courses[0].teacher ?? "") : ""));
   const err = (k: string) => (fe[k] ? <p className="mt-1.5 text-xs text-rose-600">{fe[k]}</p> : null);
 
   return (
@@ -97,7 +100,7 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
         <label htmlFor="qs-name" className={labelCls}>
           Ism-familiya <span className="text-brand-600">*</span>
         </label>
-        <input id="qs-name" name="fullName" className={inputCls} placeholder="Masalan: Aliyev Vali" aria-invalid={!!fe.fullName} autoFocus />
+        <input id="qs-name" name="fullName" className={inputCls} placeholder="O‘quvchining ism-familiyasi" aria-invalid={!!fe.fullName} autoFocus />
         {err("fullName")}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -124,6 +127,7 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
             name="group"
             value={group}
             onChange={(v) => {
+              setTeacher((cur) => teacherOnCourseChange(cur || null, teacherOf(group), teacherOf(v)) ?? "");
               setGroup(v);
               const f = courses.find((c) => c.name === v)?.fee;
               if (!feeTouched && f) setFee(formatNumber(f));
@@ -154,7 +158,7 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
               setFeeTouched(true);
             }}
             maxDigits={10}
-            placeholder="300 000"
+            placeholder="Oylik to‘lov summasi"
             invalid={!!fe.monthlyFee}
           />
           {err("monthlyFee")}
@@ -169,7 +173,7 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
             name="teacher"
             value={teacher}
             onChange={setTeacher}
-            options={[{ value: "", label: "Hozircha biriktirilmagan" }, ...teachers.map((t) => ({ value: t.id, label: t.name }))]}
+            options={[{ value: "", label: teacherOf(group) ? "Kurs o‘qituvchisi" : "Hozircha biriktirilmagan" }, ...teachers.map((t) => ({ value: t.id, label: t.name }))]}
             searchable={false}
             invalid={!!fe.teacher}
             aria-label="O‘qituvchisi"

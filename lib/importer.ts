@@ -1,6 +1,7 @@
 // Sheets farqlaridan saytga o'quvchi va to'lovlarni import qilish.
 import mongoose from "mongoose";
 import { allocateAmount, importFromMonth } from "./allocate";
+import { courseTeacherResolver } from "./course-teacher";
 import { connectDB } from "./db";
 import { LIVE, studentFee, type StudentLean } from "./ledger";
 import { Payment, Student, SyncRun, type PaymentMethod } from "./models";
@@ -85,6 +86,8 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
     else toCreate.set(k, [...(toCreate.get(k) ?? []), m]);
   }
 
+  // Yangi o'quvchi kursining o'qituvchisi bo'lsa — darhol unga biriktiriladi
+  const teacherOf = toCreate.size ? await courseTeacherResolver() : () => null;
   for (const group of toCreate.values()) {
     const first = group[0];
     const months = group.flatMap((m) => partsOf(m).map((p) => partMonth(m, p))).sort();
@@ -94,6 +97,7 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
       fullName: first.studentName.replace(/\s+/g, " ").trim(),
       phone: first.phone ?? "",
       group: first.group ?? "",
+      teacher: teacherOf(first.group),
       monthlyFee: fee,
       startDate: isoToDate(`${months[0]}-01`)!,
       active: true,

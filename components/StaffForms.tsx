@@ -36,12 +36,14 @@ function Result({ state }: { state: FormState }) {
 
 const ROLE_OPTIONS = (["teacher", "admin", "owner"] as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r], hint: r === "owner" ? "hamma bo‘limlar" : undefined }));
 
-/** Yangi xodim: ism, telefon, lavozim, oylik foizi. */
-export function StaffAddForm() {
+type CourseChoice = { name: string; teacherName: string | null };
+
+/** Yangi xodim: ism, telefon, lavozim, oylik foizi; o'qituvchi uchun — kursi. */
+export function StaffAddForm({ courses = [] }: { courses?: CourseChoice[] }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(addStaff, {});
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
-      <StaffAddFields key={state.nonce ?? 0} fe={state.fieldErrors ?? {}} />
+      <StaffAddFields key={state.nonce ?? 0} fe={state.fieldErrors ?? {}} courses={courses} />
       <Result state={state} />
       <div>
         <button type="submit" disabled={pending} className={btn.primary}>
@@ -53,16 +55,18 @@ export function StaffAddForm() {
   );
 }
 
-function StaffAddFields({ fe }: { fe: Record<string, string> }) {
+function StaffAddFields({ fe, courses }: { fe: Record<string, string>; courses: CourseChoice[] }) {
   const [role, setRole] = useState<Role>("teacher");
   const [percent, setPercent] = useState(String(defaultPercent("teacher")));
+  const [course, setCourse] = useState("");
+  const taken = courses.find((c) => c.name === course)?.teacherName;
   return (
     <>
       <div>
         <label htmlFor="st-name" className={labelCls}>
           Ism-familiya
         </label>
-        <input id="st-name" name="name" maxLength={80} className={inputCls} placeholder="Masalan: Najmiddin Karimov" aria-invalid={!!fe.name} />
+        <input id="st-name" name="name" maxLength={80} className={inputCls} placeholder="Xodimning ism-familiyasi" aria-invalid={!!fe.name} />
         <FieldError msg={fe.name} />
       </div>
       <div>
@@ -111,6 +115,33 @@ function StaffAddFields({ fe }: { fe: Record<string, string> }) {
           <FieldError msg={fe.percent} />
         </div>
       </div>
+      {role === "teacher" && courses.length ? (
+        <div>
+          <span className={labelCls}>
+            Kursi <span className="font-normal text-ink-400">(ixtiyoriy)</span>
+          </span>
+          <Select
+            name="course"
+            value={course}
+            onChange={setCourse}
+            options={[
+              { value: "", label: "Keyinroq tanlayman" },
+              ...courses.map((c) => ({ value: c.name, label: c.name, hint: c.teacherName ? `hozir: ${c.teacherName}` : undefined })),
+            ]}
+            searchable={false}
+            invalid={!!fe.course}
+            aria-label="Kursi"
+          />
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
+            {course
+              ? taken
+                ? `Kurs o‘qituvchisi ${taken} o‘rniga shu xodim bo‘ladi va kursdagi o‘quvchilar unga o‘tadi.`
+                : "Kursdagi o‘quvchilar unga biriktiriladi va oyligi ularning to‘lovlaridan hisoblanadi."
+              : "Kursni keyin Sozlamalar → Kurslar bo‘limida ham tanlash mumkin."}
+          </p>
+          <FieldError msg={fe.course} />
+        </div>
+      ) : null}
     </>
   );
 }

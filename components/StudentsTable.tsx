@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { CalendarClock, Check, Eye, GraduationCap, Pencil, Trash2, UserCheck, UserX, X } from "lucide-react";
-import { bulkStudents, deleteStudent, setLessonsBulk, setTeacherBulk } from "@/app/actions/students";
+import { BookOpen, CalendarClock, Check, Eye, GraduationCap, Pencil, Trash2, UserCheck, UserX, X, type LucideIcon } from "lucide-react";
+import { bulkStudents, deleteStudent, setCourseBulk, setLessonsBulk, setTeacherBulk } from "@/app/actions/students";
+import { sameCourse } from "@/lib/courses";
 import type { StudentRow } from "@/lib/data";
 import { lessonsKey, type Lesson } from "@/lib/schedule";
 import { formatMoney } from "@/lib/time";
@@ -16,6 +17,7 @@ import { ConfirmAction } from "./SubmitButton";
 import { btn, cx, GroupChip, IconTile, StatusBadge, Tag, td, th } from "./ui";
 
 type TeacherOption = { id: string; name: string; status: string };
+type CourseOption = { name: string; teacher: string | null };
 
 export function StudentsTable({
   rows,
@@ -26,6 +28,7 @@ export function StudentsTable({
   showGroup,
   readOnly = false,
   teachers = [],
+  courses = [],
 }: {
   rows: StudentRow[];
   month: string;
@@ -39,11 +42,14 @@ export function StudentsTable({
   readOnly?: boolean;
   /** Rahbar: o'qituvchilar (ustun va biriktirish uchun) */
   teachers?: TeacherOption[];
+  /** Rahbar: Sozlamalar → Kurslar ro'yxati (ommaviy kurs belgilash uchun) va kurs o'qituvchisi */
+  courses?: CourseOption[];
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [teacherOpen, setTeacherOpen] = useState(false);
+  const [courseOpen, setCourseOpen] = useState(false);
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
   const visibleSelected = ids.filter((id) => selected.has(id));
   const allChecked = ids.length > 0 && visibleSelected.length === ids.length;
@@ -73,12 +79,20 @@ export function StudentsTable({
   const chosen = rows.filter((r) => selected.has(r.id));
   const commonLessons = chosen.length && chosen.every((r) => lessonsKey(r.lessons) === lessonsKey(chosen[0].lessons)) ? chosen[0].lessons : [];
   const commonTeacher = chosen.length && chosen.every((r) => r.teacherId === chosen[0].teacherId) ? (chosen[0].teacherId ?? "") : "";
+  const commonCourse =
+    chosen.length && chosen.every((r) => sameCourse(r.group, chosen[0].group)) ? (courses.find((c) => sameCourse(c.name, chosen[0].group))?.name ?? "") : "";
 
   return (
     <>
       {!readOnly && visibleSelected.length ? (
         <div className="flex flex-wrap items-center gap-2 border-t border-brand-100 bg-brand-50/60 px-6 py-3 text-sm">
           <span className="mr-2 font-semibold text-brand-800">{visibleSelected.length} ta tanlandi</span>
+          {courses.length ? (
+            <button type="button" disabled={pending} onClick={() => setCourseOpen(true)} className={btn.sm}>
+              <BookOpen className="size-4" aria-hidden />
+              Kurs
+            </button>
+          ) : null}
           {teachers.length ? (
             <button type="button" disabled={pending} onClick={() => setTeacherOpen(true)} className={btn.sm}>
               <GraduationCap className="size-4" aria-hidden />
@@ -122,14 +136,43 @@ export function StudentsTable({
               return null;
             }}
           />
-          <AssignTeacherDialog
+          <BulkPickDialog
             open={teacherOpen}
             onClose={() => setTeacherOpen(false)}
+            id="teacher-dialog"
+            icon={GraduationCap}
+            title="O‘qituvchini biriktirish"
+            label="O‘qituvchi"
             count={visibleSelected.length}
             initial={commonTeacher}
-            teachers={teachers}
+            options={[
+              ...teachers.map((t) => ({ value: t.id, label: t.name, hint: t.status === "invited" ? "ro‘yxatdan o‘tmagan" : undefined })),
+              { value: "", label: "Biriktirilmagan (o‘qituvchisiz)" },
+            ]}
+            hint="O‘qituvchi o‘z profilida shu o‘quvchilarni, ularning to‘lovlarini ko‘radi va ularning to‘lovlaridan oyligi hisoblanadi."
             onSave={async (teacherId) => {
               const res = await setTeacherBulk(visibleSelected, teacherId);
+              if (res.error) return res.error;
+              setSelected(new Set());
+              return null;
+            }}
+          />
+          <BulkPickDialog
+            open={courseOpen}
+            onClose={() => setCourseOpen(false)}
+            id="course-dialog"
+            icon={BookOpen}
+            title="Kursni belgilash"
+            label="Kurs"
+            count={visibleSelected.length}
+            initial={commonCourse}
+            options={[
+              ...courses.map((c) => ({ value: c.name, label: c.name, hint: c.teacher && teacherName.get(c.teacher) ? `o‘qituvchisi: ${teacherName.get(c.teacher)}` : undefined })),
+              { value: "", label: "Kurs tanlanmagan" },
+            ]}
+            hint="Kursning o‘qituvchisi bo‘lsa, o‘qituvchisi yo‘q o‘quvchilar unga biriktiriladi va oyligi ularning to‘lovlaridan hisoblanadi. Boshqa o‘qituvchiga biriktirilganlar o‘zgarmaydi."
+            onSave={async (course) => {
+              const res = await setCourseBulk(visibleSelected, course);
               if (res.error) return res.error;
               setSelected(new Set());
               return null;
@@ -236,22 +279,22 @@ export function StudentsTable({
   );
 }
 
-/** Tanlangan o'quvchilarga o'qituvchi biriktirish oynasi. */
-function AssignTeacherDialog({
-  open,
-  onClose,
-  count,
-  initial,
-  teachers,
-  onSave,
-}: {
-  open: boolean;
-  onClose: () => void;
+type PickOption = { value: string; label: string; hint?: string };
+
+type BulkPickProps = {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  label: string;
   count: number;
   initial: string;
-  teachers: TeacherOption[];
-  onSave: (teacherId: string) => Promise<string | null>;
-}) {
+  options: PickOption[];
+  hint: string;
+  onSave: (value: string) => Promise<string | null>;
+};
+
+/** Tanlangan o'quvchilar uchun bitta qiymat tanlash oynasi (o'qituvchi yoki kurs). */
+function BulkPickDialog({ open, onClose, ...props }: BulkPickProps & { open: boolean; onClose: () => void }) {
   const { ref, present } = useDialog(open);
 
   return (
@@ -261,37 +304,25 @@ function AssignTeacherDialog({
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      aria-labelledby="teacher-dialog-title"
+      aria-labelledby={`${props.id}-title`}
       className="m-auto w-[calc(100%-2rem)] max-w-md overflow-visible rounded-2xl border border-line bg-surface p-0 text-ink-700 shadow-pop"
     >
-      {present ? <AssignTeacherBody count={count} initial={initial} teachers={teachers} onSave={onSave} onClose={onClose} /> : null}
+      {present ? <BulkPickBody {...props} onClose={onClose} /> : null}
     </dialog>
   );
 }
 
-function AssignTeacherBody({
-  count,
-  initial,
-  teachers,
-  onSave,
-  onClose,
-}: {
-  count: number;
-  initial: string;
-  teachers: TeacherOption[];
-  onSave: (teacherId: string) => Promise<string | null>;
-  onClose: () => void;
-}) {
-  const [value, setValue] = useState(initial || teachers[0]?.id || "");
+function BulkPickBody({ id, icon, title, label, count, initial, options, hint, onSave, onClose }: BulkPickProps & { onClose: () => void }) {
+  const [value, setValue] = useState(initial || options[0]?.value || "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   return (
     <div>
       <div className="group flex items-start gap-3.5 border-b border-line-soft px-5 py-4 sm:px-6">
-        <IconTile icon={GraduationCap} tone="brand" variant="solid" />
+        <IconTile icon={icon} tone="brand" variant="solid" />
         <div className="min-w-0 flex-1">
-          <h2 id="teacher-dialog-title" className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">
-            O‘qituvchini biriktirish
+          <h2 id={`${id}-title`} className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">
+            {title}
           </h2>
           <p className="num mt-0.5 text-sm text-ink-500">{count} ta o‘quvchi uchun</p>
         </div>
@@ -300,18 +331,9 @@ function AssignTeacherBody({
         </button>
       </div>
       <div className="px-5 py-5 sm:px-6">
-        <span className="mb-2 block text-sm font-medium text-ink-700">O‘qituvchi</span>
-        <Select
-          value={value}
-          onChange={setValue}
-          aria-label="O‘qituvchi"
-          searchable={false}
-          options={[
-            ...teachers.map((t) => ({ value: t.id, label: t.name, hint: t.status === "invited" ? "ro‘yxatdan o‘tmagan" : undefined })),
-            { value: "", label: "Biriktirilmagan (o‘qituvchisiz)" },
-          ]}
-        />
-        <p className="mt-2 text-xs leading-relaxed text-ink-400">O‘qituvchi o‘z profilida shu o‘quvchilarni, ularning to‘lovlarini ko‘radi va ularning to‘lovlaridan oyligi hisoblanadi.</p>
+        <span className="mb-2 block text-sm font-medium text-ink-700">{label}</span>
+        <Select value={value} onChange={setValue} aria-label={label} searchable={false} options={options} />
+        <p className="mt-2 text-xs leading-relaxed text-ink-400">{hint}</p>
         {error ? (
           <p className="mt-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700" role="alert">
             {error}

@@ -92,8 +92,14 @@ const settingSchema = new Schema(
     autoImport: { type: Boolean },
     /** Markaz nomi (yon menyuda) */
     centerName: { type: String },
-    /** Kurslar (o'quvchining «guruh» maydoni shu nom bilan): nomi va standart oylik narxi. Maydon yo'q — standart ro'yxat */
-    courses: { type: [{ name: String, fee: Number, _id: false }], default: undefined },
+    /**
+     * Kurslar (o'quvchining «guruh» maydoni shu nom bilan): nomi, standart oylik narxi va kurs o'qituvchisi
+     * (shu kurs o'quvchilari unga biriktiriladi). Maydon yo'q — standart ro'yxat
+     */
+    courses: {
+      type: [{ name: String, fee: Number, teacher: { type: Schema.Types.ObjectId, ref: "Staff", default: null }, _id: false }],
+      default: undefined,
+    },
     /** Yoqib-o'chiriladigan imkoniyatlar (rahbar Sozlamalar → Funksiyalar bo'limida) */
     features: {
       /** To'lov formasida «To'langan sana» maydoni: rahbarda / administratorda (o'chiq bo'lsa — bugungi sana) */

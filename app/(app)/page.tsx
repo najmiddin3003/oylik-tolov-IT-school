@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import {
   ArrowUpRight,
+  BookOpen,
   CalendarDays,
   Crown,
   Download,
@@ -212,13 +213,20 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
                     {team.unassigned.students} ta o‘quvchi · qarz {formatMoney(team.unassigned.debt)}
                   </p>
                   <p className="mt-2 text-[13px] leading-relaxed text-ink-400">
-                    Ularning to‘lovlari hech bir o‘qituvchining oyligiga kirmaydi. O‘quvchilar ro‘yxatida belgilab, «O‘qituvchi» tugmasi bilan biriktiring.
+                    Ularning to‘lovlari hech bir o‘qituvchining oyligiga kirmaydi. Kursga o‘qituvchi tanlang — shu kurs o‘quvchilari unga o‘zi biriktiriladi.
+                    Kursi yo‘qlarini ro‘yxatda belgilab, «Kurs» yoki «O‘qituvchi» tugmasi bilan biriktiring.
                   </p>
                 </div>
-                <Link href={`/students?${new URLSearchParams({ teacher: "none", month })}`} className={cx(btn.sm, "mt-4 w-fit")}>
-                  <UserPlus className="size-4" aria-hidden />
-                  Biriktirish
-                </Link>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link href="/settings#kurslar" className={btn.sm}>
+                    <BookOpen className="size-4" aria-hidden />
+                    Kursga o‘qituvchi
+                  </Link>
+                  <Link href={`/students?${new URLSearchParams({ teacher: "none", month })}`} className={btn.sm}>
+                    <UserPlus className="size-4" aria-hidden />
+                    Ro‘yxatdan biriktirish
+                  </Link>
+                </div>
               </Card>
             ) : null}
           </div>

@@ -24,7 +24,7 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 - **Umumiy oy tanlagich** yuqori panelda — bosh sahifa, o‘quvchilar va to‘lovlar shu oy bo‘yicha ko‘rsatiladi; `/` tugmasi — o‘quvchi qidiruvi
   (yozilishi bilan natija chiqadi). Barcha ro‘yxat, sana va oy tanlagichlar — saytning o‘z dizaynida (brauzer standartisiz).
 - **O‘quvchilar** sahifasida tablar (Barcha / Qarzdorlar / To‘laganlar), saralash va belgilash katakchalari orqali bir nechta o‘quvchini
-  birdan nofaol/faol qilish yoki o‘chirish. Har o‘quvchining tartib raqami bor (`#001`). Qidiruv Enter bosmasdan ishlaydi.
+  birdan nofaol/faol qilish, kurs, o‘qituvchi yoki dars vaqtini belgilash, o‘chirish. Har o‘quvchining tartib raqami bor (`#001`). Qidiruv Enter bosmasdan ishlaydi.
 - **Xodimlar va rollar** — har xodim o‘z telefon raqami va paroli bilan kiradi va faqat o‘ziga tegishli narsani ko‘radi:
   - **Rahbar** — hamma bo‘limlar. Bosh sahifa o‘rniga **«Rahbar paneli»**: jami tushum, xodimlar oyligi, shu oy berilgan
     avans/oylik, qolgan qarz va har bir xodimning kartasi (o‘quvchilari, tushumi, oyligi), o‘qituvchi bo‘yicha filtr.
@@ -35,6 +35,10 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   - **Administrator** — «To‘lovlar»: oy rejasi va bajarilish foizi, bugun keladigan o‘quvchilar, to‘lov kiritish (avval kurs,
     keyin o‘quvchi; sana — sozlamaga qarab), **«Yangi o‘quvchi»** oynasi (kurs, oylik to‘lov, dars vaqti), rahbardan kelgan
     **topshiriqlar**; **«Kassa»** — o‘zi yig‘gan pul va rahbarga topshirish; «Olingan avans/oylik» va «Profilim».
+  - **Kurs o‘qituvchisi** — Sozlamalar → Kurslar’da (yoki o‘qituvchi qo‘shishda «Kursi») kursga o‘qituvchi tanlansa, shu kursdagi
+    o‘qituvchisiz o‘quvchilar unga o‘zi biriktiriladi; yangi o‘quvchi, Sheets’dan import va ro‘yxatdagi ommaviy «Kurs» amali ham
+    kurs o‘qituvchisini o‘zi qo‘yadi. Kurs o‘qituvchisi almashsa, avvalgisining shu kursdagi o‘quvchilari yangisiga o‘tadi;
+    boshqa o‘qituvchiga alohida biriktirilganlar o‘zgarmaydi.
   - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
     administrator va rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). Foiz «falon oydan boshlab» o‘zgaradi —
     o‘tgan oylar o‘zgarmaydi.
@@ -61,7 +65,7 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 - **Reja va yangiliklar** (rahbar) — kelgusida qilinadigan ishlar va shu paytgacha qilinganlar, ochiladigan bo‘limlarda.
 - **Oy oxiri eslatmasi** — oy tugashiga 10 kun qolganda (va o‘tgan oyda to‘lamaganlar qolgan bo‘lsa) yuqoridagi qo‘ng‘iroqchada va
   sahifalarda: «10 ta o‘quvchi to‘lov qilmadi» — bosilsa ism-familiyalar ro‘yxati.
-- **Sozlamalar** (rahbar): **kurslar** (nomi va standart narxi; nomi o‘zgarsa — o‘quvchilari ham o‘tadi), oylik to‘lov narxi
+- **Sozlamalar** (rahbar): **kurslar** (nomi, standart narxi va o‘qituvchisi; nomi o‘zgarsa — o‘quvchilari ham o‘tadi), oylik to‘lov narxi
   (tanlangan oydan boshlab; hammaga, bitta kursga yoki ma’lum narxdagilarga), **funksiyalar** (galochka bilan, darhol saqlanadi:
   «To‘langan sana» maydoni rahbarda/administratorda, Google Sheets ogohlantiruvi — har kim o‘zi uchun, Sheets’dan avtomatik
   qo‘shish, kunlik SMS), parol, SMS matnlari, markaz nomi. Chapdagi menyu o‘qilayotgan bo‘limni belgilab boradi.
@@ -206,7 +210,8 @@ lib/otp.ts, otp-code.ts  SMS tasdiqlash kodi: yuborish, tekshirish, cheklovlar
 lib/kassa.ts          administrator va rahbar kassasi (naqd / karta), topshiruvlar
 lib/tasks.ts          rahbardan administratorga topshiriqlar
 lib/activity.ts       faoliyat jurnali (har kimga — o'ziniki)
-lib/courses.ts        kurslar ro'yxati va taqqoslash (sof funksiyalar, testlangan)
+lib/courses.ts        kurslar ro'yxati, taqqoslash va kurs o'qituvchisi qoidalari (sof funksiyalar, testlangan)
+lib/course-teacher.ts kurs o'qituvchisini o'quvchilarga biriktirish (baza)
 lib/roadmap.ts        «Reja va yangiliklar» sahifasi matnlari
 lib/ledger.ts         to'lov holati hisoblari (arxivlanganlar hisobga olinmaydi)
 lib/fees.ts           oylik narx va ulush foizi tarixi ("falon oydan boshlab")

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { ArrowRight, Crown, History, UserPlus, UsersRound } from "lucide-react";
+import { ArrowRight, BookOpen, Crown, History, UserPlus, UsersRound } from "lucide-react";
 import { LegacyPayForm, StaffAddForm } from "@/components/StaffForms";
 import { StaffHelpButton } from "@/components/StaffHelp";
 import { Card, CardHeader, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Tag } from "@/components/ui";
@@ -63,7 +63,8 @@ async function StaffView({ searchParams }: { searchParams: PageProps<"/staff">["
         >
           <UsersRound className="size-[18px] text-brand-600" aria-hidden />
           <span className="min-w-[200px] flex-1 text-brand-900">
-            <b className="font-semibold">{d.unassignedStudents} ta faol o‘quvchiga</b> hali o‘qituvchi biriktirilmagan — ro‘yxatda belgilab, «O‘qituvchi» tugmasi bilan biriktiring.
+            <b className="font-semibold">{d.unassignedStudents} ta faol o‘quvchiga</b> hali o‘qituvchi biriktirilmagan. Kursga o‘qituvchi tanlansa
+            (Sozlamalar → Kurslar), shu kurs o‘quvchilari unga o‘zi o‘tadi; qolganlarini ro‘yxatda belgilab, «Kurs» yoki «O‘qituvchi» tugmasi bilan biriktiring.
           </span>
           <span className="inline-flex items-center gap-1 font-semibold text-brand-700">
             Biriktirish
@@ -109,7 +110,7 @@ async function StaffView({ searchParams }: { searchParams: PageProps<"/staff">["
               <p className="mt-0.5 text-sm text-ink-500">Ism, telefon, lavozim va oylik foizi</p>
             </div>
           </div>
-          <StaffAddForm />
+          <StaffAddForm courses={d.courses} />
         </Card>
       </div>
     </>
@@ -143,6 +144,16 @@ function StaffRow({ s, month, self }: { s: StaffRowView; month: string; self: bo
             {formatUzPhone(s.phone)}
             {s.lastLoginAt ? ` · oxirgi kirish ${formatDateTime(s.lastLoginAt)}` : ""}
           </span>
+          {s.courses.length ? (
+            <span className="mt-1.5 flex flex-wrap gap-1.5">
+              {s.courses.map((c) => (
+                <span key={c} className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700">
+                  <BookOpen className="size-3" aria-hidden />
+                  {c}
+                </span>
+              ))}
+            </span>
+          ) : null}
         </span>
         <span className="num flex shrink-0 items-center gap-2 text-[13px] text-ink-500">
           {s.role === "teacher" ? <span className="rounded-lg bg-violet-50 px-2 py-1 font-medium text-violet-700">{s.students} ta o‘quvchi</span> : null}

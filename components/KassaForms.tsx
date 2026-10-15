@@ -56,7 +56,7 @@ function HandoverFields({ available, fe }: { available: { cash: number; card: nu
         <label htmlFor="ho-note" className={labelCls}>
           Izoh <span className="font-normal text-ink-400">(ixtiyoriy)</span>
         </label>
-        <input id="ho-note" name="note" maxLength={300} className={inputCls} placeholder="Masalan: 14-oktabr kun yakuni" />
+        <input id="ho-note" name="note" maxLength={300} className={inputCls} placeholder="Topshirilayotgan pul haqida qisqacha" />
       </div>
     </>
   );

@@ -8,7 +8,7 @@ import { SyncAlert } from "@/components/ShellParts";
 import { StudentsTable } from "@/components/StudentsTable";
 import { btn, Card, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Pagination } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
-import { listGroups, listScheduleTemplates, listStudents, listTeacherOptions, type StudentSort, type StudentTab } from "@/lib/data";
+import { listCourses, listGroups, listScheduleTemplates, listStudents, listTeacherOptions, type StudentSort, type StudentTab } from "@/lib/data";
 import { parseDayFilter, tashkentClock, WEEKDAY_NAMES } from "@/lib/schedule";
 import { currentMonth, isValidMonth, monthLabel, nowMs } from "@/lib/time";
 
@@ -45,12 +45,15 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
   const sort: StudentSort = SORTS.some((s) => s.key === str("sort")) ? (str("sort") as StudentSort) : "name";
   const page = Math.max(1, Number(str("page")) || 1);
 
-  const [data, groups, templates, teachers] = await Promise.all([
+  const [data, groups, templates, teachers, courseList] = await Promise.all([
     listStudents({ q, group, day, status, month, tab, sort, page, pageSize: PAGE_SIZE, teacher }),
     listGroups(),
     isOwner ? listScheduleTemplates() : Promise.resolve([]),
     isOwner ? listTeacherOptions() : Promise.resolve([]),
+    isOwner ? listCourses() : Promise.resolve([]),
   ]);
+  // Ommaviy «Kurs» amali uchun — faqat Sozlamalar → Kurslar ro'yxatidagilar
+  const courses = courseList.filter((c) => c.inList).map((c) => ({ name: c.name, teacher: c.teacher }));
   const { rows, counts, stats } = data;
   const filtered = Boolean(q || group || day || teacher || tab !== "all" || status !== "active");
   const serverNow = nowMs();
@@ -235,6 +238,7 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
             showGroup={groups.length > 1}
             readOnly={!isOwner}
             teachers={teachers}
+            courses={courses}
           />
         )}
 

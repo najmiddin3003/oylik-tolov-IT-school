@@ -300,7 +300,7 @@ function PaymentFields({
           <label htmlFor="pf-note" className={labelCls}>
             Izoh <span className="font-normal text-ink-400">(ixtiyoriy)</span>
           </label>
-          <input id="pf-note" name="note" className={inputCls} placeholder="Masalan: chek №123" autoFocus />
+          <input id="pf-note" name="note" className={inputCls} placeholder="To‘lov haqida qisqacha" autoFocus />
         </div>
       ) : (
         <button type="button" onClick={() => setShowNote(true)} className="-my-1 inline-flex w-fit items-center gap-1.5 text-sm text-ink-500 hover:text-brand-700">

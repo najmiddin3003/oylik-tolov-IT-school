@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Check, Eye, EyeOff, HandCoins, KeyRound, MessageSquareText, Percent, Plus, Send, ShieldCheck, Tags, Trash2, Wallet } from "lucide-react";
 import { applyFeeChange, changeOwnerPassword, saveCenterName, saveCourses, saveSmsSettings, sendTestSmsAction, setAdminPassword } from "@/app/actions/settings";
@@ -117,7 +118,7 @@ function SalaryFields({
           <label htmlFor="sal-amount" className={labelCls}>
             Summa
           </label>
-          <MoneyInput id="sal-amount" name="amount" placeholder="300 000" invalid={!!fe.amount} />
+          <MoneyInput id="sal-amount" name="amount" placeholder="Berilgan summa" invalid={!!fe.amount} />
           <FieldError msg={fe.amount} />
         </div>
         <div>
@@ -135,7 +136,7 @@ function SalaryFields({
         <label htmlFor="sal-note" className={labelCls}>
           Izoh <span className="font-normal text-ink-400">(ixtiyoriy)</span>
         </label>
-        <input id="sal-note" name="note" maxLength={300} className={inputCls} placeholder="Masalan: oktabr oyi uchun birinchi qism" />
+        <input id="sal-note" name="note" maxLength={300} className={inputCls} placeholder="Berilgan pul haqida qisqacha" />
       </div>
     </>
   );
@@ -187,7 +188,7 @@ export function FeeForm({
           <label htmlFor="fee-new" className={labelCls}>
             Yangi narx (so‘m)
           </label>
-          <MoneyInput id="fee-new" name="fee" value={fee} onValueChange={(_, f) => setFee(f)} placeholder="350 000" invalid={!!fe.fee} />
+          <MoneyInput id="fee-new" name="fee" value={fee} onValueChange={(_, f) => setFee(f)} placeholder="Yangi oylik narx" invalid={!!fe.fee} />
           <FieldError msg={fe.fee} />
         </div>
         <div>
@@ -347,7 +348,7 @@ export function SmsForm({
           <label htmlFor="sms-phone" className={labelCls}>
             Qaysi raqamga
           </label>
-          <PhoneInput id="sms-phone" name="phone" defaultValue={sms.phone} placeholder="33 626 30 06" invalid={!!fe.phone} />
+          <PhoneInput id="sms-phone" name="phone" defaultValue={sms.phone} placeholder="Eslatma boradigan raqam" invalid={!!fe.phone} />
           <FieldError msg={fe.phone} />
         </div>
         <div>
@@ -468,74 +469,152 @@ export function CenterNameForm({ value }: { value: string }) {
 
 // ---------- Kurslar ----------
 
-type CourseDraft = { key: number; name: string; fee: string; prev: string; students: number };
+type CourseDraft = {
+  key: number;
+  name: string;
+  fee: string;
+  prev: string;
+  students: number;
+  teacher: string;
+  /** Saqlangan holatdagi kurs o'qituvchisi (almashsa — uning shu kursdagi o'quvchilari yangisiga o'tadi) */
+  initialTeacher: string;
+  /** Kursdagi o'qituvchisiz o'quvchilar */
+  unassigned: number;
+};
 
-/** Kurslar ro'yxati: nomi va standart oylik narxi. Nomi o'zgarsa — o'sha kursdagi o'quvchilar ham yangi nomga o'tadi. */
-export function CoursesForm({ courses }: { courses: { name: string; fee: number | null; inList: boolean; students: number }[] }) {
+type CourseTeacherOption = { id: string; name: string; status: string };
+
+/**
+ * Kurslar ro'yxati: nomi, standart oylik narxi va o'qituvchisi. Nomi o'zgarsa — o'sha kursdagi o'quvchilar ham yangi nomga
+ * o'tadi; o'qituvchi tanlansa — kursdagi o'qituvchisiz o'quvchilar unga biriktiriladi (oyligi ularning to'lovidan hisoblanadi).
+ */
+export function CoursesForm({
+  courses,
+  teachers,
+}: {
+  courses: { name: string; fee: number | null; teacher: string | null; inList: boolean; students: number; unassigned: number }[];
+  teachers: CourseTeacherOption[];
+}) {
   const [state, onSubmit, pending] = useActionForm<FormState>(saveCourses, {});
   const [rows, setRows] = useState<CourseDraft[]>(() =>
-    courses.map((c, i) => ({ key: i, name: c.name, fee: c.fee ? formatNumber(c.fee) : "", prev: c.inList || c.students ? c.name : "", students: c.students })),
+    courses.map((c, i) => ({
+      key: i,
+      name: c.name,
+      fee: c.fee ? formatNumber(c.fee) : "",
+      prev: c.inList || c.students ? c.name : "",
+      students: c.students,
+      teacher: c.teacher ?? "",
+      initialTeacher: c.teacher ?? "",
+      unassigned: c.unassigned,
+    })),
   );
   const [nextKey, setNextKey] = useState(courses.length);
   const fe = state.fieldErrors ?? {};
   const update = (key: number, patch: Partial<CourseDraft>) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const payload = JSON.stringify(rows.map((r) => ({ name: r.name, fee: r.fee, prev: r.prev })));
+  const payload = JSON.stringify(rows.map((r) => ({ name: r.name, fee: r.fee, prev: r.prev, teacher: r.teacher })));
+  const teacherName = new Map(teachers.map((t) => [t.id, t.name]));
+  const teacherOptions = [
+    { value: "", label: "Tanlanmagan" },
+    ...teachers.map((t) => ({
+      value: t.id,
+      label: t.name,
+      hint: t.status === "invited" ? "ro‘yxatdan o‘tmagan" : t.status === "disabled" ? "kirishi o‘chirilgan" : undefined,
+    })),
+  ];
+  // Saqlanganda kimlar o'qituvchiga o'tishini oldindan aytib qo'yish
+  const assignHint = (r: CourseDraft) => {
+    if (!r.teacher) return null;
+    const who = [
+      r.unassigned > 0 ? `o‘qituvchisiz ${r.unassigned} ta o‘quvchi` : "",
+      r.initialTeacher && r.initialTeacher !== r.teacher ? `${teacherName.get(r.initialTeacher) ?? "avvalgi o‘qituvchi"}ning o‘quvchilari` : "",
+    ].filter(Boolean);
+    return who.length ? `Saqlansa, ${who.join(" va ")} ${teacherName.get(r.teacher) ?? "tanlangan o‘qituvchi"}ga o‘tadi` : null;
+  };
+  const cols = "xl:grid-cols-[minmax(0,1fr)_150px_200px_64px_44px]";
 
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
       <input type="hidden" name="courses" value={payload} />
       <div className="overflow-hidden rounded-2xl border border-line">
-        <div className="hidden grid-cols-[minmax(0,1fr)_200px_96px_44px] gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-400 sm:grid">
+        <div className={cx("hidden gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-400 xl:grid", cols)}>
           <span>Kurs nomi</span>
           <span>Oylik narxi</span>
+          <span>O‘qituvchisi</span>
           <span className="text-right">O‘quvchi</span>
           <span />
         </div>
         <ul className="divide-y divide-line-soft">
-          {rows.map((r, i) => (
-            <li key={r.key} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_200px_96px_44px] sm:items-start sm:gap-3">
-              <div>
-                <input
-                  value={r.name}
-                  onChange={(e) => update(r.key, { name: e.target.value })}
-                  maxLength={80}
-                  className={inputCls}
-                  placeholder="Masalan: Grafik dizayn"
-                  aria-label="Kurs nomi"
-                  aria-invalid={!!fe[`name-${i}`]}
-                />
-                <FieldError msg={fe[`name-${i}`]} />
-                {r.prev && r.name.trim() && r.name.trim() !== r.prev && r.students ? (
-                  <p className="mt-1.5 text-xs text-amber-700">Saqlansa, {r.students} ta o‘quvchining kursi «{r.name.trim()}» bo‘ladi</p>
-                ) : null}
-              </div>
-              <div>
-                <MoneyInput value={r.fee} onValueChange={(_, f) => update(r.key, { fee: f })} placeholder="belgilanmagan" aria-label="Oylik narxi" invalid={!!fe[`fee-${i}`]} />
-                <FieldError msg={fe[`fee-${i}`]} />
-              </div>
-              <p className="num flex h-11 items-center text-sm text-ink-500 sm:justify-end">
-                <span className="sm:hidden">O‘quvchilar:&nbsp;</span>
-                {r.students}
-              </p>
-              <button
-                type="button"
-                onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}
-                disabled={rows.length <= 1 || r.students > 0}
-                className={cx(btn.iconDanger, "size-11")}
-                title={r.students > 0 ? "O‘quvchisi bor kursni o‘chirib bo‘lmaydi" : "Ro‘yxatdan olib tashlash"}
-                aria-label="Kursni olib tashlash"
-              >
-                <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
-              </button>
-            </li>
-          ))}
+          {rows.map((r, i) => {
+            const hint = assignHint(r);
+            return (
+              <li key={r.key} className={cx("grid gap-3 px-4 py-3.5 sm:grid-cols-2 xl:items-start", cols)}>
+                <div className="sm:col-span-2 xl:col-span-1">
+                  <input
+                    value={r.name}
+                    onChange={(e) => update(r.key, { name: e.target.value })}
+                    maxLength={80}
+                    className={inputCls}
+                    placeholder="Kurs nomi"
+                    aria-label="Kurs nomi"
+                    aria-invalid={!!fe[`name-${i}`]}
+                  />
+                  <FieldError msg={fe[`name-${i}`]} />
+                  {r.prev && r.name.trim() && r.name.trim() !== r.prev && r.students ? (
+                    <p className="mt-1.5 text-xs text-amber-700">Saqlansa, {r.students} ta o‘quvchining kursi «{r.name.trim()}» bo‘ladi</p>
+                  ) : null}
+                </div>
+                <div>
+                  <MoneyInput value={r.fee} onValueChange={(_, f) => update(r.key, { fee: f })} placeholder="Oylik narx" aria-label="Oylik narxi" invalid={!!fe[`fee-${i}`]} />
+                  <FieldError msg={fe[`fee-${i}`]} />
+                </div>
+                <div>
+                  <Select
+                    value={r.teacher}
+                    onChange={(v) => update(r.key, { teacher: v })}
+                    options={teacherOptions}
+                    searchable={false}
+                    disabled={!teachers.length}
+                    invalid={!!fe[`teacher-${i}`]}
+                    aria-label="Kurs o‘qituvchisi"
+                  />
+                  <FieldError msg={fe[`teacher-${i}`]} />
+                  {hint ? <p className="mt-1.5 text-xs leading-relaxed text-brand-700">{hint}</p> : null}
+                </div>
+                <div className="flex items-center justify-between gap-3 sm:col-span-2 xl:contents">
+                  <p className="num flex h-11 items-center text-sm text-ink-500 xl:justify-end">
+                    <span className="xl:hidden">O‘quvchilar:&nbsp;</span>
+                    {r.students}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}
+                    disabled={rows.length <= 1 || r.students > 0}
+                    className={cx(btn.iconDanger, "size-11")}
+                    title={r.students > 0 ? "O‘quvchisi bor kursni o‘chirib bo‘lmaydi" : "Ro‘yxatdan olib tashlash"}
+                    aria-label="Kursni olib tashlash"
+                  >
+                    <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </div>
+      {!teachers.length ? (
+        <p className="text-sm text-ink-500">
+          Kursga o‘qituvchi tanlash uchun avval{" "}
+          <Link href="/staff" className="font-medium text-brand-600 hover:underline">
+            «Xodimlar»
+          </Link>{" "}
+          bo‘limida o‘qituvchi qo‘shing.
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => {
-            setRows((list) => [...list, { key: nextKey, name: "", fee: "", prev: "", students: 0 }]);
+            setRows((list) => [...list, { key: nextKey, name: "", fee: "", prev: "", students: 0, teacher: "", initialTeacher: "", unassigned: 0 }]);
             setNextKey((k) => k + 1);
           }}
           className={cx(btn.outline, "h-10")}

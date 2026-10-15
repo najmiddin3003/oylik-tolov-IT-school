@@ -3,7 +3,17 @@ import { test } from "node:test";
 import { activityGroup, deviceLabel } from "../lib/activity-rules";
 import { parseCSV } from "../lib/csv";
 import { compareRecords, courseLabel, DEFAULT_COLUMNS, parseSheet } from "../lib/compare";
-import { courseFee, courseKey, courseNames, DEFAULT_COURSES, normalizeCourses, sameCourse } from "../lib/courses";
+import {
+  courseFee,
+  courseKey,
+  courseNames,
+  courseStudentsToAssign,
+  courseTeacher,
+  DEFAULT_COURSES,
+  normalizeCourses,
+  sameCourse,
+  teacherOnCourseChange,
+} from "../lib/courses";
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-123";
 
@@ -35,14 +45,55 @@ test("kurslar: ro'yxat, taqqoslash va narx", () => {
   assert.deepEqual(
     normalizeCourses([{ name: " Web dasturlash ", fee: 300000 }, { name: "web dasturlash", fee: 1 }, { name: "", fee: 5 }, { name: "Grafik dizayn", fee: -5 }]),
     [
-      { name: "Web dasturlash", fee: 300000 },
-      { name: "Grafik dizayn", fee: null },
+      { name: "Web dasturlash", fee: 300000, teacher: null },
+      { name: "Grafik dizayn", fee: null, teacher: null },
     ],
   );
   // O'quvchilarda uchraydigan, ro'yxatda yo'q nomlar ham tanlovga qo'shiladi (takrorsiz)
   assert.deepEqual(courseNames(DEFAULT_COURSES, ["web dasturlash", "Ingliz tili", ""]), ["Web dasturlash", "Kompyuter savodxonligi", "Grafik dizayn", "Ingliz tili"]);
   assert.equal(courseFee(DEFAULT_COURSES, "WEB DASTURLASH"), 300000);
   assert.equal(courseFee(DEFAULT_COURSES, "Grafik dizayn"), null);
+});
+
+test("kurs o'qituvchisi: kursga biriktirish va kurs almashganda o'qituvchi", () => {
+  const A = "a".repeat(24);
+  const B = "b".repeat(24);
+  const C = "c".repeat(24);
+  // Bazadan o'qilgan o'qituvchi (ObjectId ham, satr ham) saqlanadi; noto'g'ri qiymat — tashlab yuboriladi
+  const courses = normalizeCourses([
+    { name: "Web dasturlash", fee: 300000, teacher: { toString: () => A } },
+    { name: "Grafik dizayn", fee: 300000, teacher: "noto'g'ri" },
+    { name: "Kompyuter savodxonligi", fee: 250000, teacher: null },
+  ]);
+  assert.deepEqual(
+    courses.map((c) => c.teacher),
+    [A, null, null],
+  );
+  assert.equal(courseTeacher(courses, "web  DASTURLASH"), A);
+  assert.equal(courseTeacher(courses, "Grafik dizayn"), null);
+  assert.equal(courseTeacher(courses, ""), null);
+
+  // Kursga o'qituvchi biriktirilganda: o'qituvchisizlar o'tadi, boshqa o'qituvchinikilar va boshqa kurslar o'zgarmaydi
+  const students = [
+    { id: "1", group: "Web dasturlash", teacher: null },
+    { id: "2", group: "web dasturlash", teacher: null },
+    { id: "3", group: "Web dasturlash", teacher: C },
+    { id: "4", group: "Web dasturlash", teacher: A },
+    { id: "5", group: "Grafik dizayn", teacher: null },
+    { id: "6", group: "", teacher: null },
+  ];
+  assert.deepEqual(courseStudentsToAssign(students, "Web dasturlash", A), ["1", "2"]);
+  // Kurs o'qituvchisi A dan B ga almashsa — A ning shu kursdagi o'quvchilari ham B ga o'tadi (C nikilar — yo'q)
+  assert.deepEqual(courseStudentsToAssign(students, "Web dasturlash", B, A), ["1", "2", "4"]);
+  assert.deepEqual(courseStudentsToAssign(students, "Ingliz tili", A), []);
+
+  // O'quvchining kursi tanlanganda/o'zgarganda o'qituvchisi
+  assert.equal(teacherOnCourseChange(null, null, A), A, "o'qituvchisiz — kurs o'qituvchisi");
+  assert.equal(teacherOnCourseChange(A, A, B), B, "avvalgi kursniki edi — yangi kursnikiga");
+  assert.equal(teacherOnCourseChange(A, A, null), null, "yangi kursda o'qituvchi yo'q");
+  assert.equal(teacherOnCourseChange(C, A, B), C, "boshqa o'qituvchi tanlangan — o'zgarmaydi");
+  assert.equal(teacherOnCourseChange(C, null, B), C);
+  assert.equal(teacherOnCourseChange(null, A, null), null);
 });
 
 test("faoliyat jurnali: amal guruhi va qurilma nomi", () => {

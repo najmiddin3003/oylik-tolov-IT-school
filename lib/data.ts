@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { listMyActivity, type ActivityRow } from "./activity";
 import { requireAuth, requireOwner, requireRole, type Session } from "./auth";
-import { courseFee, courseNames, sameCourse } from "./courses";
+import { courseFee, courseNames, courseTeacher, sameCourse } from "./courses";
 import { connectDB } from "./db";
 import { eskizConfigured } from "./eskiz";
 import { changesAfter, type FeeChange } from "./fees";
@@ -702,13 +702,16 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
 export async function getSettingsPageData(month: string) {
   const session = await requireOwner();
   await connectDB();
-  const [settings, logs, active, roles, syncAlert] = await Promise.all([
+  const [settings, logs, students, roles, syncAlert, teachers, names] = await Promise.all([
     getSettings({ fresh: true }),
     SmsLog.find({}).sort({ createdAt: -1 }).limit(8).lean(),
-    Student.find({ active: true }, { monthlyFee: 1, feeHistory: 1, group: 1 }).lean<StudentLean[]>(),
+    Student.find({}, { monthlyFee: 1, feeHistory: 1, group: 1, active: 1, teacher: 1 }).lean<StudentLean[]>(),
     activeStaffRoles(),
     syncAlertOn(session),
+    listTeachers(),
+    teacherNames(),
   ]);
+  const active = students.filter((s) => s.active !== false);
 
   // Joriy oy narxlari: qaysi narxda nechta o'quvchi
   const now = currentMonth();
@@ -721,13 +724,24 @@ export async function getSettingsPageData(month: string) {
   const courses = courseNames(settings.courses, active.map((s) => s.group ?? "")).map((name) => ({
     name,
     fee: courseFee(settings.courses, name),
+    teacher: courseTeacher(settings.courses, name),
     inList: settings.courses.some((c) => sameCourse(c.name, name)),
     students: active.filter((s) => sameCourse(s.group, name)).length,
+    /** Kursdagi o'qituvchisiz o'quvchilar (nofaollari bilan) — kursga o'qituvchi tanlansa, ular unga o'tadi */
+    unassigned: students.filter((s) => !s.teacher && sameCourse(s.group, name)).length,
   }));
+  // Kurs o'qituvchisi tanlash ro'yxati: faol o'qituvchilar + kirishi o'chirilgan bo'lsa ham hozir kursga biriktirilganlar
+  const teacherChoices = [
+    ...teachers,
+    ...[...new Set(settings.courses.flatMap((c) => (c.teacher ? [c.teacher] : [])))]
+      .filter((id) => !teachers.some((t) => t.id === id) && names.has(id))
+      .map((id) => ({ id, name: names.get(id)!, status: "disabled" as StaffStatus })),
+  ];
 
   return {
     centerName: settings.centerName,
     courses,
+    teachers: teacherChoices,
     features: settings.features,
     autoImport: settings.autoImport,
     syncAlert,
@@ -842,7 +856,11 @@ export const getSyncAlert = cache(async (): Promise<{ unresolved: number; error:
 
 // ---------- Xodimlar ----------
 
-export type StaffRowView = StaffView & { students: number };
+export type StaffRowView = StaffView & {
+  students: number;
+  /** O'qituvchi biriktirilgan kurslar (Sozlamalar → Kurslar) */
+  courses: string[];
+};
 
 /** «Xodimlar» sahifasi (rahbar): ro'yxat, o'qituvchilarning o'quvchilari soni, eski ulush yozuvlari. */
 export async function getStaffPageData() {
@@ -863,10 +881,17 @@ export async function getStaffPageData() {
   }
   const order: Record<Role, number> = { owner: 0, teacher: 1, admin: 2 };
   const staff: StaffRowView[] = docs
-    .map((d) => ({ ...toStaffView(d), students: counts.get(String(d._id)) ?? 0 }))
+    .map((d) => ({
+      ...toStaffView(d),
+      students: counts.get(String(d._id)) ?? 0,
+      courses: settings.courses.filter((c) => c.teacher === String(d._id)).map((c) => c.name),
+    }))
     .sort((a, b) => Number(a.status === "disabled") - Number(b.status === "disabled") || order[a.role] - order[b.role] || a.name.localeCompare(b.name));
+  const nameOf = new Map(staff.map((s) => [s.id, s.name]));
   return {
     staff,
+    /** Yangi o'qituvchi formasidagi «Kursi» tanlovi: kurslar va hozirgi o'qituvchisi */
+    courses: settings.courses.map((c) => ({ name: c.name, teacherName: c.teacher ? (nameOf.get(c.teacher) ?? null) : null })),
     unassignedStudents: unassigned,
     /** Eski (bitta o'qituvchi uchun) ulush foizi va xodimga biriktirilmagan oylik/avans yozuvlari */
     legacy:
@@ -935,19 +960,33 @@ export async function syncAlertOn(session: Session): Promise<boolean> {
 
 // ---------- Kurslar ----------
 
-export type CourseOption = { name: string; fee: number | null; students: number };
+export type CourseOption = {
+  name: string;
+  fee: number | null;
+  students: number;
+  /** Sozlamalar → Kurslar ro'yxatida bormi (yo'q — faqat o'quvchilarda uchraydigan eski nom) */
+  inList: boolean;
+  /** Kurs o'qituvchisi (rahbar va administratorga; o'quvchi formasida o'zi tanlanadi). Kirishi o'chirilgan bo'lsa — null */
+  teacher: string | null;
+};
 
 /** Kurslar (tanlash ro'yxatlari uchun): sozlamalardagilar + o'quvchilarda uchraydiganlar, faol o'quvchilar soni bilan. */
 export async function listCourses(): Promise<CourseOption[]> {
-  await requireRole(["owner", "admin", "teacher"]);
+  const session = await requireRole(["owner", "admin", "teacher"]);
   await connectDB();
-  const [settings, students] = await Promise.all([getSettings(), loadStudents()]);
+  const [settings, students, teachers] = await Promise.all([getSettings(), loadStudents(), session.role === "teacher" ? [] : listTeachers()]);
   const active = students.filter((s) => s.active !== false);
-  return courseNames(settings.courses, active.map((s) => s.group ?? "")).map((name) => ({
-    name,
-    fee: courseFee(settings.courses, name),
-    students: active.filter((s) => sameCourse(s.group, name)).length,
-  }));
+  const usable = new Set(teachers.map((t) => t.id));
+  return courseNames(settings.courses, active.map((s) => s.group ?? "")).map((name) => {
+    const teacher = courseTeacher(settings.courses, name);
+    return {
+      name,
+      fee: courseFee(settings.courses, name),
+      students: active.filter((s) => sameCourse(s.group, name)).length,
+      inList: settings.courses.some((c) => sameCourse(c.name, name)),
+      teacher: teacher && usable.has(teacher) ? teacher : null,
+    };
+  });
 }
 
 // ---------- To'lov formasi sozlamasi ----------

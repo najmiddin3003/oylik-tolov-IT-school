@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { Check, Info } from "lucide-react";
 import { saveStudent } from "@/app/actions/students";
 import type { FormState } from "@/app/actions/types";
+import { courseTeacher, teacherOnCourseChange } from "@/lib/courses";
 import type { StudentDetail } from "@/lib/data";
 import { feeFor, type FeeChange } from "@/lib/fees";
 import type { Lesson } from "@/lib/schedule";
@@ -41,8 +42,8 @@ export function StudentForm({
   teachers = [],
 }: {
   student?: StudentDetail;
-  /** Kurslar (Sozlamalar → Kurslar) va ularning standart oylik narxi */
-  courses: { name: string; fee: number | null }[];
+  /** Kurslar (Sozlamalar → Kurslar): standart oylik narxi va o'qituvchisi */
+  courses: { name: string; fee: number | null; teacher?: string | null }[];
   /** O'qituvchilar (biriktirish uchun) */
   teachers?: { id: string; name: string; status: string }[];
   /** Boshqa o'quvchilarda ko'p uchraydigan dars jadvallari */
@@ -63,6 +64,12 @@ export function StudentForm({
   const [fee, setFee] = useState(initialFee !== null ? formatNumber(initialFee) : "");
   const [feeTouched, setFeeTouched] = useState(false);
   const [group, setGroup] = useState(student?.group ?? "");
+  // Kurs o'qituvchisi: kurs tanlanganda (o'qituvchi bo'sh yoki avvalgi kursniki bo'lsa) o'zi qo'yiladi
+  const teacherOf = (name: string) => courseTeacher(courses.map((c) => ({ name: c.name, fee: c.fee, teacher: c.teacher ?? null })), name);
+  const [teacher, setTeacher] = useState(() =>
+    student ? (student.teacherId ?? teacherOf(student.group) ?? "") : teachers.length === 1 ? teachers[0].id : "",
+  );
+  const anyCourseTeacher = courses.some((c) => c.teacher);
   const feeChanged = student !== undefined && feeAtFrom !== null && Number(fee.replace(/\D/g, "")) !== feeAtFrom;
 
   return (
@@ -78,7 +85,7 @@ export function StudentForm({
           <label htmlFor="fullName" className={labelCls}>
             Ism-familiya <span className="text-brand-600">*</span>
           </label>
-          <input id="fullName" name="fullName" required defaultValue={student?.fullName} className={inputCls} placeholder="Masalan: Aliyev Vali" aria-invalid={!!fe.fullName} autoFocus={!student} />
+          <input id="fullName" name="fullName" required defaultValue={student?.fullName} className={inputCls} placeholder="O‘quvchining ism-familiyasi" aria-invalid={!!fe.fullName} autoFocus={!student} />
           <FieldError msg={fe.fullName} />
         </div>
         <div>
@@ -107,6 +114,7 @@ export function StudentForm({
             name="group"
             value={group}
             onChange={(v) => {
+              setTeacher((cur) => teacherOnCourseChange(cur || null, teacherOf(group), teacherOf(v)) ?? "");
               setGroup(v);
               // Yangi o'quvchida narx hali o'zgartirilmagan bo'lsa — kursning standart narxi qo'yiladi
               const courseFee = courses.find((c) => c.name === v)?.fee;
@@ -135,7 +143,7 @@ export function StudentForm({
               setFeeTouched(true);
             }}
             maxDigits={10}
-            placeholder="300 000"
+            placeholder="Oylik to‘lov summasi"
             invalid={!!fe.monthlyFee}
           />
           <FieldError msg={fe.monthlyFee} />
@@ -176,16 +184,18 @@ export function StudentForm({
             <span className={labelCls}>O‘qituvchisi</span>
             <Select
               name="teacher"
-              defaultValue={student?.teacherId ?? (teachers.length === 1 ? teachers[0].id : "")}
+              value={teacher}
+              onChange={setTeacher}
               aria-label="O‘qituvchisi"
               searchable={false}
               invalid={!!fe.teacher}
               options={[
-                { value: "", label: "Biriktirilmagan" },
+                { value: "", label: teacherOf(group) ? "Kurs o‘qituvchisi" : "Biriktirilmagan" },
                 ...teachers.map((t) => ({ value: t.id, label: t.name, hint: t.status === "invited" ? "ro‘yxatdan o‘tmagan" : undefined })),
               ]}
             />
             <FieldError msg={fe.teacher} />
+            {anyCourseTeacher ? <p className="mt-1.5 text-xs text-ink-400">Kurs tanlanganda kurs o‘qituvchisi o‘zi qo‘yiladi.</p> : null}
           </div>
         ) : null}
         <div>

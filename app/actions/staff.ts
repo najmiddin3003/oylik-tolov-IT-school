@@ -5,6 +5,8 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { requireOwner } from "@/lib/auth";
+import { assignCourseStudents, clearCourseTeacher } from "@/lib/course-teacher";
+import { sameCourse } from "@/lib/courses";
 import { connectDB } from "@/lib/db";
 import { applyPercentFrom } from "@/lib/fees";
 import { isId } from "@/lib/ids";
@@ -24,7 +26,10 @@ function str(fd: FormData, key: string, max = 200): string {
 
 const isRole = (v: string): v is Role => (ROLES as readonly string[]).includes(v);
 
-/** Yangi xodim: ism, telefon, rol, oylik foizi. Xodim keyin o'zi SMS kod orqali ro'yxatdan o'tadi. */
+/**
+ * Yangi xodim: ism, telefon, rol, oylik foizi; o'qituvchi uchun — kursi (ixtiyoriy: kurs unga biriktiriladi va shu kurs
+ * o'quvchilari unga o'tadi). Xodim keyin o'zi SMS kod orqali ro'yxatdan o'tadi.
+ */
 export async function addStaff(_prev: FormState, fd: FormData): Promise<FormState> {
   const session = await requireOwner({ fresh: true });
   const name = str(fd, "name", 80).replace(/\s+/g, " ");
@@ -32,17 +37,21 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
   const role = str(fd, "role");
   const percentRaw = str(fd, "percent");
   const percent = percentRaw ? parsePercent(percentRaw) : 0;
+  const courseRaw = role === "teacher" ? str(fd, "course", 80) : "";
 
   const fieldErrors: Record<string, string> = {};
   if (name.length < 2) fieldErrors.name = "Ism-familiyani kiriting";
   if (!phone) fieldErrors.phone = "Telefon raqamni to‘liq kiriting, masalan: 90 123 45 67";
   if (!isRole(role)) fieldErrors.role = "Lavozimni tanlang";
   if (percent === null) fieldErrors.percent = "0 dan 100 gacha son kiriting";
+  const settings = await getSettings({ fresh: true });
+  const courseIndex = courseRaw ? settings.courses.findIndex((c) => sameCourse(c.name, courseRaw)) : -1;
+  if (courseRaw && courseIndex < 0) fieldErrors.course = "Kurs topilmadi — sahifani yangilang";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   await connectDB();
   if (await Staff.exists({ phone })) return { fieldErrors: { phone: "Bu raqam bilan xodim allaqachon qo‘shilgan" } };
-  await Staff.create({
+  const created = await Staff.create({
     name,
     phone: phone!,
     role: role as Role,
@@ -50,11 +59,25 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
     shareHistory: percent ? [{ from: "0000-01", percent }] : [],
     shareBase: defaultShareBase(role as Role),
   });
-  await logActivity(session, "staff.add", `Xodim qo‘shildi: ${name} (${ROLE_LABEL[role as Role]}, ${formatUzPhone(phone!)}${percent ? `, ${percent}%` : ""})`);
+
+  // Kurs o'qituvchisi: kurs unga biriktiriladi, kursdagi o'qituvchisiz (va avvalgi kurs o'qituvchisidagi) o'quvchilar unga o'tadi
+  let courseNote = "";
+  if (courseIndex >= 0) {
+    const id = String(created._id);
+    const course = settings.courses[courseIndex];
+    await updateSettings({ $set: { courses: settings.courses.map((c, i) => (i === courseIndex ? { ...c, teacher: id } : c)) } });
+    const assigned = await assignCourseStudents(course.name, id, course.teacher);
+    courseNote = `«${course.name}» kursi${assigned ? ` va uning ${assigned} ta o‘quvchisi` : ""} unga biriktirildi`;
+  }
+  await logActivity(
+    session,
+    "staff.add",
+    `Xodim qo‘shildi: ${name} (${ROLE_LABEL[role as Role]}, ${formatUzPhone(phone!)}${percent ? `, ${percent}%` : ""})${courseNote ? ` · ${courseNote}` : ""}`,
+  );
   refresh();
   return {
     ok: true,
-    message: `${name} (${ROLE_LABEL[role as Role]}) qo‘shildi. Endi u saytda «Ro‘yxatdan o‘tish» bosib, ${formatUzPhone(phone!)} raqamiga kelgan SMS kod bilan parol yaratadi.`,
+    message: `${name} (${ROLE_LABEL[role as Role]}) qo‘shildi.${courseNote ? ` ${courseNote}.` : ""} Endi u saytda «Ro‘yxatdan o‘tish» bosib, ${formatUzPhone(phone!)} raqamiga kelgan SMS kod bilan parol yaratadi.`,
     nonce: Date.now(),
   };
 }
@@ -75,6 +98,8 @@ export async function updateStaff(id: string, _prev: FormState, fd: FormData): P
   await connectDB();
   const res = await Staff.updateOne({ _id: id }, { $set: { name, role, shareBase: base } });
   if (!res.matchedCount) return { error: "Xodim topilmadi" };
+  // O'qituvchi bo'lmay qolsa — kurslardagi «kurs o'qituvchisi» belgisi olib tashlanadi
+  if (role !== "teacher") await clearCourseTeacher(id);
   await logActivity(session, "staff.edit", `Xodim ma’lumotlari: ${name} (${ROLE_LABEL[role as Role]})`);
   refresh();
   return { ok: true, message: "Saqlandi", nonce: Date.now() };
@@ -128,6 +153,7 @@ export async function deleteStaff(id: string): Promise<void> {
   if (!staff || staff.status !== "invited" || staff.activatedAt) return;
   if (await Salary.exists({ staff: id })) return; // oylik yozuvlari bor — faqat o'chirib qo'yish mumkin
   await Student.updateMany({ teacher: id }, { $set: { teacher: null } });
+  await clearCourseTeacher(id);
   await Staff.deleteOne({ _id: id });
   await logActivity(session, "staff.delete", `Ro‘yxatdan o‘chirildi: ${staff.name}`);
   redirect("/staff");
