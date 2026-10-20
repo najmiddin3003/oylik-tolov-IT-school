@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { courseTeacherResolver } from "@/lib/course-teacher";
-import { cleanCourseName, courseTeacher, courseTeachers, sameCourse, teacherOnCourseChange } from "@/lib/courses";
+import { cleanCourseName, courseTeacher, courseTeachers, sameCourse, teacherCourses, teacherOnCourseChange } from "@/lib/courses";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
 import { applyFeeFrom, changesAfter } from "@/lib/fees";
@@ -27,6 +27,11 @@ function str(formData: FormData, key: string): string {
 function cleanPhone(raw: string): string {
   const uz = normalizeUzPhone(raw);
   return uz ? formatUzPhone(uz) : raw.slice(0, 40);
+}
+
+/** Aynan shu ism-familiya (katta-kichik harf farqisiz) — bir xil ismli faol o'quvchini topish uchun. */
+function exactName(fullName: string): RegExp {
+  return new RegExp(`^${fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
 }
 
 export async function saveStudent(
@@ -282,7 +287,7 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
   // O'qituvchi tanlanmagan bo'lsa — kurs o'qituvchisi biriktiriladi
   if (!teacher) teacher = (await courseTeacherResolver())(group);
   // Bir xil ismli faol o'quvchi bo'lsa — ogohlantirish (ikki marta qo'shilmasin)
-  const dup = await Student.exists({ fullName: new RegExp(`^${fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), active: true });
+  const dup = await Student.exists({ fullName: exactName(fullName), active: true });
   if (dup && str(formData, "confirmDuplicate") !== "1") {
     return { error: `«${fullName}» ismli faol o‘quvchi allaqachon bor. Baribir qo‘shish uchun yana bir marta «Saqlash»ni bosing.`, fieldErrors: { confirmDuplicate: "1" } };
   }
@@ -306,4 +311,68 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
   await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${group}), oylik ${formatMoney(monthlyFee!)}`);
   refresh();
   return { ok: true, message: `${fullName} qo‘shildi (${group}, oylik ${formatMoney(monthlyFee!)})`, nonce: Date.now() };
+}
+
+/**
+ * O'qituvchi o'z o'quvchisini qo'shadi («O'quvchilarim» sahifasidagi oyna). Kurs — faqat unga biriktirilganlaridan,
+ * oylik to'lov — kurs narxi (rahbar belgilaydi; narx qo'yilmagan kursda — o'qituvchi kiritadi), o'qituvchisi — o'zi.
+ */
+export async function addStudentByTeacher(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireRole(["teacher"], { fresh: true });
+  const staffId = session.staffId;
+  if (!staffId) return { error: "Xodim profilingiz topilmadi — qaytadan kiring" };
+  const fullName = str(formData, "fullName").replace(/\s+/g, " ");
+  const phone = cleanPhone(str(formData, "phone"));
+  const group = cleanCourseName(str(formData, "group"));
+  const startDate = isoToDate(str(formData, "startDate"));
+  const schedule = parseLessons(str(formData, "schedule"));
+
+  await connectDB();
+  const settings = await getSettings({ fresh: true });
+  const course = teacherCourses(settings.courses, staffId).find((c) => sameCourse(c.name, group));
+  // Kurs narxi belgilangan bo'lsa — o'sha (formadan kelgan summa hisobga olinmaydi)
+  const monthlyFee = course?.fee ?? parseAmount(str(formData, "monthlyFee"));
+
+  const fieldErrors: Record<string, string> = {};
+  if (fullName.length < 3) fieldErrors.fullName = "Ism-familiyani to‘liq kiriting";
+  else if (fullName.length > 120) fieldErrors.fullName = "Juda uzun";
+  if (phone && phone.replace(/\D/g, "").length < 9) fieldErrors.phone = "Telefon raqam noto‘g‘ri";
+  if (!group) fieldErrors.group = "Kursni tanlang";
+  else if (!course) fieldErrors.group = "Bu kurs sizga biriktirilmagan";
+  else if (monthlyFee === null || monthlyFee <= 0) fieldErrors.monthlyFee = "Oylik to‘lov summasini kiriting";
+  else if (monthlyFee > 100_000_000) fieldErrors.monthlyFee = "Summa juda katta — tekshirib ko‘ring";
+  if (!startDate) fieldErrors.startDate = "Boshlagan sanani tanlang";
+  if ("error" in schedule) fieldErrors.schedule = schedule.error;
+  if (Object.keys(fieldErrors).length || !course || monthlyFee === null || !startDate) return { fieldErrors };
+
+  // Bir xil ismli faol o'quvchi bo'lsa — ogohlantirish (ikki marta qo'shilmasin)
+  const dup = await Student.findOne({ fullName: exactName(fullName), active: true }, { teacher: 1 }).lean();
+  if (dup && str(formData, "confirmDuplicate") !== "1") {
+    const mine = String(dup.teacher ?? "") === staffId;
+    return {
+      error: mine
+        ? `Sizda «${fullName}» ismli o‘quvchi allaqachon bor. Baribir qo‘shish uchun yana bir marta «O‘quvchini qo‘shish»ni bosing.`
+        : `Markazda «${fullName}» ismli faol o‘quvchi allaqachon bor (sizga biriktirilmagan) — ikki marta qo‘shilmasligi uchun avval rahbardan so‘rang. Baribir qo‘shish uchun yana bir marta «O‘quvchini qo‘shish»ni bosing.`,
+      fieldErrors: { confirmDuplicate: "1" },
+    };
+  }
+  const startMonth = monthOfDate(startDate);
+  const feeHistory = standardFee(settings, startMonth) === monthlyFee ? changesAfter(settings.feeSchedule, startMonth) : [];
+  await Student.create({
+    fullName,
+    phone,
+    parentPhone: "",
+    group: course.name,
+    monthlyFee,
+    feeHistory,
+    startDate,
+    active: true,
+    note: "",
+    lessons: "lessons" in schedule ? schedule.lessons : [],
+    teacher: staffId,
+    seq: await nextStudentSeq(),
+  });
+  await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${course.name}), oylik ${formatMoney(monthlyFee)}`);
+  refresh();
+  return { ok: true, message: `${fullName} qo‘shildi (${course.name}, oylik ${formatMoney(monthlyFee)})`, nonce: Date.now() };
 }

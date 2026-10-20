@@ -14,6 +14,7 @@ import {
   DEFAULT_COURSES,
   normalizeCourses,
   sameCourse,
+  teacherCourses,
   teacherOnCourseChange,
 } from "../lib/courses";
 
@@ -78,6 +79,11 @@ test("kurs o'qituvchisi: kursga biriktirish va kurs almashganda o'qituvchi", () 
   assert.equal(courseTeacher(courses, "Grafik dizayn"), null);
   assert.equal(courseTeacher(courses, "Kompyuter savodxonligi"), null, "bir nechta o'qituvchi — qo'lda tanlanadi");
   assert.deepEqual(courseTeachers(courses, "kompyuter savodxonligi"), [B, C]);
+  // O'qituvchi o'zi o'quvchi qo'sha oladigan kurslar — faqat unga biriktirilganlari (narxi bilan)
+  assert.deepEqual(teacherCourses(courses, A).map((c) => [c.name, c.fee]), [["Web dasturlash", 300000]]);
+  assert.deepEqual(teacherCourses(courses, C).map((c) => c.name), ["Kompyuter savodxonligi"]);
+  assert.deepEqual(teacherCourses(courses, "d".repeat(24)), [], "kursga biriktirilmagan o'qituvchi");
+  assert.deepEqual(teacherCourses(courses, null), []);
   assert.equal(courseTeacher(courses, ""), null);
   // Bazaga yozish: yagona o'qituvchi eski versiya uchun "teacher" maydoniga ham yoziladi
   assert.deepEqual(coursesForStorage(courses).map((c) => c.teacher), [A, null, null, null]);

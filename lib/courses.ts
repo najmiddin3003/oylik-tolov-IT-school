@@ -69,6 +69,12 @@ export function courseTeachers(courses: Course[], name: string | null | undefine
   return courses.find((c) => sameCourse(c.name, name))?.teachers ?? [];
 }
 
+/** O'qituvchi o'zi o'quvchi qo'sha oladigan kurslar — Sozlamalar → Kurslar'da unga biriktirilganlari. */
+export function teacherCourses(courses: Course[], staffId: string | null | undefined): Course[] {
+  if (!staffId) return [];
+  return courses.filter((c) => c.teachers.includes(staffId));
+}
+
 /**
  * Kursga o'qituvchi biriktirilganda unga o'tadigan o'quvchilar: shu kursdagi o'qituvchisi yo'qlar va (kurs o'qituvchisi
  * almashgan bo'lsa) avvalgi kurs o'qituvchisining o'quvchilari. Boshqa o'qituvchiga alohida biriktirilganlar o'zgarmaydi.

@@ -1,13 +1,15 @@
 "use client";
 
-// Tezkor «Yangi o'quvchi» oynasi (administrator «To'lovlar» sahifasidan): kurs, oylik to'lov, telefon, dars vaqti.
+// Tezkor «Yangi o'quvchi» oynasi: kurs, oylik to'lov, telefon, dars vaqti.
+// Administrator — «To'lovlar» sahifasidan (istalgan kurs, narx va o'qituvchi);
+// o'qituvchi — «O'quvchilarim» sahifasidan: faqat o'z kurslari, narx — kurs narxi, o'quvchi o'ziga biriktiriladi.
 import { useState } from "react";
-import { BookOpen, Check, UserPlus } from "lucide-react";
-import { addStudentQuick } from "@/app/actions/students";
+import { BookOpen, Check, Lock, UserPlus } from "lucide-react";
+import { addStudentByTeacher, addStudentQuick } from "@/app/actions/students";
 import type { FormState } from "@/app/actions/types";
 import { teacherOnCourseChange } from "@/lib/courses";
 import type { Lesson } from "@/lib/schedule";
-import { formatNumber } from "@/lib/time";
+import { formatMoney, formatNumber } from "@/lib/time";
 import { MoneyInput, PhoneInput } from "./inputs";
 import { Modal, ModalBody, ModalHeader } from "./Modal";
 import { DatePicker, Select } from "./pickers";
@@ -23,12 +25,15 @@ export function QuickStudentButton({
   teachers,
   templates,
   today,
+  forTeacher = false,
   className,
 }: {
   courses: Course[];
   teachers: Teacher[];
   templates: Lesson[][];
   today: string;
+  /** O'qituvchi o'zi qo'shadi: `courses` — uning kurslari, narx — kurs narxi, o'qituvchi tanlanmaydi */
+  forTeacher?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -44,20 +49,45 @@ export function QuickStudentButton({
           icon={UserPlus}
           tone="violet"
           title="Yangi o‘quvchi"
-          subtitle="Kurs va oylik to‘lov majburiy. Saqlangach, to‘lov formasida darhol ko‘rinadi."
+          subtitle={
+            forTeacher
+              ? "O‘quvchi sizga biriktiriladi. Oylik to‘lov — kurs narxi (rahbar belgilaydi)."
+              : "Kurs va oylik to‘lov majburiy. Saqlangach, to‘lov formasida darhol ko‘rinadi."
+          }
           onClose={() => setOpen(false)}
         />
-        <QuickStudentForm courses={courses} teachers={teachers} templates={templates} today={today} onDone={() => setOpen(false)} />
+        <QuickStudentForm courses={courses} teachers={teachers} templates={templates} today={today} forTeacher={forTeacher} onDone={() => setOpen(false)} />
       </Modal>
     </>
   );
 }
 
-function QuickStudentForm({ courses, teachers, templates, today, onDone }: { courses: Course[]; teachers: Teacher[]; templates: Lesson[][]; today: string; onDone: () => void }) {
-  const [state, onSubmit, pending] = useActionForm<FormState>(addStudentQuick, {});
+function QuickStudentForm({
+  courses,
+  teachers,
+  templates,
+  today,
+  forTeacher,
+  onDone,
+}: {
+  courses: Course[];
+  teachers: Teacher[];
+  templates: Lesson[][];
+  today: string;
+  forTeacher: boolean;
+  onDone: () => void;
+}) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(forTeacher ? addStudentByTeacher : addStudentQuick, {});
+  // O'qituvchiga hali kurs biriktirilmagan bo'lsa — qo'shib bo'lmaydi (kursni rahbar biriktiradi)
+  const noCourse = forTeacher && courses.length === 0;
   return (
     <form onSubmit={onSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
       <ModalBody className="grid gap-5">
+        {noCourse ? (
+          <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800" role="status">
+            Sizga hali kurs biriktirilmagan. Rahbar «Sozlamalar → Kurslar» bo‘limida sizni kursga biriktirgach, shu yerdan o‘quvchi qo‘sha olasiz.
+          </p>
+        ) : null}
         {state.ok && state.message ? (
           <p className="rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800" role="status">
             ✓ {state.message}. Yana qo‘shishingiz yoki oynani yopishingiz mumkin.
@@ -70,13 +100,15 @@ function QuickStudentForm({ courses, teachers, templates, today, onDone }: { cou
         ) : null}
         {/* Bir xil ismli o'quvchi bor deb ogohlantirilgan bo'lsa — keyingi yuborishda tasdiq */}
         {state.fieldErrors?.confirmDuplicate ? <input type="hidden" name="confirmDuplicate" value="1" /> : null}
-        <QuickFields key={state.nonce ?? 0} courses={courses} teachers={teachers} templates={templates} today={today} fe={state.fieldErrors ?? {}} />
+        {noCourse ? null : (
+          <QuickFields key={state.nonce ?? 0} courses={courses} teachers={teachers} templates={templates} today={today} lockFee={forTeacher} fe={state.fieldErrors ?? {}} />
+        )}
       </ModalBody>
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line-soft bg-slate-50/60 px-5 py-3.5 sm:px-6">
         <button type="button" onClick={onDone} className={cx(btn.outline, "h-10")}>
           Yopish
         </button>
-        <button type="submit" disabled={pending} className={cx(btn.primary, "h-10")}>
+        <button type="submit" disabled={pending || noCourse} className={cx(btn.primary, "h-10")}>
           <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
           {pending ? "Saqlanmoqda…" : "O‘quvchini qo‘shish"}
         </button>
@@ -85,8 +117,24 @@ function QuickStudentForm({ courses, teachers, templates, today, onDone }: { cou
   );
 }
 
-function QuickFields({ courses, teachers, templates, today, fe }: { courses: Course[]; teachers: Teacher[]; templates: Lesson[][]; today: string; fe: Record<string, string> }) {
+function QuickFields({
+  courses,
+  teachers,
+  templates,
+  today,
+  lockFee,
+  fe,
+}: {
+  courses: Course[];
+  teachers: Teacher[];
+  templates: Lesson[][];
+  today: string;
+  /** Oylik to'lov — kurs narxi, o'zgartirilmaydi (narxi belgilanmagan kursda — kiritiladi) */
+  lockFee: boolean;
+  fe: Record<string, string>;
+}) {
   const [group, setGroup] = useState(courses.length === 1 ? courses[0].name : "");
+  const groupFee = courses.find((c) => c.name === group)?.fee ?? null;
   const [fee, setFee] = useState(courses.length === 1 && courses[0].fee ? formatNumber(courses[0].fee) : "");
   const [feeTouched, setFeeTouched] = useState(false);
   // Kurs o'qituvchisi: kurs tanlanganda (o'qituvchi bo'sh yoki avvalgi kursniki bo'lsa) o'zi qo'yiladi
@@ -146,24 +194,36 @@ function QuickFields({ courses, teachers, templates, today, fe }: { courses: Cou
           />
           {err("group")}
         </div>
-        <div>
-          <label htmlFor="qs-fee" className={labelCls}>
-            Oylik to‘lov <span className="text-brand-600">*</span>
-          </label>
-          <MoneyInput
-            id="qs-fee"
-            name="monthlyFee"
-            value={fee}
-            onValueChange={(_, f) => {
-              setFee(f);
-              setFeeTouched(true);
-            }}
-            maxDigits={10}
-            placeholder="Oylik to‘lov summasi"
-            invalid={!!fe.monthlyFee}
-          />
-          {err("monthlyFee")}
-        </div>
+        {lockFee && (groupFee || !group) ? (
+          <div>
+            <span className={labelCls}>Oylik to‘lov</span>
+            <p className="num flex h-11 items-center gap-2 rounded-xl border border-line bg-slate-50 px-3.5 text-[15px] text-ink-600">
+              <Lock className="size-3.5 shrink-0 text-ink-300" aria-hidden />
+              <span className="truncate">{groupFee ? formatMoney(groupFee) : "Kurs tanlangach ko‘rinadi"}</span>
+            </p>
+            <p className="mt-1.5 text-xs text-ink-400">Kurs narxi — rahbar belgilaydi</p>
+          </div>
+        ) : (
+          <div>
+            <label htmlFor="qs-fee" className={labelCls}>
+              Oylik to‘lov <span className="text-brand-600">*</span>
+            </label>
+            <MoneyInput
+              id="qs-fee"
+              name="monthlyFee"
+              value={fee}
+              onValueChange={(_, f) => {
+                setFee(f);
+                setFeeTouched(true);
+              }}
+              maxDigits={10}
+              placeholder="Oylik to‘lov summasi"
+              invalid={!!fe.monthlyFee}
+            />
+            {err("monthlyFee")}
+            {lockFee ? <p className="mt-1.5 text-xs text-ink-400">Bu kursga narx belgilanmagan — summani kiriting</p> : null}
+          </div>
+        )}
       </div>
       {teachers.length ? (
         <div className="max-w-sm">

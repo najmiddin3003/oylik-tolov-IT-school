@@ -4,13 +4,14 @@ import { Suspense } from "react";
 import { ArrowUpDown, BookOpen, CalendarClock, Download, Plus, UserCheck, Users } from "lucide-react";
 import { FilterForm, SearchInput } from "@/components/FilterForm";
 import { Select } from "@/components/pickers";
+import { QuickStudentButton } from "@/components/QuickStudent";
 import { SyncAlert } from "@/components/ShellParts";
 import { StudentsTable } from "@/components/StudentsTable";
 import { btn, Card, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Pagination } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
-import { listCourses, listGroups, listScheduleTemplates, listStudents, listTeacherOptions, parseStudentTab, type StudentSort, type StudentTab } from "@/lib/data";
+import { listCourses, listGroups, listMyCourses, listScheduleTemplates, listStudents, listTeacherOptions, parseStudentTab, type StudentSort, type StudentTab } from "@/lib/data";
 import { DAY_PRESETS, parseDayFilter, tashkentClock, WEEKDAY_NAMES } from "@/lib/schedule";
-import { currentMonth, isValidMonth, monthLabel, nowMs } from "@/lib/time";
+import { currentMonth, isValidMonth, monthLabel, nowMs, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "O‘quvchilar" };
 
@@ -31,7 +32,7 @@ export default function StudentsPage({ searchParams }: PageProps<"/students">) {
 
 async function Students({ searchParams }: { searchParams: PageProps<"/students">["searchParams"] }) {
   const { role } = await roleGuard(["owner", "teacher"]);
-  // O'qituvchi — faqat o'z o'quvchilari (tahrirlash — cheklangan maydonlar); qo'shish va o'chirish — rahbarda
+  // O'qituvchi — faqat o'z o'quvchilari: o'z kursiga qo'shadi va cheklangan maydonlarni tahrirlaydi; o'chirish — rahbarda
   const isOwner = role === "owner";
   const sp = await searchParams;
   const str = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
@@ -47,12 +48,14 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
   const sort: StudentSort = SORTS.some((s) => s.key === str("sort")) ? (str("sort") as StudentSort) : "name";
   const page = Math.max(1, Number(str("page")) || 1);
 
-  const [data, groups, templates, teachers, courseList] = await Promise.all([
+  const [data, groups, templates, teachers, courseList, myCourses] = await Promise.all([
     listStudents({ q, group, day, status, month, tab, sort, page, pageSize: PAGE_SIZE, teacher }),
     listGroups(),
-    isOwner ? listScheduleTemplates() : Promise.resolve([]),
+    listScheduleTemplates(),
     isOwner ? listTeacherOptions() : Promise.resolve([]),
     isOwner ? listCourses() : Promise.resolve([]),
+    // O'qituvchining «Yangi o'quvchi» oynasi uchun — unga biriktirilgan kurslar
+    isOwner ? Promise.resolve([]) : listMyCourses(),
   ]);
   // Ommaviy «Kurs» amali uchun — faqat Sozlamalar → Kurslar ro'yxatidagilar
   const courses = courseList.filter((c) => c.inList).map((c) => ({ name: c.name, teachers: c.teachers }));
@@ -103,7 +106,9 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
                 <Plus className="size-[18px]" strokeWidth={2.2} aria-hidden />
                 Yangi o‘quvchi
               </Link>
-            ) : null}
+            ) : (
+              <QuickStudentButton forTeacher courses={myCourses} teachers={[]} templates={templates} today={todayISO()} />
+            )}
           </>
         }
       />
@@ -226,7 +231,7 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
               {filtered ? (
                 "Qidiruv yoki filtr shartlarini o‘zgartirib ko‘ring."
               ) : !isOwner ? (
-                "Rahbar o‘quvchilarni sizga biriktirgach, ular shu yerda ko‘rinadi."
+                "«Yangi o‘quvchi» tugmasi orqali o‘z kursingizga o‘quvchi qo‘shing — yoki rahbar biriktirgach, ular shu yerda ko‘rinadi."
               ) : (
                 <>
                   <Link href="/students/new" className="font-medium text-brand-600 hover:underline">

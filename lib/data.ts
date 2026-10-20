@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { listMyActivity, type ActivityRow } from "./activity";
 import { requireAuth, requireOwner, requireRole, type Session } from "./auth";
-import { courseFee, courseNames, courseTeacher, courseTeachers, sameCourse } from "./courses";
+import { courseFee, courseNames, courseTeacher, courseTeachers, sameCourse, teacherCourses } from "./courses";
 import { connectDB } from "./db";
 import { eskizConfigured } from "./eskiz";
 import { changesAfter, type FeeChange } from "./fees";
@@ -599,9 +599,10 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
 
 /** Faol o'quvchilarda ko'p uchraydigan dars jadvallari (formada bir bosishda qo'yish uchun). */
 export async function listScheduleTemplates(): Promise<Lesson[][]> {
-  await requireRole(["owner", "admin"]);
+  await requireRole(["owner", "admin", "teacher"]);
   await connectDB();
-  const students = await loadStudents();
+  // O'qituvchiga — faqat o'z o'quvchilarining jadvallaridan
+  const students = await visibleStudents(await viewer());
   return popularSchedules(students.filter((s) => s.active ?? true).map((s) => normalizeLessons(s.lessons))).map((t) => t.lessons);
 }
 
@@ -1010,6 +1011,13 @@ export async function listCourses(): Promise<CourseOption[]> {
       teachers: courseTeachers(settings.courses, name).filter((t) => usable.has(t)),
     };
   });
+}
+
+/** O'qituvchining o'z kurslari (nomi va rahbar belgilagan narxi) — «O'quvchilarim» sahifasidagi «Yangi o'quvchi» oynasi uchun. */
+export async function listMyCourses(): Promise<{ name: string; fee: number | null }[]> {
+  const session = await requireRole(["teacher"]);
+  const settings = await getSettings();
+  return teacherCourses(settings.courses, session.staffId).map((c) => ({ name: c.name, fee: c.fee }));
 }
 
 // ---------- To'lov formasi sozlamasi ----------
