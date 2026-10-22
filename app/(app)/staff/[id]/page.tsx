@@ -133,7 +133,7 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
                   ? "Belgilangan oylik — har oy bir xil summa. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
                   : staff.shareBase === "center"
                     ? "Butun markaz tushumidan foiz. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
-                    : "O‘z o‘quvchilari to‘lagan pullardan foiz. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
+                    : "O‘z o‘quvchilari shu oyda to‘lagan pullardan foiz (o‘tgan oylar qarzi uchun to‘langani ham shu oyga). Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
               }
             />
             <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>

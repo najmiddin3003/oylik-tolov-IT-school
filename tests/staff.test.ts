@@ -17,6 +17,7 @@ import {
   defaultShareBase,
   fixedPayOf,
   isTeaching,
+  salaryMonthOf,
   TEACHING_FILTER,
   ownerPhone,
   legacyLoginAllowed,
@@ -162,4 +163,11 @@ test("dars beradigan xodim: o'qituvchi va «dars ham beradi» belgili rahbar", (
   assert.equal(isTeaching({ role: "admin", teaches: true }), false, "belgi faqat rahbar uchun");
   // Bazadagi shart ham shu qoida bilan bir xil
   assert.deepEqual(TEACHING_FILTER, { $or: [{ role: "teacher" }, { role: "owner", teaches: true }] });
+});
+
+test("oylik qaysi oyga: o'tgan oy qarzi — olingan oyga, oldindan to'lov — o'z oyiga", () => {
+  assert.equal(salaryMonthOf("2026-09", "2026-10"), "2026-10", "sentyabr qarzi oktabrda to'landi — oktabr oyligiga");
+  assert.equal(salaryMonthOf("2026-10", "2026-10"), "2026-10");
+  assert.equal(salaryMonthOf("2026-11", "2026-10"), "2026-11", "noyabr uchun oldindan — noyabr oyligiga");
+  assert.equal(salaryMonthOf("2026-12", "2027-01"), "2027-01", "yil almashishi");
 });

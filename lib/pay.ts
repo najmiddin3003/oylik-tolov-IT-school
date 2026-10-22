@@ -9,6 +9,7 @@ import { LIVE, loadStudents } from "./ledger";
 import { Payment, Salary } from "./models";
 import { salaryHistoryOf, shareHistoryOf, type StaffLean } from "./staff";
 import { fixedPayOf, payKindOf, payOf, staffPercent, staffSalary, type PayKind } from "./staff-rules";
+import { isoToDate, shiftMonth } from "./time";
 
 export type SalaryRow = {
   id: string;
@@ -57,13 +58,29 @@ export type StaffPay = {
   left: number;
 };
 
-/** Shu oy uchun tushum: jami va o'qituvchilar bo'yicha (o'qituvchisi yo'q o'quvchilar — "unassigned"). */
+/**
+ * Shu oy oyligi uchun tushum: jami va o'qituvchilar bo'yicha (o'qituvchisi yo'q o'quvchilar — "unassigned").
+ * `salaryMonthOf` qoidasi: shu oyda olingan pul (o'tgan oylar qarzi uchun ham) va shu oy uchun oldinroq olingan pul;
+ * shu oy uchun keyinroq olingani — olingan oyiga, keyingi oylar uchun oldindan to'lov — o'sha oyga.
+ */
 export const monthCollections = cache(async (month: string) => {
   await connectDB();
+  const start = isoToDate(`${month}-01`)!;
+  const next = isoToDate(`${shiftMonth(month, 1)}-01`)!;
   const [students, agg] = await Promise.all([
     loadStudents(),
     Payment.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
-      { $match: { ...LIVE, month } },
+      {
+        $match: {
+          ...LIVE,
+          $or: [
+            // Shu oy uchun — shu oy oxirigacha olingan
+            { month, paidAt: { $lt: next } },
+            // O'tgan oylar uchun — shu oyda olingan
+            { month: { $lt: month }, paidAt: { $gte: start, $lt: next } },
+          ],
+        },
+      },
       { $group: { _id: "$student", total: { $sum: "$amount" } } },
     ]),
   ]);

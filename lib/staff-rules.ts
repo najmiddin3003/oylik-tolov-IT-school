@@ -82,6 +82,15 @@ export function staffSalary(history: AmountChange[], month: string): number {
   return amountFor(history, month, 0);
 }
 
+/**
+ * To'lov qaysi oy oyligiga hisoblanadi: pul olingan oy, lekin to'lov qaysi oy uchun bo'lsa — o'sha oydan oldin emas.
+ * O'tgan oy qarzi uchun oktabrda olingan pul — oktabr oyligiga (o'quvchi hisobida esa o'tgan oy bo'lib qoladi);
+ * keyingi oy uchun oldindan to'lov — o'sha oy kelganda. Oylar "YYYY-MM".
+ */
+export function salaryMonthOf(forMonth: string, paidMonth: string): string {
+  return paidMonth > forMonth ? paidMonth : forMonth;
+}
+
 /** Foizli oylik: foiz × asos (tushum), olingan oylik/avans ayiriladi. */
 export function payOf(base: number, percent: number, taken: number) {
   const share = Math.round((base * percent) / 100);
