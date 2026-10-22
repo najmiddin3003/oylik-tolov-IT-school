@@ -45,7 +45,7 @@ import {
 import { pageGuard, type Session } from "@/lib/auth";
 import { getBellExtras, getMonthOverview, getMyProfile, getTeamOverview, listGroups, listTeacherOptions, type StudentRow, type TeamMember } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
-import { payLabel, ROLE_LABEL, staffInitials } from "@/lib/staff-rules";
+import { isTeaching, payLabel, ROLE_LABEL, staffInitials } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, formatNumber, isValidMonth, monthLabel, nowMs } from "@/lib/time";
 
 const PAGE_SIZE = 10;
@@ -94,7 +94,8 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
   const serverNow = nowMs();
   const showGroup = groups.length > 1;
   const teacherName = new Map(teachers.map((t) => [t.id, t.name]));
-  const staffCards = team.members.filter((m) => m.role !== "owner");
+  // Rahbar kartasi ko'rsatilmaydi — dars ham beradigan bo'lsa, o'qituvchi sifatida ko'rinadi
+  const staffCards = team.members.filter((m) => m.role !== "owner" || isTeaching(m));
 
   return (
     <>
@@ -183,7 +184,7 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
           tone="emerald"
         />
         <KpiCard label="Qarzdor o‘quvchilar" value={center.unpaid + center.partial} hint={`Jami ${formatMoney(center.debt)}`} icon={UserRound} tone="amber" />
-        <KpiCard label="O‘qituvchilar" value={team.members.filter((m) => m.role === "teacher").length} hint={`${team.members.filter((m) => m.status === "invited").length} tasi hali ro‘yxatdan o‘tmagan`} icon={GraduationCap} tone="brand" />
+        <KpiCard label="O‘qituvchilar" value={team.members.filter((m) => isTeaching(m)).length} hint={`${team.members.filter((m) => m.status === "invited").length} tasi hali ro‘yxatdan o‘tmagan`} icon={GraduationCap} tone="brand" />
       </div>
 
       {/* Xodimlar */}
@@ -359,7 +360,7 @@ function FilterChip({ href, active, children }: { href: string; active: boolean;
 
 /** Xodim kartasi (rahbar paneli): o'quvchilari, tushumi va oyligi. */
 function TeamCard({ m, month }: { m: TeamMember; month: string }) {
-  const isTeacher = m.role === "teacher";
+  const isTeacher = isTeaching(m);
   const collectedFromStudents = isTeacher ? m.pay.base : 0;
   return (
     <Card className="group flex flex-col p-5 transition hover:shadow-pop">
@@ -378,7 +379,8 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
             {m.name}
           </Link>
           <p className="mt-1 flex flex-wrap items-center gap-1.5">
-            <Tag tone={isTeacher ? "brand" : "emerald"}>{ROLE_LABEL[m.role]}</Tag>
+            <Tag tone={m.role === "owner" ? "amber" : isTeacher ? "brand" : "emerald"}>{ROLE_LABEL[m.role]}</Tag>
+            {m.role === "owner" && isTeacher ? <Tag tone="brand">O‘qituvchi</Tag> : null}
             {m.status === "invited" ? <Tag tone="amber">Ro‘yxatdan o‘tmagan</Tag> : null}
           </p>
         </div>

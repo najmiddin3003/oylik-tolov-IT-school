@@ -61,6 +61,7 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
             <div className="num mt-2.5 flex flex-wrap items-center gap-2 text-sm text-ink-500">
               <span>{formatUzPhone(staff.phone)}</span>
               <Tag tone={staff.status === "active" ? "emerald" : staff.status === "invited" ? "amber" : "rose"}>{STATUS_LABEL[staff.status]}</Tag>
+              {staff.teaches ? <Tag tone="brand">Dars ham beradi</Tag> : null}
               {staff.lastLoginAt ? <span className="text-ink-400">oxirgi kirish: {formatDateTime(staff.lastLoginAt)}</span> : null}
             </div>
           </div>
@@ -206,7 +207,7 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
         <div className="grid gap-6 self-start">
           <Card className="p-6">
             <SectionTitle icon={UserCog} tone="sky" title="Ma’lumotlari" subtitle={ROLE_HINT[staff.role]} />
-            <StaffEditForm action={updateStaff.bind(null, staff.id)} name={staff.name} role={staff.role} shareBase={staff.shareBase} self={self} />
+            <StaffEditForm action={updateStaff.bind(null, staff.id)} name={staff.name} role={staff.role} shareBase={staff.shareBase} teaches={staff.teaches} self={self} />
           </Card>
 
         </div>

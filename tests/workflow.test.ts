@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { activityGroup, deviceLabel } from "../lib/activity-rules";
 import { parseCSV } from "../lib/csv";
-import { compareRecords, courseLabel, DEFAULT_COLUMNS, parseSheet } from "../lib/compare";
+import { compareRecords, courseLabel, DEFAULT_COLUMNS, nameMatches, parseSheet, studentNameKeys } from "../lib/compare";
+import { looseNameKey, nameSimilarity } from "../lib/normalize";
 import {
   courseFee,
   courseKey,
@@ -166,4 +167,53 @@ test("Sheets: kurslar bo'yicha qatorlar, filtr va mos kelganlar", () => {
     ["unknown_student", "Kompyuter S"],
   ]);
   assert.equal(courseLabel("  "), "Kursi yozilmagan");
+});
+
+test("Sheets: ism yozilishi farqi — o'xshash ism taklifi va bog'langan ism bilan topish", () => {
+  // Yumshoq kalit: x/h, qo'sh harf, apostrof va so'zlar tartibi farqsiz
+  assert.equal(looseNameKey("Xakimova Dilfuza"), looseNameKey("Hakimova  Dilfuza"));
+  assert.equal(looseNameKey("Izatullayev Azizbek"), looseNameKey("Azizbek Izzatullayev"));
+  assert.equal(looseNameKey("To‘xtasinov Ali"), looseNameKey("Toxtasinov Ali"));
+  assert.equal(nameSimilarity("Xakimova Dilfuza", "Hakimova Dilfuza"), 1);
+  assert.ok(nameSimilarity("Rahmatova Shaxlo", "Rahmatova Shaxloxon") >= 0.8, "qo'shimcha (-xon) — o'xshash");
+  assert.ok(nameSimilarity("Sotvoldiyeva Mohlaroy", "Sotvoldiyeva Dilfuza") < 0.8, "familiyadosh, lekin boshqa odam");
+  assert.equal(nameSimilarity("", "Ali"), 0);
+
+  const students = [
+    { id: "a", fullName: "Hakimova Dilfuza", group: "Kompyuter savodxonligi" },
+    { id: "b", fullName: "Toxirjanov Asrorbek", group: "Web dasturlash" },
+    { id: "c", fullName: "Abduvaliyev Jahongir", group: "Grafik dizayn" },
+    { id: "d", fullName: "Abduvaliyev Jahongir", group: "Grafik dizayn" },
+    { id: "e", fullName: "Rahmatova Shaxloxon", group: "Kompyuter savodxonligi", aliases: ["Rahmatova Shaxlo"] },
+  ];
+  // Aynan mos (tekshiruvdan keyin ismi to'g'rilangan) — yangi o'quvchi emas
+  assert.deepEqual(nameMatches("Toxirjanov Asrorbek", students).exact.map((s) => s.id), ["b"]);
+  // Ikki bir xil ismli — qaysi biriga qo'shishni tanlash kerak
+  assert.deepEqual(nameMatches("Abduvaliyev Jahongir", students).exact.map((s) => s.id), ["c", "d"]);
+  // Bog'langan (Sheets'dagi) ism bo'yicha — aynan mos
+  assert.deepEqual(nameMatches("rahmatova  SHAXLO", students).exact.map((s) => s.id), ["e"]);
+  // Yozilishi o'xshash — taklif (aynan mos emas)
+  const x = nameMatches("Xakimova Dilfuza", students);
+  assert.deepEqual([x.exact.length, x.similar.map((s) => s.id)], [0, ["a"]]);
+  assert.deepEqual(nameMatches("Yangi Talaba", students), { exact: [], similar: [] });
+  assert.deepEqual(studentNameKeys({ fullName: "Vali Aliyev", aliases: ["aliyev vali", "Valijon Aliyev"] }), ["aliyev vali", "aliyev valijon"]);
+
+  // Tekshiruv: Sheets'dagi ism o'quvchiga bog'langan bo'lsa — o'sha o'quvchi deb topiladi
+  const rows = parseSheet(
+    parseCSV(`№,Ism Familiya,Kurs nomi,Kurs Narxi,Naqt,To'lov olingan sana,Plastik,Jami
+1,Rahmatova Shaxlo,KS Jasurbek,"250,000","250,000",07.10.2026,,"250,000"
+`),
+    DEFAULT_COLUMNS,
+    { fallbackYear: 2026, today: "2026-10-22" },
+  );
+  const site = [{ studentId: "e", month: "2026-10", paidDate: "2026-10-07", amount: 250000 }];
+  const withAlias = compareRecords(rows.records, students.map((s) => ({ ...s, phone: "", parentPhone: "" })), site, { window: rows.window });
+  assert.deepEqual([withAlias.matchedCount, withAlias.mismatches.length], [1, 0]);
+  const noAlias = compareRecords(
+    rows.records,
+    students.map((s) => ({ ...s, aliases: [], phone: "", parentPhone: "" })),
+    site,
+    { window: rows.window },
+  );
+  assert.deepEqual(noAlias.mismatches.map((m) => m.kind).sort(), ["missing_in_sheet", "unknown_student"]);
 });

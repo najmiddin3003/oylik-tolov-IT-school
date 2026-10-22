@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { listMyActivity, type ActivityRow } from "./activity";
 import { requireAuth, requireOwner, requireRole, type Session } from "./auth";
+import { nameMatches } from "./compare";
 import { courseFee, courseNames, courseTeacher, courseTeachers, sameCourse, teacherCourses } from "./courses";
 import { connectDB } from "./db";
 import { eskizConfigured } from "./eskiz";
@@ -134,7 +135,14 @@ export type MismatchRow = {
   sheetDate: string;
   note: string;
   resolved: boolean;
+  /** «Saytda yo'q o'quvchi»: saytda ismi (yoki Sheets'dagi bog'langan ismi) aynan mos o'quvchilar */
+  siteMatches?: StudentPick[];
+  /** «Saytda yo'q o'quvchi»: ismi o'xshash yozilgan o'quvchilar (taklif) */
+  similar?: StudentPick[];
 };
+
+/** Sheets yozuvini biriktirish uchun o'quvchi tanlovi. */
+export type StudentPick = { id: string; seq: number | null; name: string; group: string; active: boolean };
 
 export type SyncRunView = {
   id: string;
@@ -845,6 +853,29 @@ export async function getSyncPageData() {
   await requireOwner();
   await connectDB();
   const [settings, runs] = await Promise.all([getSettings({ fresh: true }), findRuns(10)]);
+  const views = runs.map(toRunView);
+  // Oxirgi tekshiruvdagi «saytda yo'q o'quvchi»lar: saytda hozir shu ismli yoki o'xshash ismli o'quvchi bormi
+  // (ism tekshiruvdan keyin to'g'rilangan bo'lishi yoki Sheets'da boshqacha yozilgan bo'lishi mumkin)
+  const unknown = (views[0]?.mismatches ?? []).filter((m) => m.kind === "unknown_student" && !m.resolved);
+  let students: StudentPick[] = [];
+  if (unknown.length) {
+    const docs = await Student.find({}, { fullName: 1, group: 1, sheetNames: 1, active: 1, seq: 1 }).sort({ fullName: 1, seq: 1 }).lean();
+    const candidates = docs.map((d) => ({
+      id: String(d._id),
+      seq: d.seq ?? null,
+      fullName: d.fullName,
+      group: d.group ?? "",
+      aliases: d.sheetNames ?? [],
+      active: d.active !== false,
+    }));
+    const pick = (c: (typeof candidates)[number]): StudentPick => ({ id: c.id, seq: c.seq, name: c.fullName, group: c.group, active: c.active });
+    for (const m of unknown) {
+      const { exact, similar } = nameMatches(m.studentName, candidates);
+      m.siteMatches = exact.map(pick);
+      m.similar = similar.map(pick);
+    }
+    students = candidates.map(pick);
+  }
   return {
     settings: {
       sheetUrl: settings.sheetUrl,
@@ -853,7 +884,9 @@ export async function getSyncPageData() {
       autoImport: settings.autoImport,
       courses: settings.courses.map((c) => c.name),
     },
-    runs: runs.map(toRunView),
+    runs: views,
+    /** Biriktirish tanlovi uchun (faqat «saytda yo'q o'quvchi» bo'lsa) */
+    students,
   };
 }
 

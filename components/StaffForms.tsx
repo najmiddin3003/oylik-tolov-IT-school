@@ -155,18 +155,21 @@ function StaffAddFields({ fe, courses }: { fe: Record<string, string>; courses: 
   );
 }
 
-/** Ism, lavozim va oylik asosini tahrirlash (`action` — xodimga bog'langan server action). */
+/** Ism, lavozim, oylik asosi va (rahbarda) «dars ham beradi» belgisini tahrirlash (`action` — xodimga bog'langan server action). */
 export function StaffEditForm({
   action,
   name,
   role,
   shareBase,
+  teaches,
   self,
 }: {
   action: (prev: FormState, fd: FormData) => Promise<FormState>;
   name: string;
   role: Role;
   shareBase: "students" | "center";
+  /** Rahbar o'zi ham dars beradi */
+  teaches: boolean;
   /** Rahbar o'zini tahrirlayapti — lavozimni o'zgartirib bo'lmaydi */
   self: boolean;
 }) {
@@ -225,6 +228,22 @@ export function StaffEditForm({
           </div>
         )}
       </div>
+      {roleNow === "owner" ? (
+        <div>
+          <input type="hidden" name="teachesShown" value="1" />
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 transition hover:bg-slate-50/60">
+            {/* O'qituvchini rahbarga o'tkazishda belgi o'zi qo'yilgan — kursi va o'quvchilari undan uzilmasin */}
+            <input type="checkbox" name="teaches" defaultChecked={teaches || role === "teacher"} className="mt-0.5 size-4 shrink-0 rounded accent-brand-600" />
+            <span>
+              <span className="block text-sm font-semibold text-ink-900">Dars ham beradi</span>
+              <span className="mt-1 block text-xs leading-relaxed text-ink-500">
+                O‘qituvchilar ro‘yxatlarida ko‘rinadi: kursga va o‘quvchilarga o‘qituvchi sifatida biriktiriladi. Oyligi o‘quvchilari to‘lovlaridan
+                bo‘lsa, «Oylik foizi nimadan» — «O‘z o‘quvchilari to‘lovlaridan».
+              </span>
+            </span>
+          </label>
+        </div>
+      ) : null}
       <Result state={state} />
       <div>
         <button type="submit" disabled={pending} className={btn.primary}>

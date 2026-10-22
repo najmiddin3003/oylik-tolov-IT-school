@@ -7,7 +7,7 @@ import type { AmountChange, PercentChange } from "./fees";
 import { Staff } from "./models";
 import { fingerprint } from "./passwords";
 import type { Role } from "./session";
-import { ownerPhone, type ShareBase, type StaffStatus } from "./staff-rules";
+import { ownerPhone, TEACHING_FILTER, type ShareBase, type StaffStatus } from "./staff-rules";
 
 export type StaffLean = {
   _id: mongoose.Types.ObjectId;
@@ -20,6 +20,8 @@ export type StaffLean = {
   shareBase?: ShareBase | null;
   /** Belgilangan oylik tarixi (administrator) */
   salaryHistory?: { from?: string | null; amount?: number | null }[] | null;
+  /** Rahbar o'zi ham dars beradi */
+  teaches?: boolean | null;
   activatedAt?: Date | null;
   lastLoginAt?: Date | null;
   createdAt?: Date;
@@ -37,6 +39,8 @@ export type StaffView = {
   shareHistory: PercentChange[];
   shareBase: ShareBase;
   salaryHistory: AmountChange[];
+  /** Rahbar o'zi ham dars beradi (o'qituvchilar ro'yxatlarida ko'rinadi) */
+  teaches: boolean;
   activatedAt: string | null;
   lastLoginAt: string | null;
 };
@@ -63,6 +67,7 @@ export function toStaffView(s: StaffLean): StaffView {
     shareHistory: shareHistoryOf(s),
     shareBase: s.shareBase === "center" ? "center" : "students",
     salaryHistory: salaryHistoryOf(s),
+    teaches: s.role === "owner" && s.teaches === true,
     activatedAt: s.activatedAt ? s.activatedAt.toISOString() : null,
     lastLoginAt: s.lastLoginAt ? s.lastLoginAt.toISOString() : null,
   };
@@ -116,16 +121,19 @@ export async function listStaff(): Promise<StaffLean[]> {
   return Staff.find({}).sort({ role: 1, name: 1 }).lean<StaffLean[]>();
 }
 
-/** O'qituvchilar ro'yxati (o'quvchiga biriktirish uchun): faollar va hali ro'yxatdan o'tmaganlar. */
+/**
+ * O'qituvchilar ro'yxati (o'quvchiga va kursga biriktirish uchun): faollar va hali ro'yxatdan o'tmaganlar,
+ * dars ham beradigan rahbar bilan birga.
+ */
 export const listTeachers = cache(async (): Promise<{ id: string; name: string; status: StaffStatus }[]> => {
   await connectDB();
-  const docs = await Staff.find({ role: "teacher", status: { $ne: "disabled" } }, { name: 1, status: 1 }).sort({ name: 1 }).lean<StaffLean[]>();
+  const docs = await Staff.find({ ...TEACHING_FILTER, status: { $ne: "disabled" } }, { name: 1, status: 1 }).sort({ name: 1 }).lean<StaffLean[]>();
   return docs.map((d) => ({ id: String(d._id), name: d.name, status: d.status }));
 });
 
 /** O'qituvchilar nomi (id -> ism), o'chirilganlari ham (eski yozuvlarda ko'rsatish uchun). */
 export const teacherNames = cache(async (): Promise<Map<string, string>> => {
   await connectDB();
-  const docs = await Staff.find({ role: "teacher" }, { name: 1 }).lean<StaffLean[]>();
+  const docs = await Staff.find(TEACHING_FILTER, { name: 1 }).lean<StaffLean[]>();
   return new Map(docs.map((d) => [String(d._id), d.name]));
 });

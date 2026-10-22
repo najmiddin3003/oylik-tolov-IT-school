@@ -13,6 +13,7 @@ import {
 } from "@/lib/data";
 import type { SalaryRow } from "@/lib/pay";
 import { parseDayFilter, scheduleLabel } from "@/lib/schedule";
+import { isTeaching } from "@/lib/staff-rules";
 import { blank, day, headerRow, int, money, text, totalRow, xlsxResponse, type XlsxSheet } from "@/lib/xlsx";
 import { currentMonth, dateToISO, formatNumber, isoToDate, isValidMonth, monthLabel } from "@/lib/time";
 
@@ -66,7 +67,8 @@ async function summarySheet(month: string, viewer: Viewer, group = ""): Promise<
       [text("Xodimlar oyligi (jami)"), money(team.finance.staffShare, { fontWeight: "bold" })],
     );
     for (const m of team.members) {
-      if (m.role === "owner") continue;
+      // Rahbar — faqat dars ham bersa (o'qituvchi sifatidagi oyligi)
+      if (m.role === "owner" && !isTeaching(m)) continue;
       rows.push([text(`  ${m.name} · ${m.pay.kind === "fixed" ? "belgilangan oylik" : `${m.pay.percent}%`} · olindi ${formatNumber(m.pay.taken)}`), money(m.pay.share)]);
     }
     rows.push(

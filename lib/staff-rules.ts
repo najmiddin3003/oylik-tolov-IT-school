@@ -38,6 +38,17 @@ export const STATUS_LABEL: Record<StaffStatus, string> = {
   disabled: "Kirishi o‘chirilgan",
 };
 
+/**
+ * Dars beradimi (o'qituvchilar ro'yxatlarida ko'rinadi, kurs va o'quvchi biriktiriladi): o'qituvchi yoki
+ * «dars ham beradi» belgisi qo'yilgan rahbar (masalan, o'zi ham guruh o'qitadigan rahbar).
+ */
+export function isTeaching(s: { role: Role; teaches?: boolean | null }): boolean {
+  return s.role === "teacher" || (s.role === "owner" && s.teaches === true);
+}
+
+/** Bazadan dars beradigan xodimlarni olish sharti — `isTeaching` bilan bir xil. */
+export const TEACHING_FILTER = { $or: [{ role: "teacher" as const }, { role: "owner" as const, teaches: true }] };
+
 /** Oylik turi: administrator — belgilangan oylik (har oy bir xil summa), o'qituvchi va rahbar — tushumdan foiz. */
 export function payKindOf(role: Role): PayKind {
   return role === "admin" ? "fixed" : "percent";

@@ -2,9 +2,12 @@
 
 import { useActionState, useState } from "react";
 import { Check, RefreshCw } from "lucide-react";
-import { runSyncNow, saveSheetSettings } from "@/app/actions/sync";
+import { linkMismatch, runSyncNow, saveSheetSettings } from "@/app/actions/sync";
 import type { FormState } from "@/app/actions/types";
 import type { ColumnNames } from "@/lib/compare";
+import type { StudentPick } from "@/lib/data";
+import { Select } from "./pickers";
+import { ConfirmAction } from "./SubmitButton";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
 
@@ -188,5 +191,54 @@ export function SheetSettingsForm({
         {state.error ? <span className="text-sm text-rose-600">{state.error}</span> : null}
       </div>
     </form>
+  );
+}
+
+/**
+ * Sheets'dagi «saytda yo'q o'quvchi»ni saytdagi istalgan o'quvchiga biriktirish (ismi Sheets'da boshqacha yozilgan bo'lsa):
+ * to'lovlari shu o'quvchiga yoziladi, Sheets'dagi ismi unga bog'lanadi.
+ */
+export function LinkStudentPicker({
+  runId,
+  mismatchId,
+  sheetName,
+  amountText,
+  students,
+}: {
+  runId: string;
+  mismatchId: string;
+  sheetName: string;
+  /** "300 000 so'm" */
+  amountText: string;
+  students: StudentPick[];
+}) {
+  const [studentId, setStudentId] = useState("");
+  const chosen = students.find((s) => s.id === studentId);
+  return (
+    <details className="mt-2">
+      <summary className="inline-flex cursor-pointer select-none items-center text-xs font-medium text-brand-700 hover:text-brand-800">
+        Saytdagi boshqa o‘quvchiga biriktirish…
+      </summary>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Select
+          value={studentId}
+          onChange={setStudentId}
+          options={students.map((s) => ({ value: s.id, label: s.name, hint: [s.group, s.active ? "" : "nofaol"].filter(Boolean).join(" · ") || undefined }))}
+          placeholder="O‘quvchini tanlang"
+          aria-label="Saytdagi o‘quvchi"
+          wrapperClassName="w-full sm:w-72"
+        />
+        {chosen ? (
+          <ConfirmAction
+            action={linkMismatch.bind(null, runId, mismatchId, chosen.id)}
+            confirmText={`Sheets’dagi «${sheetName}» — saytdagi «${chosen.name}»: ${amountText} to‘lov unga yoziladi va keyingi tekshiruvlarda bu ism unga bog‘lanadi. Davom etilsinmi?`}
+            className={cx(btn.sm, "text-brand-700")}
+            pendingText="…"
+          >
+            Biriktirish
+          </ConfirmAction>
+        ) : null}
+      </div>
+    </details>
   );
 }

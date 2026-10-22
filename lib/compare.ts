@@ -1,6 +1,6 @@
 // Sheets qatorlari bilan saytdagi to'lovlarni solishtirish (sof funksiyalar — bazaga murojaat yo'q).
 import type { MismatchKind } from "./models";
-import { nameKey, normalizeText, parseAmount, parseDateCell, parseMonthCell, phoneKey } from "./normalize";
+import { nameKey, nameSimilarity, normalizeText, parseAmount, parseDateCell, parseMonthCell, phoneKey } from "./normalize";
 import { compareMonths } from "./time";
 
 export type ColumnNames = {
@@ -297,7 +297,43 @@ export function parseSheet(rows: string[][], columns: ColumnNames, opts: ParseOp
 
 // ---------- Solishtirish ----------
 
-export type SiteStudent = { id: string; fullName: string; phone: string; parentPhone: string; group: string };
+export type SiteStudent = {
+  id: string;
+  fullName: string;
+  phone: string;
+  parentPhone: string;
+  group: string;
+  /** Sheets'da boshqacha yozilgan ismlari (o'quvchiga qo'lda bog'langan) — shu ism bilan ham topiladi */
+  aliases?: string[];
+};
+
+/** Ism kalitlari: asosiy ism va Sheets'dagi boshqa yozilishlari (takrorsiz). */
+export function studentNameKeys(s: { fullName: string; aliases?: string[] | null }): string[] {
+  return [...new Set([s.fullName, ...(s.aliases ?? [])].map(nameKey).filter(Boolean))];
+}
+
+/** O'xshash ism taklif qilinadigan eng kichik o'xshashlik. */
+export const SIMILAR_MIN = 0.8;
+
+export type NameCandidate = { id: string; fullName: string; group: string; aliases?: string[] | null };
+
+/**
+ * Sheets'dagi ism uchun saytdagi o'quvchilar: `exact` — ismi (yoki bog'langan Sheets ismi) aynan mos,
+ * `similar` — yozilishi o'xshash (x/h, qo'sh harf, qo'shimcha: "Shaxlo" ≈ "Shaxloxon"), eng o'xshashi birinchi.
+ */
+export function nameMatches<T extends NameCandidate>(name: string, students: T[], limit = 3): { exact: T[]; similar: (T & { score: number })[] } {
+  const k = nameKey(name);
+  if (!k) return { exact: [], similar: [] };
+  const exact = students.filter((s) => studentNameKeys(s).includes(k));
+  const exactIds = new Set(exact.map((s) => s.id));
+  const similar = students
+    .filter((s) => !exactIds.has(s.id))
+    .map((s) => ({ ...s, score: Math.max(...[s.fullName, ...(s.aliases ?? [])].map((n) => nameSimilarity(name, n))) }))
+    .filter((s) => s.score >= SIMILAR_MIN)
+    .sort((a, b) => b.score - a.score || a.fullName.localeCompare(b.fullName))
+    .slice(0, limit);
+  return { exact, similar };
+}
 /** Saytdagi to'lov: `month` — qaysi oy uchun, `paidDate` — to'langan sana ("YYYY-MM-DD", Toshkent) */
 export type SitePayment = { studentId: string; month: string; paidDate: string; amount: number };
 
@@ -342,8 +378,8 @@ export function compareRecords(
       const k = phoneKey(p);
       if (k && !byPhone.has(k)) byPhone.set(k, s);
     }
-    const nk = nameKey(s.fullName);
-    byName.set(nk, [...(byName.get(nk) ?? []), s]);
+    // Asosiy ism va Sheets'dagi bog'langan ismlari bo'yicha
+    for (const nk of studentNameKeys(s)) byName.set(nk, [...(byName.get(nk) ?? []), s]);
   }
   const studentById = new Map(students.map((s) => [s.id, s]));
 

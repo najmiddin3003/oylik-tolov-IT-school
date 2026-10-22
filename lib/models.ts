@@ -22,6 +22,8 @@ const studentSchema = new Schema(
     },
     /** O'qituvchisi (xodim). Bo'sh — hali biriktirilmagan */
     teacher: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
+    /** Google Sheets'da boshqacha yozilgan ismi(lari): Sheets tekshiruvida shu ism bilan ham topiladi */
+    sheetNames: { type: [String], default: [] },
   },
   { timestamps: true },
 );
@@ -261,6 +263,8 @@ const staffSchema = new Schema(
     shareBase: { type: String, enum: ["students", "center"], default: "students" },
     /** Belgilangan oylik (administrator): har oy shu summa, "from" oyidan boshlab */
     salaryHistory: { type: [{ from: String, amount: Number, _id: false }], default: [] },
+    /** Rahbar o'zi ham dars beradi: o'qituvchilar ro'yxatlarida ko'rinadi, kurs va o'quvchilar unga biriktiriladi */
+    teaches: { type: Boolean, default: false },
     activatedAt: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
     /** Shaxsiy sozlamalar: Google Sheets ogohlantiruvini ko'rsatish (maydon yo'q — ko'rsatiladi) */

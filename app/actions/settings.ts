@@ -19,6 +19,7 @@ import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/passwor
 import { createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
 import { sendTestSms } from "@/lib/sms";
+import { TEACHING_FILTER } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, isValidMonth, monthLabel, monthOfDate } from "@/lib/time";
 import type { FormState } from "./types";
 
@@ -297,10 +298,10 @@ export async function saveCourses(_prev: FormState, fd: FormData): Promise<FormS
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   await connectDB();
-  // Kurs o'qituvchisi faqat o'qituvchi lavozimidagi xodim bo'la oladi
+  // Kurs o'qituvchisi — dars beradigan xodim (o'qituvchi yoki dars ham beradigan rahbar)
   const teacherIds = [...new Set(courses.flatMap((c) => c.teachers))];
   const teacherDocs = teacherIds.length
-    ? await Staff.find({ _id: { $in: teacherIds }, role: "teacher" }, { name: 1 }).lean<{ _id: unknown; name: string }[]>()
+    ? await Staff.find({ _id: { $in: teacherIds }, ...TEACHING_FILTER }, { name: 1 }).lean<{ _id: unknown; name: string }[]>()
     : [];
   const teacherName = new Map(teacherDocs.map((t) => [String(t._id), t.name]));
   courses.forEach((c, i) => {

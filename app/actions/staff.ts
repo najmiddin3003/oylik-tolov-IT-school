@@ -16,7 +16,7 @@ import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 import { ROLES, type Role } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
 import { getStaffById, salaryHistoryOf, shareHistoryOf } from "@/lib/staff";
-import { defaultShareBase, parsePercent, payKindOf, ROLE_LABEL } from "@/lib/staff-rules";
+import { defaultShareBase, isTeaching, parsePercent, payKindOf, ROLE_LABEL } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 
 const MAX_SALARY = 100_000_000;
@@ -93,7 +93,10 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
   };
 }
 
-/** Ism va lavozimni o'zgartirish. Rahbar o'z lavozimini o'zgartira olmaydi (tizimdan chiqib qolmasligi uchun). */
+/**
+ * Ism, lavozim, oylik asosi va (rahbarda) «dars ham beradi» belgisini o'zgartirish.
+ * Rahbar o'z lavozimini o'zgartira olmaydi (tizimdan chiqib qolmasligi uchun), lekin o'ziga «dars beradi»ni qo'ya oladi.
+ */
 export async function updateStaff(id: string, _prev: FormState, fd: FormData): Promise<FormState> {
   const session = await requireOwner({ fresh: true });
   if (!isId(id)) return { error: "Xodim topilmadi" };
@@ -107,11 +110,14 @@ export async function updateStaff(id: string, _prev: FormState, fd: FormData): P
   if (session.staffId === id && role !== "owner") return { error: "O‘zingizni rahbarlikdan olib bo‘lmaydi" };
 
   await connectDB();
-  const res = await Staff.updateOne({ _id: id }, { $set: { name, role, shareBase: base } });
-  if (!res.matchedCount) return { error: "Xodim topilmadi" };
-  // O'qituvchi bo'lmay qolsa — kurslardagi «kurs o'qituvchisi» belgisi olib tashlanadi
-  if (role !== "teacher") await clearCourseTeacher(id);
-  await logActivity(session, "staff.edit", `Xodim ma’lumotlari: ${name} (${ROLE_LABEL[role as Role]})`);
+  const before = await getStaffById(id);
+  if (!before) return { error: "Xodim topilmadi" };
+  // Belgi faqat formada ko'rsatilgan bo'lsa o'qiladi (eski ochiq sahifadan yuborilsa — o'zgarmaydi)
+  const teaches = role === "owner" && (fd.has("teachesShown") ? fd.get("teaches") === "on" : before.teaches === true);
+  await Staff.updateOne({ _id: id }, { $set: { name, role, shareBase: base, teaches } });
+  // Dars bermay qolsa — kurslardagi «kurs o'qituvchisi» belgisi olib tashlanadi (o'quvchilari o'zgarmaydi)
+  if (!isTeaching({ role: role as Role, teaches })) await clearCourseTeacher(id);
+  await logActivity(session, "staff.edit", `Xodim ma’lumotlari: ${name} (${ROLE_LABEL[role as Role]}${teaches ? ", dars ham beradi" : ""})`);
   refresh();
   return { ok: true, message: "Saqlandi", nonce: Date.now() };
 }

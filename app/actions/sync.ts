@@ -61,6 +61,24 @@ export async function importMismatch(runId: string, mismatchId: string): Promise
   refresh();
 }
 
+/**
+ * «Noma'lum o'quvchi» farqini saytdagi tanlangan o'quvchiga qo'shadi (ismi Sheets'da boshqacha yozilgan bo'lsa):
+ * to'lovlari unga yoziladi, Sheets'dagi ismi unga bog'lanadi — keyingi tekshiruvlarda o'zi topiladi.
+ */
+export async function linkMismatch(runId: string, mismatchId: string, studentId: string): Promise<void> {
+  const session = await requireOwner({ fresh: true });
+  if (!isId(runId) || !isId(mismatchId) || !isId(studentId)) return;
+  await connectDB();
+  const run = await SyncRun.findById(runId, { mismatches: 1 }).lean();
+  const m = run?.mismatches.find((x) => String(x._id) === mismatchId);
+  if (!m || m.kind !== "unknown_student" || m.resolved) return;
+  const res = await importFromRun(runId, [mismatchId], { studentId });
+  if (res?.resolved) {
+    await logActivity(session, "sync.import", `Sheets’dagi «${m.studentName}» to‘lovlari saytdagi «${res.linkedTo}» o‘quvchisiga qo‘shildi (${res.payments} ta to‘lov)`);
+  }
+  refresh();
+}
+
 /** Barcha qo'shsa bo'ladigan farqlarni saytga qo'shadi va qayta tekshiradi. */
 export async function importAllMismatches(runId: string): Promise<void> {
   const session = await requireOwner({ fresh: true });

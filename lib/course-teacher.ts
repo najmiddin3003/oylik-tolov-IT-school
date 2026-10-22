@@ -5,16 +5,17 @@ import { connectDB } from "./db";
 import { courseStudentsToAssign, coursesForStorage, courseTeacher, sameCourse, type Course } from "./courses";
 import { Staff, Student } from "./models";
 import { getSettings, updateSettings } from "./settings";
+import { TEACHING_FILTER } from "./staff-rules";
 
 /**
- * Kurs nomi -> kurs o'qituvchisi (yangi o'quvchi, import, kurs almashtirish uchun). Kirishi o'chirilgan yoki o'qituvchi
- * bo'lmay qolgan xodim biriktirilmaydi. Sozlamalar bir marta o'qiladi — ko'p o'quvchi uchun qayta-qayta chaqirsa bo'ladi.
+ * Kurs nomi -> kurs o'qituvchisi (yangi o'quvchi, import, kurs almashtirish uchun). Kirishi o'chirilgan yoki dars bermay
+ * qolgan xodim biriktirilmaydi. Sozlamalar bir marta o'qiladi — ko'p o'quvchi uchun qayta-qayta chaqirsa bo'ladi.
  */
 export async function courseTeacherResolver(): Promise<(group: string | null | undefined) => string | null> {
   await connectDB();
   const [settings, teachers] = await Promise.all([
     getSettings({ fresh: true }),
-    Staff.find({ role: "teacher", status: { $ne: "disabled" } }, { _id: 1 }).lean<{ _id: unknown }[]>(),
+    Staff.find({ ...TEACHING_FILTER, status: { $ne: "disabled" } }, { _id: 1 }).lean<{ _id: unknown }[]>(),
   ]);
   const usable = new Set(teachers.map((t) => String(t._id)));
   return (group) => {

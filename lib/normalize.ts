@@ -18,6 +18,37 @@ export function nameKey(name: string): string {
     .join(" ");
 }
 
+/**
+ * Ismning «yumshoq» kaliti — yozilishidagi odatiy farqlarsiz: x/h, qo'sh harf, apostrof
+ * ("Xakimova" ≈ "Hakimova", "Izatullayev" ≈ "Izzatullayev", "To'xtasin" ≈ "Toxtasin"). Faqat taklif uchun.
+ */
+export function looseNameKey(name: string): string {
+  return normalizeText(name)
+    .replace(/[.,;:()"]/g, " ")
+    .replace(/'/g, "")
+    .replace(/x/g, "h")
+    .replace(/(.)\1+/g, "$1")
+    .split(" ")
+    .filter(Boolean)
+    .sort()
+    .join(" ");
+}
+
+/** Ikki ism qanchalik o'xshash: 0..1 (yumshoq kalitlar bo'yicha tahrir masofasi; 1 — bir xil). */
+export function nameSimilarity(a: string, b: string): number {
+  const x = looseNameKey(a);
+  const y = looseNameKey(b);
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  let prev = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= y.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return 1 - prev[y.length] / Math.max(x.length, y.length);
+}
+
 /** Telefon kaliti: oxirgi 9 raqam (+998 bor-yo'qligidan qat'i nazar). 7 tadan kam raqam bo'lsa — bo'sh. */
 export function phoneKey(phone: string | null | undefined): string {
   const digits = String(phone ?? "").replace(/\D/g, "");

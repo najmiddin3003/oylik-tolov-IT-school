@@ -6,11 +6,15 @@ import { connectDB } from "./db";
 import { LIVE, studentFee, type StudentLean } from "./ledger";
 import { Payment, Student, SyncRun, type PaymentMethod } from "./models";
 import { nameKey } from "./normalize";
+import { nameMatches, studentNameKeys } from "./compare";
 import { nextStudentSeq } from "./seq";
 import { isoToDate, monthOfDate } from "./time";
 
-/** rows — saytga qo'shilgan Sheets qatorlari (bitta qator naqd+plastik bo'lsa ham bitta) */
-export type ImportResult = { students: number; payments: number; resolved: number; rows: number; skipped: string[] };
+/**
+ * rows — saytga qo'shilgan Sheets qatorlari (bitta qator naqd+plastik bo'lsa ham bitta);
+ * linkedTo — `studentId` bilan chaqirilganda: to'lovlar qo'shilgan o'quvchi ismi.
+ */
+export type ImportResult = { students: number; payments: number; resolved: number; rows: number; skipped: string[]; linkedTo?: string };
 
 type Part = { row: number; date: string; amount: number; cash: number; card: number };
 
@@ -31,12 +35,17 @@ function splitByMethod(p: Part): { amount: number; method: PaymentMethod }[] {
  * - noma'lum o'quvchi bo'lsa — yangi o'quvchi yaratiladi (ism, kurs → guruh, kurs narxi → oylik to'lov);
  * - har bir Sheets qatori alohida to'lov bo'ladi (to'lov sanasi bilan), summa oylarga taqsimlanadi.
  * `ids` = "all" bo'lsa — hammasi.
+ * `opts.studentId` — noma'lum o'quvchi saytdagi shu o'quvchi (ismi Sheets'da boshqacha yozilgan): to'lovlar unga
+ * qo'shiladi va Sheets'dagi ismi unga bog'lanadi — keyingi tekshiruvlarda o'zi topiladi.
  */
-export async function importFromRun(runId: string, ids: string[] | "all"): Promise<ImportResult | null> {
+export async function importFromRun(runId: string, ids: string[] | "all", opts: { studentId?: string } = {}): Promise<ImportResult | null> {
   if (!mongoose.isValidObjectId(runId)) return null;
+  if (opts.studentId !== undefined && !mongoose.isValidObjectId(opts.studentId)) return null;
   await connectDB();
   const run = await SyncRun.findById(runId);
   if (!run) return null;
+  const linkTo = opts.studentId ? await Student.findById(opts.studentId, { fullName: 1, sheetNames: 1 }).lean() : null;
+  if (opts.studentId && !linkTo) return null;
   const basis = run.basis === "date" ? "date" : "month";
 
   const importable = run.mismatches.filter(
@@ -58,13 +67,13 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
   const result: ImportResult = { students: 0, payments: 0, resolved: 0, rows: 0, skipped: [] };
   if (!targets.length) return result;
 
-  // 1) Har bir farq uchun saytdagi o'quvchini aniqlash (yo'q bo'lsa — yaratish)
-  const existing = await Student.find({}, { fullName: 1 }).lean();
+  // 1) Har bir farq uchun saytdagi o'quvchini aniqlash (yo'q bo'lsa — yaratish). Ism yoki Sheets'dagi bog'langan ismi bo'yicha
+  const existing = await Student.find({}, { fullName: 1, sheetNames: 1, group: 1 }).lean();
   const byName = new Map<string, string[]>();
   for (const s of existing) {
-    const k = nameKey(s.fullName);
-    byName.set(k, [...(byName.get(k) ?? []), String(s._id)]);
+    for (const k of studentNameKeys({ fullName: s.fullName, aliases: s.sheetNames })) byName.set(k, [...(byName.get(k) ?? []), String(s._id)]);
   }
+  const candidates = existing.map((s) => ({ id: String(s._id), fullName: s.fullName, group: s.group ?? "", aliases: s.sheetNames }));
 
   const partsOf = (m: (typeof targets)[number]): Part[] =>
     m.parts?.length
@@ -79,11 +88,19 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
       studentFor.set(m, String(m.studentId));
       continue;
     }
+    // Saytdagi tanlangan o'quvchiga biriktirish
+    if (linkTo) {
+      studentFor.set(m, String(linkTo._id));
+      continue;
+    }
     const k = nameKey(m.studentName);
     const found = byName.get(k) ?? [];
     if (found.length === 1) studentFor.set(m, found[0]);
     else if (found.length > 1) result.skipped.push(`${m.studentName}: saytda bir xil ismli ${found.length} ta o'quvchi bor`);
-    else toCreate.set(k, [...(toCreate.get(k) ?? []), m]);
+    // Ommaviy qo'shishda: saytda o'xshash ismli o'quvchi bo'lsa — yangi o'quvchi yaratilmaydi (dublikat bo'lmasin), alohida tanlanadi
+    else if (ids === "all" && nameMatches(m.studentName, candidates).similar.length) {
+      result.skipped.push(`${m.studentName}: saytda o'xshash ismli o'quvchi bor — alohida tanlang`);
+    } else toCreate.set(k, [...(toCreate.get(k) ?? []), m]);
   }
 
   // Yangi o'quvchi kursining o'qituvchisi bo'lsa — darhol unga biriktiriladi
@@ -163,5 +180,15 @@ export async function importFromRun(runId: string, ids: string[] | "all"): Promi
     result.resolved++;
   }
   await run.save();
+
+  // Sheets'dagi boshqacha yozilgan ism o'quvchiga bog'lanadi (keyingi tekshiruvlarda shu o'quvchi deb topiladi)
+  if (linkTo) {
+    const known = new Set(studentNameKeys({ fullName: linkTo.fullName, aliases: linkTo.sheetNames }));
+    const names = [...new Set(targets.filter((m) => m.kind === "unknown_student").map((m) => m.studentName.replace(/\s+/g, " ").trim()))].filter(
+      (n) => n && !known.has(nameKey(n)),
+    );
+    if (names.length) await Student.updateOne({ _id: linkTo._id }, { $addToSet: { sheetNames: { $each: names } } });
+    result.linkedTo = linkTo.fullName;
+  }
   return result;
 }

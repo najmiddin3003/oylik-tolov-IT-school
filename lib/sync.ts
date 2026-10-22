@@ -127,7 +127,7 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
       }
 
       const [students, payments] = await Promise.all([
-        Student.find({}, { fullName: 1, phone: 1, parentPhone: 1, group: 1 }).lean(),
+        Student.find({}, { fullName: 1, phone: 1, parentPhone: 1, group: 1, sheetNames: 1 }).lean(),
         loadSitePayments(parsed.window),
       ]);
 
@@ -139,6 +139,7 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
           phone: s.phone ?? "",
           parentPhone: s.parentPhone ?? "",
           group: s.group ?? "",
+          aliases: s.sheetNames ?? [],
         })),
         payments,
         { window: parsed.window, courseFilter: settings.courseFilter },

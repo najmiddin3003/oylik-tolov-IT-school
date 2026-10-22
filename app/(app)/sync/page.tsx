@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { BookOpen, CalendarClock, CircleCheck, Download, Eye, FileSpreadsheet, Info, TriangleAlert } from "lucide-react";
-import { importAllMismatches, importMismatch, resolveMismatch } from "@/app/actions/sync";
+import { importAllMismatches, importMismatch, linkMismatch, resolveMismatch } from "@/app/actions/sync";
 import { ConfirmAction } from "@/components/SubmitButton";
-import { RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
+import { LinkStudentPicker, RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
 import { Avatar, btn, Card, CardHeader, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
 import { courseLabel } from "@/lib/compare";
 import { sameCourse } from "@/lib/courses";
-import { getSyncPageData, type MismatchRow, type SyncRunView } from "@/lib/data";
+import { getSyncPageData, type MismatchRow, type StudentPick, type SyncRunView } from "@/lib/data";
 import type { MismatchKind } from "@/lib/models";
 import { syncHour } from "@/lib/sync";
 import { formatDate, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
@@ -25,6 +25,9 @@ const KIND: Record<MismatchKind, { label: string; tone: "rose" | "amber" | "bran
 
 const TRIGGER = { auto: "avtomatik", cron: "cron", manual: "qo‘lda" } as const;
 const isImportable = (m: MismatchRow) => m.kind === "missing_on_site" || m.kind === "unknown_student";
+/** «Saytda yo'q o'quvchi»: saytda bir xil ismli bir nechta yoki o'xshash ismli o'quvchi bor — qaysi biri ekanini tanlash kerak. */
+const needsStudentChoice = (m: MismatchRow) =>
+  m.kind === "unknown_student" && ((m.siteMatches?.length ?? 0) > 1 || (!m.siteMatches?.length && Boolean(m.similar?.length)));
 
 export default function SyncPage({ searchParams }: PageProps<"/sync">) {
   return (
@@ -38,7 +41,7 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
   await ownerGuard();
   const sp = await searchParams;
   const course = typeof sp.kurs === "string" ? sp.kurs.slice(0, 80) : "";
-  const { settings, runs } = await getSyncPageData();
+  const { settings, runs, students } = await getSyncPageData();
   const last = runs[0];
   const hour = String(syncHour()).padStart(2, "0");
 
@@ -61,7 +64,7 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
       ) : null}
 
       {last ? (
-        <LastRun run={last} course={course} />
+        <LastRun run={last} course={course} students={students} />
       ) : settings.sheetUrl ? (
         <Card className="mb-6">
           <EmptyState title="Hali tekshiruv o‘tkazilmagan" icon={FileSpreadsheet}>
@@ -116,7 +119,7 @@ function periodLabel(run: SyncRunView): string {
   return "—";
 }
 
-function LastRun({ run, course }: { run: SyncRunView; course: string }) {
+function LastRun({ run, course, students }: { run: SyncRunView; course: string; students: StudentPick[] }) {
   // Kurs bo'yicha filtr (?kurs=): ko'rsatkichlar va farqlar shu kurs bo'yicha
   const stat = course ? run.courseStats.find((c) => sameCourse(c.course, course)) : undefined;
   const selected = stat?.course ?? "";
@@ -125,7 +128,15 @@ function LastRun({ run, course }: { run: SyncRunView; course: string }) {
   const open = allOpen.filter(inCourse);
   const resolved = run.mismatches.filter(inCourse).length - open.length;
   const importable = allOpen.filter(isImportable);
-  const newStudents = new Set(importable.filter((m) => m.kind === "unknown_student").map((m) => m.studentName.toLowerCase())).size;
+  // Bir xil ismli bir nechta yoki o'xshash ismli o'quvchi bor — ommaviy qo'shishda o'tkazib yuboriladi, alohida tanlanadi
+  const needsChoice = importable.filter(needsStudentChoice);
+  const bulkCount = importable.length - needsChoice.length;
+  // Saytda shu ismli o'quvchi bo'lsa — to'lovi unga qo'shiladi (yangi o'quvchi yaratilmaydi)
+  const newStudents = new Set(
+    importable
+      .filter((m) => m.kind === "unknown_student" && !m.siteMatches?.length && !needsStudentChoice(m))
+      .map((m) => m.studentName.toLowerCase()),
+  ).size;
 
   if (!run.ok) {
     return (
@@ -178,15 +189,17 @@ function LastRun({ run, course }: { run: SyncRunView; course: string }) {
           title={open.length ? "Mos kelmagan to‘lovlar" : "Natija"}
           count={open.length || undefined}
           right={
-            importable.length && !selected ? (
+            bulkCount && !selected ? (
               <ConfirmAction
                 action={importAllMismatches.bind(null, run.id)}
-                confirmText={`Sheets’dan saytga qo‘shiladi: ${newStudents ? `${newStudents} ta yangi o‘quvchi va ` : ""}${importable.length} ta yozuvdagi to‘lovlar. Keyin qayta tekshiriladi. Davom etilsinmi?`}
+                confirmText={`Sheets’dan saytga qo‘shiladi: ${newStudents ? `${newStudents} ta yangi o‘quvchi va ` : ""}${bulkCount} ta yozuvdagi to‘lovlar.${
+                  needsChoice.length ? ` ${needsChoice.length} ta yozuv (saytda o‘xshash yoki bir xil ismli o‘quvchi bor) qo‘shilmaydi — ularni alohida tanlang.` : ""
+                } Keyin qayta tekshiriladi. Davom etilsinmi?`}
                 className={cx(btn.primary, "h-10")}
                 pendingText="Qo‘shilmoqda…"
               >
                 <Download className="size-4" aria-hidden />
-                Hammasini saytga qo‘shish ({importable.length})
+                Hammasini saytga qo‘shish ({bulkCount})
               </ConfirmAction>
             ) : null
           }
@@ -200,7 +213,7 @@ function LastRun({ run, course }: { run: SyncRunView; course: string }) {
         ) : (
           <ul className="divide-y divide-line-soft border-t border-line-soft">
             {open.map((m) => (
-              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} />
+              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} students={students} />
             ))}
           </ul>
         )}
@@ -226,13 +239,20 @@ function LastRun({ run, course }: { run: SyncRunView; course: string }) {
   );
 }
 
-function MismatchItem({ m, runId, basis }: { m: MismatchRow; runId: string; basis: "month" | "date" }) {
+function MismatchItem({ m, runId, basis, students }: { m: MismatchRow; runId: string; basis: "month" | "date"; students: StudentPick[] }) {
   const k = KIND[m.kind];
   const details = [m.group, m.fee ? `oylik ${formatMoney(m.fee)}` : ""].filter(Boolean).join(", ");
-  const importText =
-    m.kind === "unknown_student"
-      ? `«${m.studentName}» saytga yangi o‘quvchi sifatida qo‘shiladi${details ? ` (${details})` : ""} va Sheets’dagi to‘lovlari kiritiladi. Davom etilsinmi?`
-      : `${m.studentName}: Sheets’dagi ${formatMoney(m.sheetAmount)} to‘lov saytga qo‘shilsinmi?`;
+  const unknown = m.kind === "unknown_student";
+  // «Saytda yo'q o'quvchi»: saytda hozir shu ismli (yoki Sheets'dagi ismi bog'langan) o'quvchi bormi, o'xshashlari
+  const matches = unknown ? (m.siteMatches ?? []) : [];
+  const similar = unknown && !matches.length ? (m.similar ?? []) : [];
+  const single = matches.length === 1 ? matches[0] : null;
+  const amount = formatMoney(m.sheetAmount);
+  const label = (s: StudentPick) => `${s.seq ? `#${String(s.seq).padStart(3, "0")} ` : ""}${s.name}${s.group ? ` · ${s.group}` : ""}${s.active ? "" : " · nofaol"}`;
+  const linkText = (s: StudentPick) =>
+    `Sheets’dagi «${m.studentName}» — saytdagi «${s.name}»${s.group ? ` (${s.group})` : ""}: ${amount} to‘lov unga yoziladi${
+      s.name === m.studentName ? "" : " va keyingi tekshiruvlarda bu ism unga bog‘lanadi"
+    }. Davom etilsinmi?`;
 
   return (
     <li className="flex flex-wrap items-start gap-x-6 gap-y-3 px-6 py-4 transition hover:bg-slate-50/50">
@@ -254,7 +274,7 @@ function MismatchItem({ m, runId, basis }: { m: MismatchRow; runId: string; basi
           <p className="text-[13px] text-ink-500">
             {monthLabel(m.month)}
             {basis === "date" ? " (to‘langan oy)" : ""}
-            {m.kind === "unknown_student" && details ? ` · ${details}` : ""}
+            {unknown && details ? ` · ${details}` : ""}
           </p>
           {m.parts.length ? (
             <p className="num mt-0.5 text-xs text-ink-400">
@@ -264,7 +284,32 @@ function MismatchItem({ m, runId, basis }: { m: MismatchRow; runId: string; basi
                 .join("; ")}
             </p>
           ) : null}
-          {m.note ? <p className="mt-0.5 text-xs text-amber-700">{m.note}</p> : null}
+          {m.note && !matches.length ? <p className="mt-0.5 text-xs text-amber-700">{m.note}</p> : null}
+
+          {single ? (
+            <p className="mt-1.5 text-xs text-emerald-700">
+              Saytda bor:{" "}
+              <Link href={`/students/${single.id}`} className="font-semibold underline-offset-2 hover:underline">
+                {label(single)}
+              </Link>{" "}
+              — to‘lov shu o‘quvchiga qo‘shiladi, yangi o‘quvchi yaratilmaydi.
+            </p>
+          ) : null}
+          {matches.length > 1 || similar.length ? (
+            <div className="mt-2">
+              <p className="text-xs text-ink-500">
+                {matches.length > 1 ? `Saytda bu ismli ${matches.length} ta o‘quvchi bor — qaysi biriga qo‘shilsin:` : "Saytda o‘xshash ismli o‘quvchi bor — o‘sha bo‘lsa:"}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {(matches.length > 1 ? matches : similar).map((s) => (
+                  <ConfirmAction key={s.id} action={linkMismatch.bind(null, runId, m.id, s.id)} confirmText={linkText(s)} className={cx(btn.sm, "text-brand-700")} pendingText="…">
+                    {label(s)} — shunga qo‘shish
+                  </ConfirmAction>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {unknown && students.length ? <LinkStudentPicker runId={runId} mismatchId={m.id} sheetName={m.studentName} amountText={amount} students={students} /> : null}
         </div>
       </div>
 
@@ -276,9 +321,29 @@ function MismatchItem({ m, runId, basis }: { m: MismatchRow; runId: string; basi
       </dl>
 
       <div className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto sm:justify-end">
-        {isImportable(m) ? (
-          <ConfirmAction action={importMismatch.bind(null, runId, m.id)} confirmText={importText} className={cx(btn.sm, "text-brand-700")} pendingText="…">
+        {m.kind === "missing_on_site" ? (
+          <ConfirmAction
+            action={importMismatch.bind(null, runId, m.id)}
+            confirmText={`${m.studentName}: Sheets’dagi ${amount} to‘lov saytga qo‘shilsinmi?`}
+            className={cx(btn.sm, "text-brand-700")}
+            pendingText="…"
+          >
             Saytga qo‘shish
+          </ConfirmAction>
+        ) : null}
+        {single ? (
+          <ConfirmAction action={linkMismatch.bind(null, runId, m.id, single.id)} confirmText={linkText(single)} className={cx(btn.sm, "text-brand-700")} pendingText="…">
+            Saytdagi o‘quvchiga qo‘shish
+          </ConfirmAction>
+        ) : null}
+        {unknown && !matches.length ? (
+          <ConfirmAction
+            action={importMismatch.bind(null, runId, m.id)}
+            confirmText={`«${m.studentName}» saytga yangi o‘quvchi sifatida qo‘shiladi${details ? ` (${details})` : ""} va Sheets’dagi to‘lovlari kiritiladi. Davom etilsinmi?`}
+            className={cx(btn.sm, "text-brand-700")}
+            pendingText="…"
+          >
+            Yangi o‘quvchi sifatida qo‘shish
           </ConfirmAction>
         ) : null}
         {m.studentId && m.kind !== "missing_on_site" ? (

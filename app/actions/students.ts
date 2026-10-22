@@ -16,6 +16,7 @@ import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 import { parseLessons } from "@/lib/schedule";
 import { nextStudentSeq } from "@/lib/seq";
 import { getSettings, standardFee } from "@/lib/settings";
+import { TEACHING_FILTER } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, isoToDate, isValidMonth, monthOfDate } from "@/lib/time";
 import type { FormState } from "./types";
 
@@ -76,7 +77,7 @@ export async function saveStudent(
   await connectDB();
   let teacher: string | null = null;
   if (hasTeacher && teacherRaw) {
-    if (!isId(teacherRaw) || !(await Staff.exists({ _id: teacherRaw, role: "teacher" }))) return { fieldErrors: { teacher: "O‘qituvchi topilmadi" } };
+    if (!isId(teacherRaw) || !(await Staff.exists({ _id: teacherRaw, ...TEACHING_FILTER }))) return { fieldErrors: { teacher: "O‘qituvchi topilmadi" } };
     teacher = teacherRaw;
   }
   // O'qituvchi tanlanmagan bo'lsa — kurs o'qituvchisi (Sozlamalar → Kurslar) biriktiriladi
@@ -207,7 +208,7 @@ export async function setTeacherBulk(ids: string[], teacherId: string): Promise<
   const valid = ids.filter(isId).slice(0, 1000);
   if (!valid.length) return { error: "O‘quvchi tanlanmagan" };
   await connectDB();
-  if (teacherId && (!isId(teacherId) || !(await Staff.exists({ _id: teacherId, role: "teacher" })))) return { error: "O‘qituvchi topilmadi" };
+  if (teacherId && (!isId(teacherId) || !(await Staff.exists({ _id: teacherId, ...TEACHING_FILTER })))) return { error: "O‘qituvchi topilmadi" };
   const res = await Student.updateMany({ _id: { $in: valid } }, { $set: { teacher: teacherId || null } });
   const teacher = teacherId ? await Staff.findById(teacherId, { name: 1 }).lean() : null;
   await logActivity(session, "student.teacher", `${res.matchedCount} ta o‘quvchi ${teacher ? `${teacher.name}ga biriktirildi` : "o‘qituvchisiz qoldirildi"}`);
@@ -279,7 +280,7 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
   await connectDB();
   let teacher: string | null = null;
   if (teacherRaw) {
-    if (!isId(teacherRaw) || !(await Staff.exists({ _id: teacherRaw, role: "teacher", status: { $ne: "disabled" } }))) {
+    if (!isId(teacherRaw) || !(await Staff.exists({ _id: teacherRaw, ...TEACHING_FILTER, status: { $ne: "disabled" } }))) {
       return { fieldErrors: { teacher: "O‘qituvchi topilmadi" } };
     }
     teacher = teacherRaw;

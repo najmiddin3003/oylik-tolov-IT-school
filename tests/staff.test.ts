@@ -16,6 +16,8 @@ import {
   defaultPercent,
   defaultShareBase,
   fixedPayOf,
+  isTeaching,
+  TEACHING_FILTER,
   ownerPhone,
   legacyLoginAllowed,
   parsePercent,
@@ -150,4 +152,14 @@ test("SMS tasdiqlash kodi", () => {
   assert.equal(isLocalDb(undefined), false);
   assert.equal(normalizeUzPhone("90 123 45 67"), "998901234567");
   assert.equal(formatUzPhone("998901234567"), "+998 90 123 45 67");
+});
+
+test("dars beradigan xodim: o'qituvchi va «dars ham beradi» belgili rahbar", () => {
+  assert.equal(isTeaching({ role: "teacher" }), true);
+  assert.equal(isTeaching({ role: "owner" }), false);
+  assert.equal(isTeaching({ role: "owner", teaches: true }), true, "rahbar o'zi ham dars beradi");
+  assert.equal(isTeaching({ role: "owner", teaches: null }), false);
+  assert.equal(isTeaching({ role: "admin", teaches: true }), false, "belgi faqat rahbar uchun");
+  // Bazadagi shart ham shu qoida bilan bir xil
+  assert.deepEqual(TEACHING_FILTER, { $or: [{ role: "teacher" }, { role: "owner", teaches: true }] });
 });

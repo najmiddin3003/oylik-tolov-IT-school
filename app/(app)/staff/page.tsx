@@ -8,7 +8,7 @@ import { Card, CardHeader, cx, EmptyState, IconTile, PageHeader, PageSkeleton, T
 import { ownerGuard } from "@/lib/auth";
 import { getStaffPageData, type StaffRowView } from "@/lib/data";
 import { formatUzPhone } from "@/lib/phone";
-import { payKindOf, ROLE_LABEL, STATUS_LABEL, staffInitials, staffPercent, staffSalary } from "@/lib/staff-rules";
+import { isTeaching, payKindOf, ROLE_LABEL, STATUS_LABEL, staffInitials, staffPercent, staffSalary } from "@/lib/staff-rules";
 import { currentMonth, formatDateTime, formatMoney, isValidMonth } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Xodimlar" };
@@ -123,6 +123,8 @@ function StaffRow({ s, month, self }: { s: StaffRowView; month: string; self: bo
   const percent = fixed ? 0 : staffPercent(s.shareHistory, month);
   const salary = fixed ? staffSalary(s.salaryHistory, month) : 0;
   const isOwner = s.role === "owner";
+  // O'qituvchi yoki dars ham beradigan rahbar — o'quvchilari soni ko'rsatiladi
+  const teaching = isTeaching(s);
   return (
     <li>
       <Link href={`/staff/${s.id}?month=${month}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-4 transition hover:bg-slate-50/60">
@@ -141,6 +143,7 @@ function StaffRow({ s, month, self }: { s: StaffRowView; month: string; self: bo
             <span className="truncate text-[15px] font-semibold text-ink-900">{s.name}</span>
             {self ? <Tag>siz</Tag> : null}
             <Tag tone={isOwner ? "amber" : s.role === "teacher" ? "brand" : "emerald"}>{ROLE_LABEL[s.role]}</Tag>
+            {isOwner && teaching ? <Tag tone="brand">O‘qituvchi</Tag> : null}
             {s.status !== "active" ? <Tag tone={s.status === "invited" ? "amber" : "rose"}>{STATUS_LABEL[s.status]}</Tag> : null}
           </span>
           <span className="num mt-0.5 block truncate text-[13px] text-ink-500">
@@ -159,7 +162,7 @@ function StaffRow({ s, month, self }: { s: StaffRowView; month: string; self: bo
           ) : null}
         </span>
         <span className="num flex shrink-0 items-center gap-2 text-[13px] text-ink-500">
-          {s.role === "teacher" ? <span className="rounded-lg bg-violet-50 px-2 py-1 font-medium text-violet-700">{s.students} ta o‘quvchi</span> : null}
+          {teaching ? <span className="rounded-lg bg-violet-50 px-2 py-1 font-medium text-violet-700">{s.students} ta o‘quvchi</span> : null}
           {percent ? <span className="rounded-lg bg-slate-100 px-2 py-1 font-semibold text-ink-700">{percent}%</span> : null}
           {salary ? <span className="rounded-lg bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">oylik {formatMoney(salary)}</span> : null}
           <ArrowRight className="size-4 text-ink-300" aria-hidden />
