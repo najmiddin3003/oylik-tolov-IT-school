@@ -463,7 +463,18 @@ async function TeacherDashboard({ session, month, page }: { session: Session; mo
   const serverNow = nowMs();
   const scheduled = rows
     .filter((r) => r.lessons.length)
-    .map((r) => ({ id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status, lessons: r.lessons }));
+    .map((r) => ({
+      id: r.id,
+      name: r.fullName,
+      phone: r.phone,
+      fee: r.monthlyFee,
+      paid: r.paid,
+      debt: r.debt,
+      status: r.status,
+      lessons: r.lessons,
+      group: r.group,
+      teacherId: r.teacherId,
+    }));
   const unscheduled = debtors.filter((r) => !r.lessons.length).length;
 
   return (

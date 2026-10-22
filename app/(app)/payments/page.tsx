@@ -98,18 +98,31 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
     canPickPaymentDate(role),
     readOnly ? Promise.resolve([]) : listCourses(),
   ]);
-  const [share, unpaidList, admin] = await Promise.all([
+  const [share, unpaidList, admin, teacherChoices] = await Promise.all([
     // O'qituvchiga — o'z oyligi (o'quvchilari tushumidan foiz)
     readOnly && staffId ? getStaffPay(staffId, month) : Promise.resolve(null),
     listUnpaid(month),
     isAdmin ? adminExtras() : Promise.resolve(null),
+    // «Bugun darsga keladi» blokidagi o'qituvchi filtri uchun (o'qituvchi faqat o'z o'quvchilarini ko'radi)
+    readOnly ? Promise.resolve([]) : listTeacherChoices(),
   ]);
   const { totals, debtors } = overview;
   const preselect = students.some((s) => s.id === str("student")) ? str("student") : undefined;
   // «Bugun darsga keladi»: jadvali bor o'quvchilar (tanlangan oy bo'yicha holati bilan)
   const scheduled = overview.rows
     .filter((r) => r.lessons.length)
-    .map((r) => ({ id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status, lessons: r.lessons }));
+    .map((r) => ({
+      id: r.id,
+      name: r.fullName,
+      phone: r.phone,
+      fee: r.monthlyFee,
+      paid: r.paid,
+      debt: r.debt,
+      status: r.status,
+      lessons: r.lessons,
+      group: r.group,
+      teacherId: r.teacherId,
+    }));
   const unscheduled = debtors.filter((r) => !r.lessons.length).length;
   const planDone = totals.expected - totals.debt;
   const planPct = totals.expected ? Math.round((planDone / totals.expected) * 100) : 0;
@@ -203,7 +216,15 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
 
       {admin ? <KassaStrip kassa={admin.kassa} /> : null}
 
-      <TodayLessons students={scheduled} month={month} serverNow={nowMs()} role={role} unscheduled={unscheduled} defaultAll={isAdmin} />
+      <TodayLessons
+        students={scheduled}
+        teachers={teacherChoices.map((t) => ({ id: t.id, name: t.name }))}
+        month={month}
+        serverNow={nowMs()}
+        role={role}
+        unscheduled={unscheduled}
+        defaultAll={isAdmin}
+      />
 
       <div className={cx("grid gap-6", !readOnly && "xl:grid-cols-[minmax(0,1fr)_384px]")}>
         <Card className="min-w-0 self-start overflow-hidden">

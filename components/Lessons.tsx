@@ -21,8 +21,10 @@ import {
   type Lesson,
   type LessonState,
 } from "@/lib/schedule";
+import { courseKey } from "@/lib/courses";
 import type { Role } from "@/lib/session";
 import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
+import { Select } from "./pickers";
 import { Avatar, btn, Card, cx, IconTile } from "./ui";
 import { useNow } from "./useNow";
 
@@ -85,7 +87,14 @@ export type TodayStudent = {
   debt: number;
   status: PayStatus;
   lessons: Lesson[];
+  /** Kursi (guruh nomi) va o'qituvchisi — blokdagi filtr uchun */
+  group: string;
+  teacherId: string | null;
 };
+
+/** Filtrdagi «kursi yo'q» va «o'qituvchi biriktirilmagan» qiymatlari */
+const NO_COURSE = "__none__";
+const NO_TEACHER = "none";
 
 const STATE_ORDER: Record<LessonState, number> = { now: 0, soon: 1, later: 1, done: 2 };
 
@@ -119,6 +128,7 @@ function StatePill({ state, start, end, minutes }: { state: LessonState; start: 
  */
 export function TodayLessons({
   students,
+  teachers = [],
   month,
   serverNow,
   role,
@@ -127,6 +137,8 @@ export function TodayLessons({
 }: {
   /** Jadvali bor (faol) o'quvchilar va tanlangan oy bo'yicha to'lov holati */
   students: TodayStudent[];
+  /** O'qituvchi filtri uchun (rahbar va administratorga; o'qituvchiga — bo'sh) */
+  teachers?: { id: string; name: string }[];
   month: string;
   serverNow: number;
   role: Role;
@@ -137,10 +149,37 @@ export function TodayLessons({
 }) {
   const now = useNow(serverNow);
   const [showAll, setShowAll] = useState(defaultAll);
+  const [course, setCourse] = useState("");
+  const [teacher, setTeacher] = useState("");
   const clock = tashkentClock(now);
   const tomorrow = (clock.weekday % 7) + 1;
 
-  const today = students.flatMap((s) => {
+  // Filtr: kurs (yozilishi farqli bir xil kurslar — bitta) va o'qituvchi; ro'yxatda faqat jadvali bor o'quvchilardagilari
+  const courseOf = (s: TodayStudent) => courseKey(s.group) || NO_COURSE;
+  const courseNames = new Map<string, string>();
+  for (const s of students) if (!courseNames.has(courseOf(s))) courseNames.set(courseOf(s), s.group.trim() || "Kursi yo‘q");
+  const courseOptions = [...courseNames].sort((a, b) => a[1].localeCompare(b[1])).map(([value, label]) => ({ value, label }));
+  const teacherIds = new Set(students.map((s) => s.teacherId ?? NO_TEACHER));
+  const teacherOptions = [
+    ...teachers.filter((t) => teacherIds.has(t.id)).map((t) => ({ value: t.id, label: t.name })),
+    ...(teacherIds.has(NO_TEACHER) ? [{ value: NO_TEACHER, label: "O‘qituvchi biriktirilmagan" }] : []),
+  ];
+  const showCourseFilter = courseOptions.length > 1;
+  const showTeacherFilter = teachers.length > 0 && teacherOptions.length > 1;
+  const filtered = Boolean((showCourseFilter && course) || (showTeacherFilter && teacher));
+  const pool = filtered
+    ? students.filter(
+        (s) =>
+          (!showCourseFilter || !course || courseOf(s) === course) &&
+          (!showTeacherFilter || !teacher || (s.teacherId ?? NO_TEACHER) === teacher),
+      )
+    : students;
+  const clearFilters = () => {
+    setCourse("");
+    setTeacher("");
+  };
+
+  const today = pool.flatMap((s) => {
     const l = lessonOn(s.lessons, clock.weekday);
     return l ? [{ s, l }] : [];
   });
@@ -149,7 +188,7 @@ export function TodayLessons({
   const canToggle = today.length > debtorsToday.length;
   const all = showAll && canToggle;
   const visible = all ? today : debtorsToday;
-  const debtorsTomorrow = students.filter((s) => s.status !== "paid" && lessonOn(s.lessons, tomorrow)).length;
+  const debtorsTomorrow = pool.filter((s) => s.status !== "paid" && lessonOn(s.lessons, tomorrow)).length;
 
   // Bir xil vaqtdagi darslar — bitta blok; hozirgisi birinchi, tugaganlari oxirida
   const slots: { start: string; end: string; state: LessonState; items: TodayStudent[] }[] = [];
@@ -181,6 +220,27 @@ export function TodayLessons({
             </p>
           </div>
         </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+        {showCourseFilter ? (
+          <Select
+            value={course}
+            onChange={setCourse}
+            options={[{ value: "", label: "Barcha kurslar" }, ...courseOptions]}
+            searchable={false}
+            aria-label="Kurs bo‘yicha"
+            wrapperClassName="w-full sm:w-44"
+          />
+        ) : null}
+        {showTeacherFilter ? (
+          <Select
+            value={teacher}
+            onChange={setTeacher}
+            options={[{ value: "", label: "Barcha o‘qituvchilar" }, ...teacherOptions]}
+            searchable={false}
+            aria-label="O‘qituvchi bo‘yicha"
+            wrapperClassName="w-full sm:w-52"
+          />
+        ) : null}
         {canToggle ? (
           <div className="flex rounded-xl bg-slate-100 p-1 text-[13px] font-semibold" role="group" aria-label="Ko‘rinish">
             {[
@@ -199,6 +259,7 @@ export function TodayLessons({
             ))}
           </div>
         ) : null}
+        </div>
       </div>
 
       {!students.length ? (
@@ -217,8 +278,16 @@ export function TodayLessons({
         </Notice>
       ) : !today.length ? (
         <Notice icon={Sunrise}>
-          Bugun ({weekdayName.toLowerCase()}) dars yo‘q.
+          {filtered ? "Tanlangan filtr bo‘yicha bugun" : "Bugun"} ({weekdayName.toLowerCase()}) dars yo‘q.
           {debtorsTomorrow ? ` Ertaga ${debtorsTomorrow} ta to‘lamagan o‘quvchi darsga keladi.` : ""}
+          {filtered ? (
+            <>
+              {" "}
+              <button type="button" onClick={clearFilters} className="font-semibold text-brand-600 hover:underline">
+                Filtrni tozalash
+              </button>
+            </>
+          ) : null}
         </Notice>
       ) : !visible.length ? (
         <Notice icon={UsersRound} tone="emerald">
