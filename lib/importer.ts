@@ -8,13 +8,31 @@ import { Payment, Student, SyncRun, type PaymentMethod } from "./models";
 import { nameKey } from "./normalize";
 import { nameMatches, studentNameKeys } from "./compare";
 import { nextStudentSeq } from "./seq";
-import { isoToDate, monthOfDate } from "./time";
+import { isoToDate, monthOfDate, shiftMonth } from "./time";
 
 /**
  * rows — saytga qo'shilgan Sheets qatorlari (bitta qator naqd+plastik bo'lsa ham bitta);
- * linkedTo — `studentId` bilan chaqirilganda: to'lovlar qo'shilgan o'quvchi ismi.
+ * linkedTo — `studentId` bilan chaqirilganda: to'lovlar qo'shilgan o'quvchi ismi;
+ * alreadyPaid — saytdagi o'quvchining shu oydagi to'lovi allaqachon bor edi: to'lov qayta yozilmadi, faqat yozuv yopildi.
  */
-export type ImportResult = { students: number; payments: number; resolved: number; rows: number; skipped: string[]; linkedTo?: string };
+export type ImportResult = {
+  students: number;
+  payments: number;
+  resolved: number;
+  rows: number;
+  skipped: string[];
+  linkedTo?: string;
+  alreadyPaid: number;
+};
+
+/** O'quvchining shu oyga tegishli (oy maydoni yoki to'langan sanasi bo'yicha) hisobdagi to'lovi bormi. */
+export async function hasPaymentInMonth(studentId: string, month: string): Promise<boolean> {
+  const from = isoToDate(`${month}-01`);
+  const to = isoToDate(`${shiftMonth(month, 1)}-01`);
+  if (!from || !to) return false;
+  const found = await Payment.exists({ ...LIVE, student: studentId, $or: [{ month }, { paidAt: { $gte: from, $lt: to } }] });
+  return Boolean(found);
+}
 
 type Part = { row: number; date: string; amount: number; cash: number; card: number };
 
@@ -64,7 +82,7 @@ export async function importFromRun(runId: string, ids: string[] | "all", opts: 
       ids.includes(String(m._id)) ||
       (m.kind === "unknown_student" && chosenNames.has(nameKey(m.studentName))),
   );
-  const result: ImportResult = { students: 0, payments: 0, resolved: 0, rows: 0, skipped: [] };
+  const result: ImportResult = { students: 0, payments: 0, resolved: 0, rows: 0, skipped: [], alreadyPaid: 0 };
   if (!targets.length) return result;
 
   // 1) Har bir farq uchun saytdagi o'quvchini aniqlash (yo'q bo'lsa — yaratish). Ism yoki Sheets'dagi bog'langan ismi bo'yicha
@@ -105,6 +123,7 @@ export async function importFromRun(runId: string, ids: string[] | "all", opts: 
 
   // Yangi o'quvchi kursining o'qituvchisi bo'lsa — darhol unga biriktiriladi
   const teacherOf = toCreate.size ? await courseTeacherResolver() : () => null;
+  const createdIds = new Set<string>();
   for (const group of toCreate.values()) {
     const first = group[0];
     const months = group.flatMap((m) => partsOf(m).map((p) => partMonth(m, p))).sort();
@@ -121,8 +140,18 @@ export async function importFromRun(runId: string, ids: string[] | "all", opts: 
       note: fee ? "Google Sheets'dan import qilindi" : "Google Sheets'dan import qilindi — oylik to'lovni kiriting",
     });
     result.students++;
+    createdIds.add(String(created._id));
     for (const m of group) studentFor.set(m, String(created._id));
   }
+
+  // «Noma'lum o'quvchi» saytdagi mavjud o'quvchi bo'lib chiqsa (ismi Sheets'da boshqacha yozilgan yoki keyin to'g'rilangan):
+  // uning shu oydagi to'lovi saytda allaqachon bo'lsa — Sheets yozuvi o'sha to'lovning o'zi, qayta yozilmaydi (ikki marta
+  // hisoblanmasin); yozuv yopiladi, ism bog'lanadi — keyingi tekshiruvda mos keladi.
+  const alreadyPaid = new Set<(typeof targets)[number]>();
+  for (const [m, studentId] of studentFor) {
+    if (m.kind === "unknown_student" && !createdIds.has(studentId) && (await hasPaymentInMonth(studentId, m.month))) alreadyPaid.add(m);
+  }
+  result.alreadyPaid = alreadyPaid.size;
 
   // 2) O'quvchilarning oylik to'lovi, boshlanish oyi va hozirgacha to'langan summalari
   const studentIds = [...new Set(studentFor.values())];
@@ -142,9 +171,9 @@ export async function importFromRun(runId: string, ids: string[] | "all", opts: 
   for (const a of paidAgg) info.get(String(a._id.student))?.paid.set(a._id.month, a.total);
 
   // 3) Barcha to'lov qatorlari sana tartibida — oldingi to'lov oldingi oyni yopadi
-  const items = [...studentFor.entries()].flatMap(([m, studentId]) =>
-    partsOf(m).map((p) => ({ m, studentId, p })),
-  );
+  const items = [...studentFor.entries()]
+    .filter(([m]) => !alreadyPaid.has(m))
+    .flatMap(([m, studentId]) => partsOf(m).map((p) => ({ m, studentId, p })));
   items.sort(
     (a, b) =>
       (a.p.date || `${a.m.month}-01`).localeCompare(b.p.date || `${b.m.month}-01`) || a.p.row - b.p.row,
@@ -178,6 +207,15 @@ export async function importFromRun(runId: string, ids: string[] | "all", opts: 
   for (const m of studentFor.keys()) {
     m.resolved = true;
     result.resolved++;
+  }
+  // Saytdagi o'sha to'lov uchun shu tekshiruvdagi «Sheets'da yo'q» yozuvi ham (summasi bir xil bo'lsa) — o'sha to'lovning o'zi
+  for (const m of alreadyPaid) {
+    const studentId = studentFor.get(m);
+    for (const x of run.mismatches) {
+      if (!x.resolved && x.kind === "missing_in_sheet" && String(x.studentId) === studentId && x.month === m.month && x.siteAmount === m.sheetAmount) {
+        x.resolved = true;
+      }
+    }
   }
   await run.save();
 

@@ -41,7 +41,7 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
   await ownerGuard();
   const sp = await searchParams;
   const course = typeof sp.kurs === "string" ? sp.kurs.slice(0, 80) : "";
-  const { settings, runs, students } = await getSyncPageData();
+  const { settings, runs, students, paidByMonth } = await getSyncPageData();
   const last = runs[0];
   const hour = String(syncHour()).padStart(2, "0");
 
@@ -64,7 +64,7 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
       ) : null}
 
       {last ? (
-        <LastRun run={last} course={course} students={students} />
+        <LastRun run={last} course={course} students={students} paidByMonth={paidByMonth} />
       ) : settings.sheetUrl ? (
         <Card className="mb-6">
           <EmptyState title="Hali tekshiruv o‘tkazilmagan" icon={FileSpreadsheet}>
@@ -119,7 +119,17 @@ function periodLabel(run: SyncRunView): string {
   return "—";
 }
 
-function LastRun({ run, course, students }: { run: SyncRunView; course: string; students: StudentPick[] }) {
+function LastRun({
+  run,
+  course,
+  students,
+  paidByMonth,
+}: {
+  run: SyncRunView;
+  course: string;
+  students: StudentPick[];
+  paidByMonth: Record<string, string[]>;
+}) {
   // Kurs bo'yicha filtr (?kurs=): ko'rsatkichlar va farqlar shu kurs bo'yicha
   const stat = course ? run.courseStats.find((c) => sameCourse(c.course, course)) : undefined;
   const selected = stat?.course ?? "";
@@ -213,7 +223,7 @@ function LastRun({ run, course, students }: { run: SyncRunView; course: string; 
         ) : (
           <ul className="divide-y divide-line-soft border-t border-line-soft">
             {open.map((m) => (
-              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} students={students} />
+              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} students={students} paidIds={paidByMonth[m.month] ?? []} />
             ))}
           </ul>
         )}
@@ -239,7 +249,20 @@ function LastRun({ run, course, students }: { run: SyncRunView; course: string; 
   );
 }
 
-function MismatchItem({ m, runId, basis, students }: { m: MismatchRow; runId: string; basis: "month" | "date"; students: StudentPick[] }) {
+function MismatchItem({
+  m,
+  runId,
+  basis,
+  students,
+  paidIds,
+}: {
+  m: MismatchRow;
+  runId: string;
+  basis: "month" | "date";
+  students: StudentPick[];
+  /** Shu oyda saytda to'lovi bor o'quvchilar */
+  paidIds: string[];
+}) {
   const k = KIND[m.kind];
   const details = [m.group, m.fee ? `oylik ${formatMoney(m.fee)}` : ""].filter(Boolean).join(", ");
   const unknown = m.kind === "unknown_student";
@@ -249,10 +272,13 @@ function MismatchItem({ m, runId, basis, students }: { m: MismatchRow; runId: st
   const single = matches.length === 1 ? matches[0] : null;
   const amount = formatMoney(m.sheetAmount);
   const label = (s: StudentPick) => `${s.seq ? `#${String(s.seq).padStart(3, "0")} ` : ""}${s.name}${s.group ? ` · ${s.group}` : ""}${s.active ? "" : " · nofaol"}`;
+  // Shu oyda saytda to'lovi bor o'quvchi — Sheets yozuvi o'sha to'lovning o'zi: qayta yozilmaydi, faqat ism bog'lanadi
+  const hasPay = (s: StudentPick) => paidIds.includes(s.id);
+  const aliasNote = (s: StudentPick) => (s.name === m.studentName ? "" : " va keyingi tekshiruvlarda bu ism unga bog‘lanadi");
   const linkText = (s: StudentPick) =>
-    `Sheets’dagi «${m.studentName}» — saytdagi «${s.name}»${s.group ? ` (${s.group})` : ""}: ${amount} to‘lov unga yoziladi${
-      s.name === m.studentName ? "" : " va keyingi tekshiruvlarda bu ism unga bog‘lanadi"
-    }. Davom etilsinmi?`;
+    hasPay(s)
+      ? `Saytdagi «${s.name}»ning ${monthLabel(m.month)} to‘lovi allaqachon bor — Sheets’dagi «${m.studentName}» yozuvi o‘sha to‘lov deb yopiladi, qayta yozilmaydi${aliasNote(s)}. Davom etilsinmi?`
+      : `Sheets’dagi «${m.studentName}» — saytdagi «${s.name}»${s.group ? ` (${s.group})` : ""}: ${amount} to‘lov unga yoziladi${aliasNote(s)}. Davom etilsinmi?`;
 
   return (
     <li className="flex flex-wrap items-start gap-x-6 gap-y-3 px-6 py-4 transition hover:bg-slate-50/50">
@@ -292,7 +318,9 @@ function MismatchItem({ m, runId, basis, students }: { m: MismatchRow; runId: st
               <Link href={`/students/${single.id}`} className="font-semibold underline-offset-2 hover:underline">
                 {label(single)}
               </Link>{" "}
-              — to‘lov shu o‘quvchiga qo‘shiladi, yangi o‘quvchi yaratilmaydi.
+              {hasPay(single)
+                ? "— uning bu oydagi to‘lovi saytda bor: qayta yozilmaydi, yozuv yopiladi."
+                : "— to‘lov shu o‘quvchiga qo‘shiladi, yangi o‘quvchi yaratilmaydi."}
             </p>
           ) : null}
           {matches.length > 1 || similar.length ? (
@@ -303,13 +331,21 @@ function MismatchItem({ m, runId, basis, students }: { m: MismatchRow; runId: st
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {(matches.length > 1 ? matches : similar).map((s) => (
                   <ConfirmAction key={s.id} action={linkMismatch.bind(null, runId, m.id, s.id)} confirmText={linkText(s)} className={cx(btn.sm, "text-brand-700")} pendingText="…">
-                    {label(s)} — shunga qo‘shish
+                    {label(s)} — {hasPay(s) ? "shu o‘quvchi (to‘lovi saytda bor)" : "shunga qo‘shish"}
                   </ConfirmAction>
                 ))}
               </div>
             </div>
           ) : null}
-          {unknown && students.length ? <LinkStudentPicker runId={runId} mismatchId={m.id} sheetName={m.studentName} amountText={amount} students={students} /> : null}
+          {unknown && students.length ? <LinkStudentPicker
+              runId={runId}
+              mismatchId={m.id}
+              sheetName={m.studentName}
+              amountText={amount}
+              monthText={monthLabel(m.month)}
+              paidIds={paidIds}
+              students={students}
+            /> : null}
         </div>
       </div>
 
@@ -333,7 +369,7 @@ function MismatchItem({ m, runId, basis, students }: { m: MismatchRow; runId: st
         ) : null}
         {single ? (
           <ConfirmAction action={linkMismatch.bind(null, runId, m.id, single.id)} confirmText={linkText(single)} className={cx(btn.sm, "text-brand-700")} pendingText="…">
-            Saytdagi o‘quvchiga qo‘shish
+            {hasPay(single) ? "Saytdagi o‘quvchiga bog‘lash" : "Saytdagi o‘quvchiga qo‘shish"}
           </ConfirmAction>
         ) : null}
         {unknown && !matches.length ? (

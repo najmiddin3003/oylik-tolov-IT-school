@@ -858,7 +858,16 @@ export async function getSyncPageData() {
   // (ism tekshiruvdan keyin to'g'rilangan bo'lishi yoki Sheets'da boshqacha yozilgan bo'lishi mumkin)
   const unknown = (views[0]?.mismatches ?? []).filter((m) => m.kind === "unknown_student" && !m.resolved);
   let students: StudentPick[] = [];
+  // Shu oyda saytda to'lovi bor o'quvchilar: ularga bog'langan Sheets yozuvi qayta yozilmaydi (o'sha to'lovning o'zi)
+  const paidByMonth: Record<string, string[]> = {};
   if (unknown.length) {
+    for (const month of [...new Set(unknown.map((m) => m.month))]) {
+      const from = isoToDate(`${month}-01`);
+      const to = isoToDate(`${shiftMonth(month, 1)}-01`);
+      if (!from || !to) continue;
+      const ids = await Payment.distinct("student", { ...LIVE, $or: [{ month }, { paidAt: { $gte: from, $lt: to } }] });
+      paidByMonth[month] = ids.map(String);
+    }
     const docs = await Student.find({}, { fullName: 1, group: 1, sheetNames: 1, active: 1, seq: 1 }).sort({ fullName: 1, seq: 1 }).lean();
     const candidates = docs.map((d) => ({
       id: String(d._id),
@@ -887,6 +896,8 @@ export async function getSyncPageData() {
     runs: views,
     /** Biriktirish tanlovi uchun (faqat «saytda yo'q o'quvchi» bo'lsa) */
     students,
+    /** Oy -> shu oyda saytda to'lovi bor o'quvchilar */
+    paidByMonth,
   };
 }
 

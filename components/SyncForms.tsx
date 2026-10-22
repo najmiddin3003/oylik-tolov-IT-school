@@ -203,6 +203,8 @@ export function LinkStudentPicker({
   mismatchId,
   sheetName,
   amountText,
+  monthText,
+  paidIds,
   students,
 }: {
   runId: string;
@@ -210,6 +212,10 @@ export function LinkStudentPicker({
   sheetName: string;
   /** "300 000 so'm" */
   amountText: string;
+  /** "Oktabr 2026" */
+  monthText: string;
+  /** Shu oyda saytda to'lovi bor o'quvchilar — ularga to'lov qayta yozilmaydi, faqat ism bog'lanadi */
+  paidIds: string[];
   students: StudentPick[];
 }) {
   const [studentId, setStudentId] = useState("");
@@ -231,7 +237,11 @@ export function LinkStudentPicker({
         {chosen ? (
           <ConfirmAction
             action={linkMismatch.bind(null, runId, mismatchId, chosen.id)}
-            confirmText={`Sheets’dagi «${sheetName}» — saytdagi «${chosen.name}»: ${amountText} to‘lov unga yoziladi va keyingi tekshiruvlarda bu ism unga bog‘lanadi. Davom etilsinmi?`}
+            confirmText={
+              paidIds.includes(chosen.id)
+                ? `Saytdagi «${chosen.name}»ning ${monthText} to‘lovi allaqachon bor — Sheets’dagi «${sheetName}» yozuvi o‘sha to‘lov deb yopiladi, qayta yozilmaydi va keyingi tekshiruvlarda bu ism unga bog‘lanadi. Davom etilsinmi?`
+                : `Sheets’dagi «${sheetName}» — saytdagi «${chosen.name}»: ${amountText} to‘lov unga yoziladi va keyingi tekshiruvlarda bu ism unga bog‘lanadi. Davom etilsinmi?`
+            }
             className={cx(btn.sm, "text-brand-700")}
             pendingText="…"
           >

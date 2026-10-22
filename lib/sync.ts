@@ -1,11 +1,11 @@
 // Google Sheets bilan saytdagi to'lovlarni solishtirish va natijani bazaga yozish.
 import { compareRecords, parseSheet, type MismatchResult, type SheetWindow } from "./compare";
-import { importFromRun } from "./importer";
+import { hasPaymentInMonth, importFromRun } from "./importer";
 import { LIVE } from "./ledger";
 import { Payment, Setting, Student, SyncRun } from "./models";
 import { getSettings } from "./settings";
 import { fetchSheetRows, SheetError } from "./sheets";
-import { dateToISO, isoToDate, lastScheduledTime, shiftMonth, todayISO } from "./time";
+import { dateToISO, isoToDate, lastScheduledTime, todayISO } from "./time";
 
 export type SyncTrigger = "auto" | "cron" | "manual";
 
@@ -47,15 +47,6 @@ async function loadSitePayments(window: SheetWindow | null) {
     paidDate: dateToISO(p.paidAt),
     amount: p.amount,
   }));
-}
-
-/** O'quvchining shu oyga tegishli (oy maydoni yoki to'langan sanasi bo'yicha) hisobdagi to'lovi bormi. */
-async function hasOtherPaymentInMonth(studentId: string, month: string): Promise<boolean> {
-  const from = isoToDate(`${month}-01`);
-  const to = isoToDate(`${shiftMonth(month, 1)}-01`);
-  if (!from || !to) return false;
-  const found = await Payment.exists({ ...LIVE, student: studentId, $or: [{ month }, { paidAt: { $gte: from, $lt: to } }] });
-  return Boolean(found);
 }
 
 export type SyncOutcome = {
@@ -185,7 +176,7 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
         if (m.kind !== "missing_on_site" || !m.studentId) continue;
         // Ehtiyot: saytda shu o'quvchining shu oyga tegishli to'lovi jadval oralig'idan tashqarida bo'lsa
         // (masalan, saytga boshqa kuni kiritilgan) — ikki marta yozilmasligi uchun avtomatik qo'shilmaydi.
-        if (await hasOtherPaymentInMonth(String(m.studentId), m.month)) {
+        if (await hasPaymentInMonth(String(m.studentId), m.month)) {
           const extra = "Saytda shu oy uchun boshqa sanada to‘lov bor — avtomatik qo‘shilmadi, tekshirib ko‘ring";
           await SyncRun.updateOne(
             { _id: run._id, "mismatches._id": m._id },

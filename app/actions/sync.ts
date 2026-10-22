@@ -74,7 +74,13 @@ export async function linkMismatch(runId: string, mismatchId: string, studentId:
   if (!m || m.kind !== "unknown_student" || m.resolved) return;
   const res = await importFromRun(runId, [mismatchId], { studentId });
   if (res?.resolved) {
-    await logActivity(session, "sync.import", `Sheets’dagi «${m.studentName}» to‘lovlari saytdagi «${res.linkedTo}» o‘quvchisiga qo‘shildi (${res.payments} ta to‘lov)`);
+    await logActivity(
+      session,
+      "sync.import",
+      res.payments
+        ? `Sheets’dagi «${m.studentName}» to‘lovlari saytdagi «${res.linkedTo}» o‘quvchisiga qo‘shildi (${res.payments} ta to‘lov)`
+        : `Sheets’dagi «${m.studentName}» saytdagi «${res.linkedTo}» o‘quvchisiga bog‘landi (to‘lovi saytda allaqachon bor — qayta yozilmadi)`,
+    );
   }
   refresh();
 }
