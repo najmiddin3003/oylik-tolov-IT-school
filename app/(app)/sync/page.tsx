@@ -331,7 +331,7 @@ function MismatchItem({
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {(matches.length > 1 ? matches : similar).map((s) => (
                   <ConfirmAction key={s.id} action={linkMismatch.bind(null, runId, m.id, s.id)} confirmText={linkText(s)} className={cx(btn.sm, "text-brand-700")} pendingText="…">
-                    {label(s)} — {hasPay(s) ? "shu o‘quvchi (to‘lovi saytda bor)" : "shunga qo‘shish"}
+                    {label(s)} — {hasPay(s) ? "bog‘lash (to‘lovi bor)" : "shunga qo‘shish"}
                   </ConfirmAction>
                 ))}
               </div>
@@ -349,54 +349,61 @@ function MismatchItem({
         </div>
       </div>
 
-      <dl className="num grid grid-cols-[auto_auto] gap-x-4 gap-y-1 text-sm">
-        <dt className="text-ink-400">Saytda</dt>
-        <dd className="whitespace-nowrap text-right font-semibold text-ink-900">{m.siteAmount ? formatMoney(m.siteAmount) : "—"}</dd>
-        <dt className="text-ink-400">Sheets’da</dt>
-        <dd className="whitespace-nowrap text-right font-semibold text-ink-900">{m.sheetAmount ? formatMoney(m.sheetAmount) : "—"}</dd>
-      </dl>
+      {/* O'ng ustun: tepada summalar (bitta qatorda, ism bilan bir chiziqda), ostida tugmalar; keng ekranda kengligi qat'iy */}
+      <div className="flex w-full flex-col gap-2.5 sm:ml-auto sm:w-auto sm:items-end lg:w-[24rem]">
+        <dl className="num flex flex-wrap items-baseline gap-x-5 gap-y-1 pt-0.5 text-sm sm:justify-end">
+          <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+            <dt className="text-ink-400">Saytda</dt>
+            <dd className="font-semibold text-ink-900">{m.siteAmount ? formatMoney(m.siteAmount) : "—"}</dd>
+          </div>
+          <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+            <dt className="text-ink-400">Sheets’da</dt>
+            <dd className="font-semibold text-ink-900">{m.sheetAmount ? formatMoney(m.sheetAmount) : "—"}</dd>
+          </div>
+        </dl>
 
-      <div className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto sm:justify-end">
-        {m.kind === "missing_on_site" ? (
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          {m.kind === "missing_on_site" ? (
+            <ConfirmAction
+              action={importMismatch.bind(null, runId, m.id)}
+              confirmText={`${m.studentName}: Sheets’dagi ${amount} to‘lov saytga qo‘shilsinmi?`}
+              className={cx(btn.sm, "text-brand-700")}
+              pendingText="…"
+            >
+              Saytga qo‘shish
+            </ConfirmAction>
+          ) : null}
+          {single ? (
+            <ConfirmAction action={linkMismatch.bind(null, runId, m.id, single.id)} confirmText={linkText(single)} className={cx(btn.sm, "text-brand-700")} pendingText="…">
+              {hasPay(single) ? "Saytdagi o‘quvchiga bog‘lash" : "Saytdagi o‘quvchiga qo‘shish"}
+            </ConfirmAction>
+          ) : null}
+          {unknown && !matches.length ? (
+            <ConfirmAction
+              action={importMismatch.bind(null, runId, m.id)}
+              confirmText={`«${m.studentName}» saytga yangi o‘quvchi sifatida qo‘shiladi${details ? ` (${details})` : ""} va Sheets’dagi to‘lovlari kiritiladi. Davom etilsinmi?`}
+              className={cx(btn.sm, "text-brand-700")}
+              pendingText="…"
+            >
+              Yangi o‘quvchi sifatida qo‘shish
+            </ConfirmAction>
+          ) : null}
+          {m.studentId && m.kind !== "missing_on_site" ? (
+            <Link href={`/students/${m.studentId}?month=${m.month}`} className={btn.sm}>
+              <Eye className="size-4" aria-hidden />
+              Ko‘rish
+            </Link>
+          ) : null}
           <ConfirmAction
-            action={importMismatch.bind(null, runId, m.id)}
-            confirmText={`${m.studentName}: Sheets’dagi ${amount} to‘lov saytga qo‘shilsinmi?`}
-            className={cx(btn.sm, "text-brand-700")}
+            action={resolveMismatch.bind(null, runId, m.id)}
+            confirmText="Bu farq hal qilindi deb belgilansinmi? (Keyingi tekshiruvda farq saqlansa, yana ko‘rinadi.)"
+            className={btn.sm}
             pendingText="…"
+            title="Hal qilindi deb belgilash"
           >
-            Saytga qo‘shish
+            Hal qilindi ✓
           </ConfirmAction>
-        ) : null}
-        {single ? (
-          <ConfirmAction action={linkMismatch.bind(null, runId, m.id, single.id)} confirmText={linkText(single)} className={cx(btn.sm, "text-brand-700")} pendingText="…">
-            {hasPay(single) ? "Saytdagi o‘quvchiga bog‘lash" : "Saytdagi o‘quvchiga qo‘shish"}
-          </ConfirmAction>
-        ) : null}
-        {unknown && !matches.length ? (
-          <ConfirmAction
-            action={importMismatch.bind(null, runId, m.id)}
-            confirmText={`«${m.studentName}» saytga yangi o‘quvchi sifatida qo‘shiladi${details ? ` (${details})` : ""} va Sheets’dagi to‘lovlari kiritiladi. Davom etilsinmi?`}
-            className={cx(btn.sm, "text-brand-700")}
-            pendingText="…"
-          >
-            Yangi o‘quvchi sifatida qo‘shish
-          </ConfirmAction>
-        ) : null}
-        {m.studentId && m.kind !== "missing_on_site" ? (
-          <Link href={`/students/${m.studentId}?month=${m.month}`} className={btn.sm}>
-            <Eye className="size-4" aria-hidden />
-            Ko‘rish
-          </Link>
-        ) : null}
-        <ConfirmAction
-          action={resolveMismatch.bind(null, runId, m.id)}
-          confirmText="Bu farq hal qilindi deb belgilansinmi? (Keyingi tekshiruvda farq saqlansa, yana ko‘rinadi.)"
-          className={btn.sm}
-          pendingText="…"
-          title="Hal qilindi deb belgilash"
-        >
-          Hal qilindi ✓
-        </ConfirmAction>
+        </div>
       </div>
     </li>
   );
