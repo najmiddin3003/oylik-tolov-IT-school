@@ -60,6 +60,10 @@ const paymentSchema = new Schema(
     /** Arxivlangan to'lov hech qayerda hisoblanmaydi; faqat rahbarning arxiv ro'yxatida ko'rinadi */
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, enum: ["owner", "admin", null], default: null },
+    /** Summa tahrirlangan bo'lsa: oxirgi tahrir vaqti, kim tahrirlagani va birinchi kiritilgan (asl) summa */
+    editedAt: { type: Date, default: null },
+    editedBy: { type: String, enum: ["owner", "admin", null], default: null },
+    originalAmount: { type: Number, default: null },
   },
   { timestamps: true },
 );

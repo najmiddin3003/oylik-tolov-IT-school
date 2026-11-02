@@ -7,6 +7,7 @@ import { archivePayment } from "@/app/actions/payments";
 import { deleteStudent } from "@/app/actions/students";
 import { PaidCell } from "@/components/cells";
 import { NextLessonCell } from "@/components/Lessons";
+import { EditedMark, EditPaymentButton } from "@/components/PaymentEdit";
 import { PaymentForm } from "@/components/PaymentForm";
 import { ConfirmAction } from "@/components/SubmitButton";
 import {
@@ -215,7 +216,10 @@ async function StudentView({
                         <tr key={p.id} className="transition hover:bg-slate-50/50">
                           <td className={cx(td, "num whitespace-nowrap text-ink-500")}>{formatDate(p.paidAt)}</td>
                           <td className={cx(td, "whitespace-nowrap")}>{monthLabel(p.month)}</td>
-                          <td className={cx(td, "num whitespace-nowrap text-right font-semibold text-ink-900")}>{formatMoney(p.amount)}</td>
+                          <td className={cx(td, "num whitespace-nowrap text-right font-semibold text-ink-900")}>
+                            {formatMoney(p.amount)}
+                            <EditedMark payment={p} className="mt-0.5 flex justify-end" />
+                          </td>
                           <td className={td}>
                             <span className={cx("inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium", m.cls)}>
                               <Icon className="size-3.5" aria-hidden />
@@ -227,15 +231,18 @@ async function StudentView({
                           </td>
                           <td className={cx(td, "text-right")}>
                             {readOnly ? null : (
-                            <ConfirmAction
-                              action={archivePayment.bind(null, p.id)}
-                              confirmText={`${monthLabel(p.month)} uchun ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, «To‘lovlar → Arxiv» dan qaytarish mumkin.`}
-                              className={btn.iconDanger}
-                              pendingText="…"
-                              title="Arxivga o‘tkazish"
-                            >
-                              <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
-                            </ConfirmAction>
+                              <div className="flex items-center justify-end gap-0.5">
+                                <EditPaymentButton payment={p} />
+                                <ConfirmAction
+                                  action={archivePayment.bind(null, p.id)}
+                                  confirmText={`${monthLabel(p.month)} uchun ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, «To‘lovlar → Arxiv» dan qaytarish mumkin.`}
+                                  className={btn.iconDanger}
+                                  pendingText="…"
+                                  title="Arxivga o‘tkazish"
+                                >
+                                  <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
+                                </ConfirmAction>
+                              </div>
                             )}
                           </td>
                         </tr>

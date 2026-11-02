@@ -11,6 +11,7 @@ import type { PaymentMethod } from "@/lib/models";
 import { dayLabel } from "@/lib/reminders";
 import type { Role } from "@/lib/session";
 import { dateToISO, formatMoney, MONTH_NAMES, todayISO } from "@/lib/time";
+import { EditedMark, EditPaymentButton } from "./PaymentEdit";
 import { ConfirmAction } from "./SubmitButton";
 import { Avatar, btn, cx, Tag } from "./ui";
 
@@ -111,26 +112,32 @@ export function PaymentHistory({ rows, month, role, readOnly }: { rows: PaymentR
                       </p>
                     </div>
                   </div>
-                  <div className="ml-auto flex items-center gap-3 pl-[52px] sm:pl-0">
-                    <span className={cx("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium ring-1 ring-inset", m.cls)}>
+                  <div className="ml-auto flex w-full items-center gap-2 sm:w-auto sm:gap-3">
+                    <span className={cx("mr-auto inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium ring-1 ring-inset sm:mr-0", m.cls)}>
                       <Icon className="size-3.5" aria-hidden />
                       {m.label}
                     </span>
-                    <span className="num w-32 whitespace-nowrap text-right text-[16px] font-bold text-ink-900">{formatMoney(p.amount)}</span>
+                    <span className="flex w-32 flex-col items-end">
+                      <span className="num whitespace-nowrap text-right text-[16px] font-bold text-ink-900">{formatMoney(p.amount)}</span>
+                      <EditedMark payment={p} />
+                    </span>
                     {readOnly ? null : (
-                      <ConfirmAction
-                        action={() => archivePayment(p.id)}
-                        confirmText={
-                          role === "owner"
-                            ? `${p.studentName}: ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, arxivdan qaytarish mumkin.`
-                            : `${p.studentName}: ${formatMoney(p.amount)} to‘lov o‘chirilsinmi?`
-                        }
-                        className={btn.iconDanger}
-                        pendingText="…"
-                        title={role === "owner" ? "Arxivga o‘tkazish" : "O‘chirish"}
-                      >
-                        <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
-                      </ConfirmAction>
+                      <div className="flex items-center gap-0.5">
+                        <EditPaymentButton payment={p} />
+                        <ConfirmAction
+                          action={() => archivePayment(p.id)}
+                          confirmText={
+                            role === "owner"
+                              ? `${p.studentName}: ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, arxivdan qaytarish mumkin.`
+                              : `${p.studentName}: ${formatMoney(p.amount)} to‘lov o‘chirilsinmi?`
+                          }
+                          className={btn.iconDanger}
+                          pendingText="…"
+                          title={role === "owner" ? "Arxivga o‘tkazish" : "O‘chirish"}
+                        >
+                          <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
+                        </ConfirmAction>
+                      </div>
                     )}
                   </div>
                 </li>
