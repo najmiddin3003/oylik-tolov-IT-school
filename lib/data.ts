@@ -39,8 +39,8 @@ import {
 } from "./schedule";
 import { getSettings, standardFee } from "./settings";
 import type { Role } from "./session";
-import { activeStaffRoles, getStaffById, listStaff, listTeachers, salaryHistoryOf, shareHistoryOf, teacherNames, toStaffView, type StaffView } from "./staff";
-import type { StaffStatus } from "./staff-rules";
+import { activeStaffRoles, getStaffById, listStaff, listTeachers, salaryHistoryOf, shareHistoryOf, teacherNames, toStaffView, type StaffLean, type StaffView } from "./staff";
+import { payHistoryMonths, trimEmptyPayMonths, type StaffStatus } from "./staff-rules";
 import { latestTasksByMonth, tasksFor, type TaskRow } from "./tasks";
 import { compareMonths, currentMonth, isoToDate, monthOfDate, nowMs, shiftMonth, todayISO } from "./time";
 
@@ -974,6 +974,14 @@ export async function getStaffPageData() {
   };
 }
 
+export type PayMonth = StaffPay & { month: string };
+
+/** «Oylar bo'yicha oylik»: tanlangan oy atrofidagi 12 oy (eng yangisi tepada), oylik belgilanmagan eski oylarsiz. */
+async function payHistory(doc: StaffLean, month: string): Promise<PayMonth[]> {
+  const rows = await Promise.all(payHistoryMonths(month, currentMonth()).map(async (m) => ({ ...(await staffPay(doc, m)), month: m })));
+  return trimEmptyPayMonths(rows, month);
+}
+
 /** Bitta xodim (rahbar uchun): ma'lumotlari, shu oydagi oyligi va olgan oylik/avanslari. */
 export async function getStaffDetail(id: string, month: string) {
   await requireOwner();
@@ -981,12 +989,13 @@ export async function getStaffDetail(id: string, month: string) {
   await connectDB();
   const doc = await getStaffById(id);
   if (!doc) return null;
-  const [pay, salaries, students] = await Promise.all([staffPay(doc, month), monthSalaries(month), loadStudents()]);
+  const [pay, salaries, students, history] = await Promise.all([staffPay(doc, month), monthSalaries(month), loadStudents(), payHistory(doc, month)]);
   const mine = students.filter((st) => String(st.teacher ?? "") === id && st.active !== false);
   return {
     staff: toStaffView(doc),
     pay,
     salaries: salaries.get(id) ?? [],
+    history,
     students: mine.length,
     shareHistory: [...shareHistoryOf(doc)].sort((a, b) => compareMonths(b.from, a.from)),
     /** Belgilangan oylik tarixi (administrator) — eng yangisi tepada */
@@ -1001,11 +1010,12 @@ export async function getMyProfile(month: string) {
   await connectDB();
   const doc = await getStaffById(v.staffId);
   if (!doc) return null;
-  const [pay, salaries, students] = await Promise.all([staffPay(doc, month), monthSalaries(month), loadStudents()]);
+  const [pay, salaries, students, history] = await Promise.all([staffPay(doc, month), monthSalaries(month), loadStudents(), payHistory(doc, month)]);
   return {
     staff: toStaffView(doc),
     pay,
     salaries: salaries.get(v.staffId) ?? [],
+    history,
     students: students.filter((st) => String(st.teacher ?? "") === v.staffId && st.active !== false).length,
   };
 }

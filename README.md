@@ -45,6 +45,8 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
     rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). **Administratorda foiz yo‘q — belgilangan oylik**
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
+    Xodim sahifasida (va «Profilim»da) oylik kartasining o‘zida **oy tanlagich** (‹ oy ›) va **«Oylar bo‘yicha»** jadvali:
+    oxirgi 12 oy — tushum, hisoblangan oylik, olingan oylik/avans, qolgani va jami; oy bosilsa, o‘sha oy tafsiloti ochiladi.
   - O‘quvchini o‘qituvchiga biriktirish — o‘quvchi formasidagi «O‘qituvchisi» maydoni yoki «O‘quvchilar» ro‘yxatida belgilab,
     «O‘qituvchi» tugmasi bilan (bir nechtasiga birdan).
   - **Birinchi kirish SMS bilan:** rahbar xodimni telefon raqami bilan qo‘shadi → xodim kirish sahifasida raqamini kiritadi →

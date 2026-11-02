@@ -4,9 +4,11 @@ import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { BadgePercent, CircleSlash, Crown, HandCoins, KeyRound, PiggyBank, RotateCcw, Trash2, UserCheck, UserCog, Wallet } from "lucide-react";
 import { addSalary, deleteSalary, deleteStaff, setStaffAccess, setStaffPercent, setStaffSalary, updateStaff } from "@/app/actions/staff";
+import { PayMonths } from "@/components/PayMonths";
 import { FixedPayForm, PercentForm, SalaryForm } from "@/components/SettingsForms";
 import { StaffEditForm } from "@/components/StaffForms";
 import { ConfirmAction } from "@/components/SubmitButton";
+import { HeaderMonth } from "@/components/TopBar";
 import { btn, Card, cx, IconTile, PageSkeleton, Tag, type Tone } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
 import { getStaffDetail } from "@/lib/data";
@@ -122,18 +124,19 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="grid min-w-0 gap-6 self-start">
-          {/* Oylik */}
-          <Card className="p-6">
+          {/* Oylik: tanlangan oy (oy tanlagich kartaning o'zida) */}
+          <Card id="oylik" className="scroll-mt-24 p-6">
             <SectionTitle
               icon={PiggyBank}
               tone="emerald"
-              title={`Oylik — ${monthLabel(month)}`}
+              title="Oylik"
+              right={<HeaderMonth fallbackMonth={currentMonth()} />}
               subtitle={
                 fixed
-                  ? "Belgilangan oylik — har oy bir xil summa. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
+                  ? "Belgilangan oylik — har oy bir xil summa. Olingan oylik va avanslar ayiriladi."
                   : staff.shareBase === "center"
-                    ? "Butun markaz tushumidan foiz. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
-                    : "O‘z o‘quvchilari shu oyda to‘lagan pullardan foiz (o‘tgan oylar qarzi uchun to‘langani ham shu oyga). Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
+                    ? "Butun markaz tushumidan foiz. Olingan oylik va avanslar ayiriladi."
+                    : "O‘z o‘quvchilari shu oyda to‘lagan pullardan foiz (o‘tgan oylar qarzi uchun to‘langani ham shu oyga). Olingan oylik va avanslar ayiriladi."
               }
             />
             <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
@@ -180,6 +183,14 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
             </div>
           </Card>
 
+          <PayMonths
+            rows={d.history}
+            selected={month}
+            current={currentMonth()}
+            basePath={`/staff/${staff.id}`}
+            baseLabel={fixed ? null : staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilari tushumi"}
+          />
+
           {/* Oylik summasi (administrator) yoki foizi */}
           {fixed ? (
             <Card className="p-6">
@@ -216,14 +227,17 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
   );
 }
 
-function SectionTitle({ icon, tone, title, subtitle }: { icon: typeof Wallet; tone: Tone; title: string; subtitle?: ReactNode }) {
+function SectionTitle({ icon, tone, title, subtitle, right }: { icon: typeof Wallet; tone: Tone; title: string; subtitle?: ReactNode; right?: ReactNode }) {
   return (
-    <div className="group mb-6 flex items-start gap-3.5">
-      <IconTile icon={icon} tone={tone} variant="solid" />
-      <div className="min-w-0 flex-1">
-        <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">{title}</h2>
-        {subtitle ? <p className="mt-0.5 text-sm leading-relaxed text-ink-500">{subtitle}</p> : null}
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+      <div className="group flex min-w-0 flex-1 basis-72 items-start gap-3.5">
+        <IconTile icon={icon} tone={tone} variant="solid" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">{title}</h2>
+          {subtitle ? <p className="mt-0.5 text-sm leading-relaxed text-ink-500">{subtitle}</p> : null}
+        </div>
       </div>
+      {right ? <div className="shrink-0">{right}</div> : null}
     </div>
   );
 }

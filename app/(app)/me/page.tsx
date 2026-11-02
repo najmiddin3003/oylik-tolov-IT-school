@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { ArrowRight, Crown, HandCoins, History, KeyRound, PiggyBank, Wallet } from "lucide-react";
 import { changeMyPassword } from "@/app/actions/auth";
 import { ActivityList } from "@/components/ActivityList";
+import { PayMonths } from "@/components/PayMonths";
 import { OwnerPasswordForm } from "@/components/SettingsForms";
+import { HeaderMonth } from "@/components/TopBar";
 import { btn, Card, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Tag, type Tone } from "@/components/ui";
 import { pageGuard } from "@/lib/auth";
 import { getMyActivity, getMyProfile } from "@/lib/data";
@@ -80,15 +82,16 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="grid min-w-0 gap-6 self-start">
           {showPay ? (
-            <Card className="p-6">
+            <Card id="oylik" className="scroll-mt-24 p-6">
               <SectionTitle
                 icon={PiggyBank}
                 tone="emerald"
-                title={`Mening oyligim — ${monthLabel(month)}`}
+                title="Mening oyligim"
+                right={<HeaderMonth fallbackMonth={currentMonth()} />}
                 subtitle={
                   fixed
-                    ? `${pay.share ? "Belgilangan oylik — har oy bir xil summa." : "Oylik hali belgilanmagan — rahbar «Xodimlar» bo‘limida belgilaydi."} Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring.`
-                    : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz shu oyda to‘lagan pullardan (o‘tgan oylar qarzi uchun to‘langani ham shu oyga)"} ${pay.percent}%. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring.`
+                    ? `${pay.share ? "Belgilangan oylik — har oy bir xil summa." : "Oylik hali belgilanmagan — rahbar «Xodimlar» bo‘limida belgilaydi."} Olingan oylik va avanslar ayiriladi.`
+                    : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz shu oyda to‘lagan pullardan (o‘tgan oylar qarzi uchun to‘langani ham shu oyga)"} ${pay.percent}%. Olingan oylik va avanslar ayiriladi.`
                 }
               />
               <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
@@ -132,6 +135,15 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
               )}
             </Card>
           ) : null}
+          {showPay ? (
+            <PayMonths
+              rows={me.history}
+              selected={month}
+              current={currentMonth()}
+              basePath="/me"
+              baseLabel={fixed ? null : staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilarim tushumi"}
+            />
+          ) : null}
           <RecentActivity activity={activity} />
         </div>
 
@@ -161,14 +173,35 @@ function RecentActivity({ activity }: { activity: Awaited<ReturnType<typeof getM
   );
 }
 
-function SectionTitle({ icon, tone, title, subtitle, compact }: { icon: typeof Wallet; tone: Tone; title: string; subtitle?: string; compact?: boolean }) {
-  return (
-    <div className={cx("group flex min-w-0 flex-1 items-start gap-3.5", !compact && "mb-6")}>
+function SectionTitle({
+  icon,
+  tone,
+  title,
+  subtitle,
+  compact,
+  right,
+}: {
+  icon: typeof Wallet;
+  tone: Tone;
+  title: string;
+  subtitle?: string;
+  compact?: boolean;
+  right?: ReactNode;
+}) {
+  const head = (
+    <div className={cx("group flex min-w-0 flex-1 items-start gap-3.5", !compact && !right && "mb-6", right ? "basis-72" : null)}>
       <IconTile icon={icon} tone={tone} variant="solid" />
       <div className="min-w-0 flex-1">
         <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">{title}</h2>
         {subtitle ? <p className="mt-0.5 text-sm leading-relaxed text-ink-500">{subtitle}</p> : null}
       </div>
+    </div>
+  );
+  if (!right) return head;
+  return (
+    <div className={cx("flex flex-wrap items-start justify-between gap-x-4 gap-y-3", !compact && "mb-6")}>
+      {head}
+      <div className="shrink-0">{right}</div>
     </div>
   );
 }
