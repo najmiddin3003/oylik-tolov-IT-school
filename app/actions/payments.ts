@@ -97,6 +97,39 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
   return { ok: true, message: `${student.fullName}: ${what} saqlandi`, nonce: Date.now() };
 }
 
+/**
+ * To'lov summasini tahrirlash (rahbar va administrator). Qarz, reja, kassa va oyliklar summadan hisoblanadi —
+ * hammasi o'zi yangilanadi. Asl (birinchi kiritilgan) summa saqlanadi, to'lov «tahrirlangan» deb belgilanadi.
+ */
+export async function updatePaymentAmount(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireRole(["owner", "admin"], { fresh: true });
+  const id = String(formData.get("id") ?? "");
+  const amount = parseAmount(String(formData.get("amount") ?? ""));
+  if (!isId(id)) return { error: "To‘lov topilmadi" };
+  if (amount === null || amount <= 0) return { fieldErrors: { amount: "Summani kiriting" } };
+  if (amount > MAX_AMOUNT) return { fieldErrors: { amount: "Summa juda katta — tekshirib ko‘ring" } };
+
+  await connectDB();
+  const p = await Payment.findOne({ _id: id, ...LIVE }, { student: 1, month: 1, amount: 1, originalAmount: 1 })
+    .populate<{ student: { fullName: string } | null }>("student", "fullName")
+    .lean();
+  if (!p) return { error: "To‘lov topilmadi — o‘chirilgan yoki arxivga o‘tkazilgan bo‘lishi mumkin" };
+  if (p.amount === amount) return { fieldErrors: { amount: "Summa o‘zgarmagan" } };
+
+  // Shu orada boshqa kishi o'zgartirgan bo'lsa — ustidan yozilmaydi
+  const res = await Payment.updateOne(
+    { _id: id, ...LIVE, amount: p.amount },
+    { $set: { amount, editedAt: new Date(), editedBy: session.role, originalAmount: p.originalAmount ?? p.amount } },
+  );
+  if (!res.modifiedCount) return { error: "To‘lov shu orada o‘zgargan — sahifani yangilab, qaytadan urinib ko‘ring" };
+
+  const name = p.student?.fullName ?? "o‘chirilgan o‘quvchi";
+  const change = `${formatMoney(p.amount)} → ${formatMoney(amount)}`;
+  await logActivity(session, "payment.edit", `Summa tahrirlandi: ${name}, ${monthLabel(p.month)} uchun ${change}`);
+  refresh();
+  return { ok: true, message: `${name}: ${monthLabel(p.month)} uchun summa ${change}`, nonce: Date.now() };
+}
+
 /** To'lovni arxivga o'tkazish: hech qayerda ko'rinmaydi va hisoblanmaydi (faqat rahbarning arxivida qoladi). */
 export async function archivePayment(id: string): Promise<void> {
   const session = await requireRole(["owner", "admin"], { fresh: true });

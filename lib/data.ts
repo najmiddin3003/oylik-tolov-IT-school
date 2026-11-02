@@ -86,6 +86,10 @@ export type PaymentRow = {
   createdAt: string;
   archivedAt: string | null;
   archivedBy: "owner" | "admin" | null;
+  /** Summa tahrirlangan bo'lsa — oxirgi tahrir vaqti, kim tahrirlagani va asl (birinchi kiritilgan) summa */
+  editedAt: string | null;
+  editedBy: "owner" | "admin" | null;
+  originalAmount: number | null;
 };
 
 export type StudentOption = {
@@ -207,6 +211,9 @@ type PopulatedPayment = {
   archivedAt?: Date | null;
   archivedBy?: string | null;
   createdAt?: Date | null;
+  editedAt?: Date | null;
+  editedBy?: string | null;
+  originalAmount?: number | null;
 };
 
 function toPaymentRow(p: PopulatedPayment): PaymentRow {
@@ -226,6 +233,9 @@ function toPaymentRow(p: PopulatedPayment): PaymentRow {
     createdAt: (p.createdAt ?? p.paidAt).toISOString(),
     archivedAt: p.archivedAt ? p.archivedAt.toISOString() : null,
     archivedBy: p.archivedBy === "admin" || p.archivedBy === "owner" ? p.archivedBy : null,
+    editedAt: p.editedAt ? p.editedAt.toISOString() : null,
+    editedBy: p.editedBy === "admin" || p.editedBy === "owner" ? p.editedBy : null,
+    originalAmount: p.editedAt && typeof p.originalAmount === "number" ? p.originalAmount : null,
   };
 }
 

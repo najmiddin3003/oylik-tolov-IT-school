@@ -60,6 +60,9 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   Tarix kunlar bo‘yicha guruhlangan, o‘z ichida aylanadi va 10 tadan ochiladi (eng yangilari tepada); «Shu oy uchun / Hammasi»,
   usul va **kun** bo‘yicha filtr. To‘lov kiritishda avval **kurs** tanlanadi, keyin shu kurs o‘quvchilari ro‘yxati o‘zi ochiladi.
   O‘chirilgan to‘lov **arxivga** o‘tadi — hech qayerda hisoblanmaydi, rahbar arxivdan ko‘radi, tiklaydi yoki butunlay o‘chiradi.
+  **Summani tahrirlash** — to‘lovlar tarixida (va o‘quvchi sahifasida) qalamcha tugmasi: rahbar va administrator to‘lov
+  summasini o‘zgartiradi; qarz, reja, kassa va oyliklar yangi summa bo‘yicha qayta hisoblanadi. To‘lov «avval 300 000 so‘m»
+  belgisi bilan ko‘rinadi (birinchi kiritilgan summa saqlanadi), amal faoliyat tarixiga yoziladi.
 - **Kassa** — administrator kiritgan to‘lovlar uning kassasiga tushadi (naqd va karta alohida). Kun oxirida «Rahbarga topshirish»;
   rahbar «Qabul qildim» deguncha pul administrator kassasida turadi, qabul qilingach — rahbar kassasiga o‘tadi (rad etish ham
   mumkin). Rahbar o‘zi kiritgan to‘lovlar to‘g‘ridan-to‘g‘ri rahbar kassasiga. Kassa shu versiyadan keyin kiritilgan to‘lovlar
