@@ -366,8 +366,15 @@ const perfSchema = new Schema(
     /** server — serverda tayyorlanish; load — birinchi ochilish (brauzer); nav — sahifaga o'tish (brauzer) */
     kind: { type: String, enum: ["server", "load", "nav"], required: true },
     ms: { type: Number, required: true, min: 0 },
-    /** Birinchi ochilishda: serverdan birinchi javob kelguncha (brauzer o'lchovi) */
+    /** Brauzer: serverdan birinchi javob kelguncha */
     ttfb: { type: Number, default: null },
+    /** Brauzer: server ma'lumoti to'liq kelguncha; ms − wait — brauzerda chizish */
+    wait: { type: Number, default: null },
+    /** Brauzer: yangi ulanish o'rnatish vaqti (0 — avvalgi ulanish) */
+    conn: { type: Number, default: null },
+    /** Server: shu server nusxasining birinchi so'rovi («uyg'onish») va unga ketgan taxminiy vaqt */
+    cold: { type: Boolean, default: null },
+    boot: { type: Number, default: null },
     role: { type: String, enum: STAFF_ROLES, required: true },
     at: { type: Date, required: true },
   },
