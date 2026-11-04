@@ -42,17 +42,47 @@ export function perfRoute(pathname: string): string | null {
 /** Eng katta qabul qilinadigan vaqt (ms): bundan uzuni — xato o'lchov. */
 export const PERF_MAX_MS = 120_000;
 
-/** Brauzerdan kelgan o'lchov: { route, kind: "load" | "nav", ms, ttfb? }. Noto'g'ri bo'lsa — null. */
-export function parsePerfBeacon(raw: unknown): { route: string; kind: "load" | "nav"; ms: number; ttfb: number | null } | null {
+export type PerfBeacon = {
+  route: string;
+  kind: "load" | "nav";
+  /** Bosilgandan (yoki sayt so'ralgandan) mazmun chiqquncha */
+  ms: number;
+  /** Serverdan birinchi javob kelguncha */
+  ttfb: number | null;
+  /** Server ma'lumoti to'liq kelguncha (mazmun chiqqan paytdan oshmaydi); ms − wait — brauzerda chizish */
+  wait: number | null;
+  /** Yangi ulanish o'rnatish vaqti (0 — avvalgi ulanish ishlatildi) */
+  conn: number | null;
+};
+
+/** Ixtiyoriy vaqt: 0…max oralig'ida butun ms; yo'q yoki noto'g'ri — null. */
+function optMs(v: unknown, max: number): number | null {
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > PERF_MAX_MS) return null;
+  return Math.min(Math.round(v), max);
+}
+
+/** Brauzerdan kelgan o'lchov: { route, kind: "load" | "nav", ms, ttfb?, wait?, conn? }. Noto'g'ri bo'lsa — null. */
+export function parsePerfBeacon(raw: unknown): PerfBeacon | null {
   if (!raw || typeof raw !== "object") return null;
   const b = raw as Record<string, unknown>;
   const route = typeof b.route === "string" ? perfRoute(b.route) : null;
   const kind = b.kind === "load" || b.kind === "nav" ? b.kind : null;
   const ms = typeof b.ms === "number" && Number.isFinite(b.ms) ? Math.round(b.ms) : NaN;
   if (!route || !kind || !(ms > 0 && ms <= PERF_MAX_MS)) return null;
-  const ttfb = typeof b.ttfb === "number" && Number.isFinite(b.ttfb) && b.ttfb >= 0 && b.ttfb <= PERF_MAX_MS ? Math.round(b.ttfb) : null;
-  return { route, kind, ms, ttfb: kind === "load" ? ttfb : null };
+  // Bo'laklar bir-biridan oshmaydi: ulanish ≤ birinchi javob ≤ to'liq javob ≤ mazmun chiqqan payt
+  const wait = optMs(b.wait, ms);
+  const ttfb = optMs(b.ttfb, wait ?? ms);
+  const conn = optMs(b.conn, ttfb ?? wait ?? ms);
+  return { route, kind, ms, ttfb, wait, conn };
 }
+
+/** «Tezlik» sahifasidagi davrlar */
+export const PERF_PERIODS = [
+  { key: "1h", label: "1 soat", hours: 1 },
+  { key: "24h", label: "24 soat", hours: 24 },
+  { key: "7d", label: "7 kun", hours: 7 * 24 },
+  { key: "30d", label: "30 kun", hours: 30 * 24 },
+] as const;
 
 export type PerfStats = { n: number; median: number; p90: number };
 

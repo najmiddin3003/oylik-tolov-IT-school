@@ -16,13 +16,34 @@ test("tezlik: manzil -> sahifa turi", () => {
 });
 
 test("tezlik: brauzer xabarini tekshirish", () => {
-  assert.deepEqual(parsePerfBeacon({ route: "/qarzdorlar", kind: "nav", ms: 812.4 }), { route: "/qarzdorlar", kind: "nav", ms: 812, ttfb: null });
+  assert.deepEqual(parsePerfBeacon({ route: "/qarzdorlar", kind: "nav", ms: 812.4 }), { route: "/qarzdorlar", kind: "nav", ms: 812, ttfb: null, wait: null, conn: null });
   assert.deepEqual(parsePerfBeacon({ route: "/students/6ac9dcf90698aca8bd508d6c", kind: "load", ms: 1500, ttfb: 320.6 }), {
     route: "/students/[id]",
     kind: "load",
     ms: 1500,
     ttfb: 321,
+    wait: null,
+    conn: null,
   });
+  // O'tish bo'laklari: kutish, birinchi javob, yangi ulanish
+  assert.deepEqual(parsePerfBeacon({ route: "/payments", kind: "nav", ms: 900, wait: 700, ttfb: 450, conn: 120 }), {
+    route: "/payments",
+    kind: "nav",
+    ms: 900,
+    ttfb: 450,
+    wait: 700,
+    conn: 120,
+  });
+  // Bo'laklar bir-biridan oshmaydi; noto'g'ri qiymat — tashlanadi
+  assert.deepEqual(parsePerfBeacon({ route: "/payments", kind: "nav", ms: 900, wait: 1200, ttfb: 1000, conn: -5 }), {
+    route: "/payments",
+    kind: "nav",
+    ms: 900,
+    ttfb: 900,
+    wait: 900,
+    conn: null,
+  });
+  assert.equal(parsePerfBeacon({ route: "/payments", kind: "nav", ms: 900, wait: "700" })?.wait, null);
   assert.equal(parsePerfBeacon({ route: "/qarzdorlar", kind: "server", ms: 100 }), null, "server vaqtini brauzer yubormaydi");
   assert.equal(parsePerfBeacon({ route: "/login", kind: "nav", ms: 100 }), null);
   assert.equal(parsePerfBeacon({ route: "/", kind: "nav", ms: 0 }), null);

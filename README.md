@@ -89,8 +89,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   bilan yoziladi; har kim **faqat o‘z** amallarini ko‘radi (profil menyusi → «Faoliyat tarixi»).
 - **Tezlik** (rahbar) — sahifalar foydalanuvchilarda qancha vaqtda ochilayotgani: har sahifa bo'yicha **sahifaga o'tish**
   (menyu/havola/filtr bosilgandan mazmun chiqquncha), **birinchi ochilish** (sayt yangidan ochilib ishlatsa bo'ladigan
-  bo'lguncha) va **serverda** tayyorlanish vaqti — mediana va 90%, ochilishlar soni, eng sekin 10 ta ochilish; 24 soat / 7 kun /
-  30 kun va kim ochgani bo'yicha. O'lchov har ochilishda o'zi yoziladi (javob yuborilgandan keyin — foydalanuvchini kutdirmaydi),
+  bo'lguncha) va **serverda** tayyorlanish vaqti — mediana va 90%, ochilishlar soni, eng sekin 10 ta ochilish; 1 soat / 24 soat /
+  7 kun / 30 kun va kim ochgani bo'yicha. Sahifaga o'tish **kutish** (server ma'lumoti to'liq kelguncha: tarmoq, server
+  uyg'onishi, serverda ishlash) va **chizish** (brauzerda ekranga chiqarish) ga bo'linadi; yangi ulanishlar va server
+  **uyg'onishi** (ishlamay turgan server nusxasining birinchi so'rovi, taxminiy vaqti bilan) ham ko'rsatiladi — tepadagi
+  «Sahifaga o'tishda vaqt qayerga ketyapti» kartasi. O'lchov har ochilishda o'zi yoziladi (javob yuborilgandan keyin — foydalanuvchini kutdirmaydi),
   30 kun saqlanadi, Vercel loglarida ham `[perf] …` qatori bo'lib chiqadi. Prefetch va server action so'rovlari o'lchanmaydi.
 - **Reja va yangiliklar** (rahbar) — kelgusida qilinadigan ishlar va shu paytgacha qilinganlar, ochiladigan bo‘limlarda.
 - **Oy oxiri eslatmasi** — oy tugashiga 10 kun qolganda (va o‘tgan oyda to‘lamaganlar qolgan bo‘lsa) yuqoridagi qo‘ng‘iroqchada va
