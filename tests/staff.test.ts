@@ -44,6 +44,11 @@ test("rollar bo'yicha kirish huquqi", async () => {
   assert.equal(canAccess("admin", "/api/export/tolovlar"), true);
   // «Qarzdorlar» — hamma rol (o'qituvchiga faqat o'z o'quvchilari — ma'lumot qatlamida)
   for (const role of ["owner", "admin", "teacher"] as const) assert.equal(canAccess(role, "/qarzdorlar"), true, role);
+  // Tezlik: o'lchovni hamma yuboradi, «Tezlik» sahifasi — faqat rahbar
+  for (const role of ["owner", "admin", "teacher"] as const) assert.equal(canAccess(role, "/api/perf"), true, role);
+  assert.equal(canAccess("owner", "/tezlik"), true);
+  assert.equal(canAccess("admin", "/tezlik"), false);
+  assert.equal(canAccess("teacher", "/tezlik"), false);
   for (const p of ["/", "/students", "/staff", "/settings", "/sync", "/api/export/oquvchilar"]) assert.equal(canAccess("admin", p), false, p);
   // o'qituvchi — o'z sahifasi, o'quvchilari (ko'rish va o'z o'quvchisini tahrirlash), to'lovlar, profil
   for (const p of ["/", "/students", "/students/6ac9dcf90698aca8bd508d6c", "/students/6ac9dcf90698aca8bd508d6c/edit", "/payments", "/me", "/api/export/oquvchilar", "/api/export/tolovlar"]) {

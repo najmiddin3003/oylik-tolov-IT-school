@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { PERF_HEADER, perfRoute } from "./lib/perf-rules";
 import { canAccess, homeFor, readSessionToken, SESSION_COOKIE } from "./lib/session";
 
 // Tezkor tekshiruv: kirmagan foydalanuvchini /login ga, har bir rolni faqat o'ziga ruxsat etilgan sahifalarga yo'naltiradi.
@@ -19,7 +20,14 @@ export async function proxy(request: NextRequest) {
   if (!canAccess(session.role, pathname)) {
     return NextResponse.redirect(new URL(homeFor(session.role), request.url));
   }
-  return NextResponse.next();
+  // Tezlik o'lchovi: sahifa so'roviga sahifa turini qo'yamiz (lib/perf.ts o'qiydi). Prefetch va server action
+  // so'rovlari o'lchanmaydi; brauzer yuborgan shu nomli sarlavha har doim olib tashlanadi.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(PERF_HEADER);
+  const route = perfRoute(pathname);
+  const prefetch = request.headers.has("next-router-prefetch") || request.headers.has("next-router-segment-prefetch");
+  if (route && request.method === "GET" && !prefetch && !request.headers.has("next-action")) requestHeaders.set(PERF_HEADER, route);
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

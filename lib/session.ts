@@ -64,8 +64,8 @@ const under = (p: string, base: string) => p === base || p.startsWith(`${base}/`
 /** Rol bo'yicha qaysi sahifalarga kirish mumkin (proxy va sahifalar shu bilan tekshiradi). */
 export function canAccess(role: Role, pathname: string): boolean {
   if (role === "owner") return true;
-  // Hamma xodim: o'z profili va faoliyat tarixi
-  if (ME(pathname) || under(pathname, "/faoliyat")) return true;
+  // Hamma xodim: o'z profili, faoliyat tarixi va tezlik o'lchovini yuborish (brauzer)
+  if (ME(pathname) || under(pathname, "/faoliyat") || pathname === "/api/perf") return true;
   if (under(pathname, "/payments") || pathname === "/api/export/tolovlar") return true;
   // Qarzdorlar — hamma rol (o'qituvchiga faqat o'z o'quvchilari)
   if (under(pathname, "/qarzdorlar")) return true;

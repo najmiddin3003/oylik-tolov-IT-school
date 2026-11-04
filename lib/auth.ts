@@ -8,6 +8,7 @@ import { createSessionToken, homeFor, readSessionToken, SESSION_COOKIE, SESSION_
 import { getSettings, type AppSettings } from "./settings";
 import { activeStaffRoles, getStaffById, staffPasswordVersion } from "./staff";
 import { legacyLoginAllowed } from "./staff-rules";
+import { startServerPerf } from "./perf";
 
 export type Session = {
   role: Role;
@@ -101,17 +102,23 @@ export async function requireOwner(opts: AuthOptions = {}): Promise<Session> {
  */
 export async function pageGuard(): Promise<Session> {
   await connection();
-  return requireAuth();
+  return tracked(await requireAuth());
 }
 
 export async function ownerGuard(): Promise<Session> {
   await connection();
-  return requireOwner();
+  return tracked(await requireOwner());
 }
 
 export async function roleGuard(roles: readonly Role[]): Promise<Session> {
   await connection();
-  return requireRole(roles);
+  return tracked(await requireRole(roles));
+}
+
+/** Sahifa ochildi: tezlik o'lchovini boshlash (bir so'rovda bir marta; lib/perf.ts). */
+async function tracked(session: Session): Promise<Session> {
+  await startServerPerf(session.role);
+  return session;
 }
 
 /** Kirish cookie'sini o'rnatish (30 kun). */

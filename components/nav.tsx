@@ -3,6 +3,7 @@ import {
   CircleUserRound,
   Crown,
   FileSpreadsheet,
+  Gauge,
   GraduationCap,
   HandCoins,
   LayoutDashboard,
@@ -18,7 +19,7 @@ import {
 import type { Role } from "@/lib/session";
 import type { Tone } from "./ui";
 
-export type NavKey = "home" | "students" | "debtors" | "payments" | "kassa" | "salary" | "staff" | "sync" | "settings" | "roadmap" | "me";
+export type NavKey = "home" | "students" | "debtors" | "payments" | "kassa" | "salary" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
 
 export type NavItem = {
   key: NavKey;
@@ -74,6 +75,7 @@ export const NAV: NavItem[] = [
   { key: "staff", href: "/staff", label: "Xodimlar", short: "Xodimlar", icon: UsersRound, tone: "sky", monthAware: true, roles: ["owner"] },
   { key: "sync", href: "/sync", label: "Google Sheets", short: "Sheets", icon: FileSpreadsheet, tone: "teal", monthAware: false, roles: ["owner"], mobile: false },
   { key: "settings", href: "/settings", label: "Sozlamalar", short: "Sozlamalar", icon: Settings2, tone: "amber", monthAware: true, roles: ["owner"], mobile: false },
+  { key: "speed", href: "/tezlik", label: "Tezlik", short: "Tezlik", icon: Gauge, tone: "teal", monthAware: false, roles: ["owner"], mobile: false },
   { key: "roadmap", href: "/reja", label: "Reja va yangiliklar", short: "Reja", icon: Rocket, tone: "rose", monthAware: false, roles: ["owner"], mobile: false },
   { key: "me", href: "/me", label: "Profilim", short: "Profilim", icon: CircleUserRound, tone: "rose", monthAware: true, roles: ["admin", "teacher"] },
 ];

@@ -437,7 +437,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
 
 export function PageSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Yuklanmoqda">
+    <div aria-busy="true" aria-label="Yuklanmoqda" data-page-skeleton="">
       <Skeleton className="mb-3 h-3 w-36" />
       <Skeleton className="mb-3 h-9 w-64" />
       <Skeleton className="mb-8 h-4 w-96 max-w-full" />
