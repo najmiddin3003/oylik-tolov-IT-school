@@ -10,6 +10,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 - **O'quvchilar** — qo'shish, tahrirlash, o'chirish (to'lovlari bilan birga), qidirish (ism / telefon / guruh), faol-nofaol holat.
 - **To'lovlar** — qaysi oy uchun, summa, sana, usul (naqd / karta / o'tkazma), izoh. Bir oyga bir necha qisman to'lov mumkin.
   Oylik to'lovdan ortiq summa keyingi oylarga avtomatik taqsimlanadi (masalan 300 ming oylikda 700 ming → 300 + 300 + 100).
+- **Qarzdorlar** (yon menyuda; rahbar, administrator, o'qituvchi — o'qituvchiga faqat o'z o'quvchilari) — tanlangan oy uchun
+  **«Qarzdorlar»** (umuman to'lamaganlar, standart), **«Qisman to'laganlar»** va **«To'liq to'laganlar»** tugmalari, kurs,
+  ism/telefon va **to'lov sanasi oralig'i** («Sanadan» — «Sanagacha») bo'yicha filtr. Sana tanlansa, faqat shu kunlarda
+  qilingan (shu oy uchun) to'lovlar hisobga olinadi. Ro'yxatda kursi, o'qituvchisi, keyingi darsi, to'lagani, qolgan qarzi va
+  oxirgi to'lov sanasi; rahbar va administratorda «To'lov» tugmasi. Menyudagi son — shu oy umuman to'lamaganlar.
 - **Bosh sahifa** — tanlangan oy bo'yicha: to'lamaganlar ro'yxati (qarzi bilan), to'laganlar, yig'ilgan summa, reja bajarilishi, guruh bo'yicha filtr.
 - **O'quvchi sahifasi** — boshlagan oyidan beri har oy holati, umumiy qarz, to'lovlar tarixi.
 - **Google Sheets bilan solishtirish** — har kuni bir marta (standart: 06:00, Toshkent) avtomatik, yoki «Hozir tekshirish» tugmasi bilan.
@@ -208,7 +213,7 @@ xodimlarni ulab olish uchun. Tartib:
 ## Tuzilma
 
 ```
-app/(app)/            sahifalar: bosh sahifa (rahbar paneli / o'qituvchi sahifasi), students, payments, kassa, olinganlar,
+app/(app)/            sahifalar: bosh sahifa (rahbar paneli / o'qituvchi sahifasi), students, qarzdorlar, payments, kassa, olinganlar,
                       staff, me, faoliyat, reja, settings, sync
 app/login, register   kirish (telefon + parol) va SMS kod bilan ro'yxatdan o'tish / parolni tiklash
 app/actions/          server action'lar (kirish va SMS kod, xodimlar, o'quvchi, to'lov, kassa, topshiriq, o'zim, sozlamalar, Sheets)

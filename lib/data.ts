@@ -177,6 +177,8 @@ export type SyncState = "ok" | "warn" | "error" | "off";
 export type NavCounts = {
   role: Role;
   students?: number;
+  /** Shu oy uchun umuman to'lov qilmaganlar («Qarzdorlar» bo'limi) */
+  debtors?: number;
   payments: number;
   sync?: SyncState;
   staff?: number;
@@ -287,32 +289,36 @@ export const getNavCounts = cache(async (): Promise<NavCounts> => {
   const role = v.role;
   await connectDB();
   const month = currentMonth();
+  // «Qarzdorlar»: shu oy uchun umuman to'lamaganlar (o'qituvchiga — o'z o'quvchilari)
+  const unpaidCount = async (list?: StudentLean[]) => (await monthRows(month, list)).filter((r) => r.status === "unpaid").length;
   if (role === "admin") {
-    const [payments, tasks] = await Promise.all([Payment.countDocuments({ ...LIVE, month }), Task.countDocuments({ toRole: "admin", status: "open" })]);
-    return { role, payments, tasks };
+    const [payments, tasks, debtors] = await Promise.all([
+      Payment.countDocuments({ ...LIVE, month }),
+      Task.countDocuments({ toRole: "admin", status: "open" }),
+      unpaidCount(),
+    ]);
+    return { role, payments, tasks, debtors };
   }
   if (role === "teacher") {
     const mine = await visibleStudents(v);
-    return {
-      role,
-      students: mine.filter((s) => s.active ?? true).length,
-      payments: await Payment.countDocuments({ ...LIVE, month, student: { $in: mine.map((s) => s._id) } }),
-    };
+    const [payments, debtors] = await Promise.all([Payment.countDocuments({ ...LIVE, month, student: { $in: mine.map((s) => s._id) } }), unpaidCount(mine)]);
+    return { role, students: mine.filter((s) => s.active ?? true).length, payments, debtors };
   }
-  const [students, payments, settings, last, staff, kassa] = await Promise.all([
+  const [students, payments, settings, last, staff, kassa, debtors] = await Promise.all([
     Student.countDocuments({ active: true }),
     Payment.countDocuments({ ...LIVE, month }),
     getSettings(),
     SyncRun.findOne({}).select("ok mismatches.resolved").sort({ startedAt: -1 }).lean(),
     Staff.countDocuments({ status: { $ne: "disabled" } }),
     Handover.countDocuments({ status: "pending" }),
+    unpaidCount(),
   ]);
   let sync: SyncState = "off";
   if (settings.sheetUrl && last) {
     if (!last.ok) sync = "error";
     else sync = (last.mismatches ?? []).some((m) => !m.resolved) ? "warn" : "ok";
   }
-  return { role, students, payments, sync, staff, kassa };
+  return { role, students, payments, sync, staff, kassa, debtors };
 });
 
 // ---------- Oy bo'yicha umumiy holat (bosh sahifa va to'lovlar sahifasi) ----------
@@ -471,6 +477,80 @@ export const getReminders = cache(async (): Promise<Reminder[]> => {
 export async function listUnpaid(month: string, group = ""): Promise<UnpaidStudent[]> {
   const { debtors } = await getMonthOverview(month, group);
   return debtors.map(toUnpaid);
+}
+
+// ---------- Qarzdorlar bo'limi ----------
+
+/** «Qarzdorlar» bo'limidagi tugmalar: to'lamaganlar (standart), qisman to'laganlar, to'liq to'laganlar */
+export type DebtTab = "unpaid" | "partial" | "paid";
+
+/** URL dagi `tab` qiymati (noma'lum — "unpaid"). */
+export function parseDebtTab(v: string): DebtTab {
+  return v === "partial" || v === "paid" ? v : "unpaid";
+}
+
+export type DebtorRow = StudentRow & {
+  /** Hisobga olingan oxirgi to'lov sanasi (ISO) */
+  lastPaidAt: string | null;
+  /** O'qituvchisi ismi (rahbar va administratorga) */
+  teacherName: string | null;
+};
+
+/**
+ * «Qarzdorlar» bo'limi: tanlangan oy uchun to'lashi kerak bo'lgan (faol, o'qishni boshlagan) o'quvchilar holati —
+ * kurs va to'lov sanasi oralig'i bo'yicha. Sana tanlansa, faqat shu kunlarda qilingan (shu oy uchun) to'lovlar
+ * hisobga olinadi. O'qituvchiga — faqat o'z o'quvchilari.
+ */
+export async function listDebtors(opts: { month: string; group: string; from: string; to: string; q: string; tab: DebtTab; page: number; pageSize: number }) {
+  await requireRole(["owner", "admin", "teacher"]);
+  const v = await viewer();
+  await connectDB();
+  const start = opts.from ? isoToDate(opts.from) : null;
+  const endDay = opts.to ? isoToDate(opts.to) : null;
+  const paidAt = {
+    ...(start ? { $gte: start } : {}),
+    ...(endDay ? { $lt: new Date(endDay.getTime() + 24 * 3600_000) } : {}),
+  };
+  const [students, agg, names] = await Promise.all([
+    visibleStudents(v),
+    Payment.aggregate<{ _id: mongoose.Types.ObjectId; total: number; last: Date }>([
+      { $match: { ...LIVE, month: opts.month, ...(start || endDay ? { paidAt } : {}) } },
+      { $group: { _id: "$student", total: { $sum: "$amount" }, last: { $max: "$paidAt" } } },
+    ]),
+    v.teacherId ? Promise.resolve(new Map<string, string>()) : teacherNames(),
+  ]);
+  const paidMap = new Map(agg.map((a) => [String(a._id), a.total]));
+  const lastMap = new Map(agg.map((a) => [String(a._id), a.last]));
+  const owing = students.map((s) => toRow(s, paidMap, opts.month)).filter((r) => r.active && r.started);
+  // Kurs tanlagichi uchun — shu oy to'lashi kerak bo'lgan o'quvchilar kurslari
+  const groups = [...new Set(owing.map((r) => r.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const filtered = owing.filter((r) => (!opts.group || sameCourse(r.group, opts.group)) && matchesQuery(r, opts.q));
+
+  const counts = {
+    unpaid: filtered.filter((r) => r.status === "unpaid").length,
+    partial: filtered.filter((r) => r.status === "partial").length,
+    paid: filtered.filter((r) => r.status === "paid").length,
+  };
+  const tabRows = filtered
+    .filter((r) => r.status === opts.tab)
+    .sort((a, b) => (opts.tab === "paid" ? 0 : b.debt - a.debt) || a.fullName.localeCompare(b.fullName));
+  const totals = {
+    students: tabRows.length,
+    debt: tabRows.reduce((s, r) => s + r.debt, 0),
+    paid: tabRows.reduce((s, r) => s + r.paid, 0),
+    /** Filtrdagi barcha o'quvchilar bo'yicha (tugmalardan qat'i nazar) */
+    allDebt: filtered.reduce((s, r) => s + r.debt, 0),
+    expected: filtered.reduce((s, r) => s + r.monthlyFee, 0),
+  };
+
+  const pages = Math.max(1, Math.ceil(tabRows.length / opts.pageSize));
+  const page = Math.min(Math.max(1, opts.page), pages);
+  const rows: DebtorRow[] = tabRows.slice((page - 1) * opts.pageSize, page * opts.pageSize).map((r) => ({
+    ...r,
+    lastPaidAt: lastMap.get(r.id)?.toISOString() ?? null,
+    teacherName: r.teacherId ? (names.get(r.teacherId) ?? null) : null,
+  }));
+  return { rows, counts, totals, groups, page, pages };
 }
 
 // ---------- O'quvchilar ----------
