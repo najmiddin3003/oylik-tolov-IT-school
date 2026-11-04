@@ -8,7 +8,7 @@ import { PhoneInput } from "@/components/inputs";
 import { OtpCodeStep } from "@/components/OtpCodeStep";
 import { btn, cx, labelCls } from "@/components/ui";
 
-export function RegisterForm() {
+export function RegisterForm({ defaultPhone = "" }: { defaultPhone?: string }) {
   const [sendState, sendAction, sending] = useActionState<CodeState, FormData>(requestCode, { step: "phone" });
   // «Raqamni o'zgartirish» bosilgan holat: yangi javob kelguncha raqam bosqichi ko'rsatiladi
   const [backFrom, setBackFrom] = useState<CodeState | null>(null);
@@ -47,7 +47,7 @@ export function RegisterForm() {
           size="lg"
           autoComplete="tel"
           autoFocus
-          defaultValue={sendState.phone ?? ""}
+          defaultValue={sendState.phone ?? defaultPhone}
           placeholder="90 123 45 67"
           invalid={!!error}
         />

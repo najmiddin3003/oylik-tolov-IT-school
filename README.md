@@ -62,7 +62,8 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     «O‘qituvchi» tugmasi bilan (bir nechtasiga birdan).
   - **Birinchi kirish SMS bilan:** rahbar xodimni telefon raqami bilan qo‘shadi → xodim kirish sahifasida raqamini kiritadi →
     birinchi marta raqamiga 6 xonali kod keladi → kodni kiritib o‘zi parol qo‘yadi. Keyingi safar SMS kelmaydi — raqam va
-    o‘z paroli bilan kiradi. Parolni unutsa — «Parolni unutdingizmi?», yo‘li xuddi shunday. Kod 10 daqiqa amal qiladi,
+    o‘z paroli bilan kiradi. Parolni unutsa — kirish sahifasidagi **«Parolimni unutdim»** tugmasi: raqamiga SMS kod keladi,
+    kodni kiritib yangi parol qo‘yadi (parol oynasida kod shu yerning o‘zida yuboriladi). Kod 10 daqiqa amal qiladi,
     5 marta xato kiritilsa bekor bo‘ladi, qayta yuborish — 1 daqiqadan keyin (bir raqamga kuniga ko‘pi bilan 5 ta). Bazada
     kodning o‘zi emas, faqat izi saqlanadi; parollar — scrypt.
   - **Rahbarning birinchi kirishi:** rahbar profili hali yo‘q bo‘lsa, rahbar raqami (`OWNER_PHONE`, standart — 94 176 14 05)
