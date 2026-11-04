@@ -12,12 +12,13 @@ import {
   Users,
   Coins,
   Wallet,
+  UserX,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/lib/session";
 import type { Tone } from "./ui";
 
-export type NavKey = "home" | "students" | "payments" | "kassa" | "salary" | "staff" | "sync" | "settings" | "roadmap" | "me";
+export type NavKey = "home" | "students" | "debtors" | "payments" | "kassa" | "salary" | "staff" | "sync" | "settings" | "roadmap" | "me";
 
 export type NavItem = {
   key: NavKey;
@@ -57,6 +58,7 @@ export const NAV: NavItem[] = [
     roles: ["owner", "teacher"],
     per: { teacher: { label: "O‘quvchilarim", short: "O‘quvchilar" } },
   },
+  { key: "debtors", href: "/qarzdorlar", label: "Qarzdorlar", short: "Qarzdorlar", icon: UserX, tone: "rose", monthAware: true, roles: ["owner", "admin", "teacher"] },
   { key: "payments", href: "/payments", label: "To‘lovlar", short: "To‘lovlar", icon: Wallet, tone: "emerald", monthAware: true, roles: ["owner", "admin", "teacher"] },
   { key: "kassa", href: "/kassa", label: "Kassa", short: "Kassa", icon: Coins, tone: "orange", monthAware: false, roles: ["owner", "admin"] },
   {
