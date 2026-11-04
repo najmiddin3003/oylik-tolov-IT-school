@@ -375,6 +375,10 @@ const perfSchema = new Schema(
     /** Server: shu server nusxasining birinchi so'rovi («uyg'onish») va unga ketgan taxminiy vaqt */
     cold: { type: Boolean, default: null },
     boot: { type: Number, default: null },
+    /** So'rov kirgan Vercel tuguni ("hkg1"), server regioni ("arn1") va tugundan kodgacha o'tgan vaqt (ms) */
+    pop: { type: String, default: null, maxlength: 10 },
+    fn: { type: String, default: null, maxlength: 10 },
+    lag: { type: Number, default: null },
     role: { type: String, enum: STAFF_ROLES, required: true },
     at: { type: Date, required: true },
   },

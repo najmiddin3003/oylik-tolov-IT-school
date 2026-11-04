@@ -4,8 +4,8 @@ import { Suspense, type ReactNode } from "react";
 import { Gauge } from "lucide-react";
 import { Card, cx, EmptyState, PageHeader, PageSkeleton, Tag, td, th } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
-import { perfSummary, type ColdStats, type PerfSplit } from "@/lib/perf-report";
-import { formatMs, PERF_PERIODS, perfTone, type PerfKind, type PerfStats } from "@/lib/perf-rules";
+import { perfSummary, type ColdStats, type PerfSplit, type PopRow } from "@/lib/perf-report";
+import { formatMs, PERF_PERIODS, perfTone, regionLabel, type PerfKind, type PerfStats } from "@/lib/perf-rules";
 import { ROLES, type Role } from "@/lib/session";
 import { ROLE_LABEL } from "@/lib/staff-rules";
 import { formatDateTime } from "@/lib/time";
@@ -29,7 +29,7 @@ async function Speed({ searchParams }: { searchParams: PageProps<"/tezlik">["sea
   const sp = await searchParams;
   const period = PERF_PERIODS.find((p) => p.key === sp.p) ?? PERF_PERIODS.find((p) => p.key === DEFAULT_PERIOD)!;
   const role = typeof sp.role === "string" && (ROLES as readonly string[]).includes(sp.role) ? (sp.role as Role) : null;
-  const { rows, slowest, overall, total } = await perfSummary(period.hours, role);
+  const { rows, slowest, overall, pops, fn, total } = await perfSummary(period.hours, role);
   const href = (p: string, r: Role | null) => `/tezlik?${new URLSearchParams({ ...(p !== DEFAULT_PERIOD ? { p } : {}), ...(r ? { role: r } : {}) })}`;
 
   return (
@@ -53,6 +53,8 @@ async function Speed({ searchParams }: { searchParams: PageProps<"/tezlik">["sea
       </div>
 
       {overall.nav ? <WhereTimeGoes nav={overall.nav} split={overall.navSplit} server={overall.server} cold={overall.cold} /> : null}
+
+      {total ? <EntryPoints pops={pops} fn={fn} /> : null}
 
       <Card className="mb-6 p-5 sm:p-6">
         <dl className="grid gap-4 text-sm leading-relaxed text-ink-600 md:grid-cols-3">
@@ -207,6 +209,60 @@ function WhereTimeGoes({ nav, split, server, cold }: { nav: PerfStats; split: Pe
               ? `Vaqtning ${100 - waitShare}% i brauzerda chizishga ketyapti — sahifalarni yengillashtirish kerak.`
               : "Vaqt serverdan javob kutish va brauzerda chizish o‘rtasida deyarli teng bo‘lingan."}
         {split && split.newConn ? ` Yangi ulanish ${split.newConn} ta o‘tishda o‘rnatildi${split.connMs != null ? ` (~${formatMs(split.connMs)})` : ""}.` : ""}
+      </p>
+    </Card>
+  );
+}
+
+/** Foydalanuvchilar Vercel'ga qaysi tugun orqali kirayotgani va har tugundan sahifaga o'tish vaqti. */
+function EntryPoints({ pops, fn }: { pops: PopRow[]; fn: string | null }) {
+  return (
+    <Card className="mb-6 overflow-hidden">
+      <div className="border-b border-line-soft px-5 py-4 sm:px-6">
+        <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Qaysi Vercel tuguni orqali kirilmoqda</h2>
+        <p className="mt-0.5 text-sm leading-relaxed text-ink-500">
+          Server va baza: <b className="font-semibold text-ink-700">{fn ? regionLabel(fn) : "hali yozilmagan"}</b>. Tugun server regionidan qancha uzoq bo‘lsa,
+          har bir so‘rov shuncha ko‘p kutadi.
+        </p>
+      </div>
+      {pops.length === 0 ? (
+        <p className="px-5 py-5 text-sm text-ink-500 sm:px-6">Tugunlar hali yozilmagan: bu o‘lchov yangi qo‘shildi. Sahifalar ochilgan sari shu yerda chiqadi.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px]">
+            <thead className="bg-slate-50/70">
+              <tr>
+                <th className={th}>Tugun</th>
+                <th className={`${th} text-right`}>Ulush</th>
+                <th className={`${th} text-right`}>O‘lchovlar</th>
+                <th className={th}>Sahifaga o‘tish</th>
+                <th className={`${th} text-right`}>Shundan kutish</th>
+                <th className={`${th} text-right`}>Tugundan serverga</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line-soft">
+              {pops.map((p) => (
+                <tr key={p.pop}>
+                  <td className={td}>
+                    <p className="font-medium text-ink-900">{p.city ?? p.pop}</p>
+                    <p className="num text-[13px] text-ink-400">{p.pop}</p>
+                  </td>
+                  <td className={`${td} num text-right font-semibold text-ink-900`}>{p.share}%</td>
+                  <td className={`${td} num text-right`}>{p.views}</td>
+                  <td className={td}>
+                    <StatsCell s={p.nav} />
+                  </td>
+                  <td className={`${td} num text-right`}>{p.wait != null ? formatMs(p.wait) : <span className="text-ink-300">—</span>}</td>
+                  <td className={`${td} num text-right`}>{p.lag != null ? `~${formatMs(p.lag)}` : <span className="text-ink-300">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="border-t border-line-soft px-5 py-3 text-[13px] leading-relaxed text-ink-500 sm:px-6">
+        «Tugundan serverga» — so‘rov Vercel tuguniga kelgandan serverdagi kodimiz ishga tushguncha o‘tgan vaqt (taxminiy). Bu yerda katta raqam — server
+        foydalanuvchilardan uzoqda ekanini bildiradi.
       </p>
     </Card>
   );

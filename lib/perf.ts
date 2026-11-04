@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { cache } from "react";
 import { connectDB } from "./db";
 import { Perf } from "./models";
-import { PERF_HEADER, perfRoute, type PerfKind } from "./perf-rules";
+import { edgeLag, PERF_HEADER, parseVercelId, perfRoute, type PerfKind } from "./perf-rules";
 import type { Role } from "./session";
 
 export type PerfEntry = {
@@ -19,7 +19,19 @@ export type PerfEntry = {
   conn?: number | null;
   cold?: boolean | null;
   boot?: number | null;
+  pop?: string | null;
+  fn?: string | null;
+  lag?: number | null;
 };
+
+/**
+ * So'rov qayerdan kelgani: kirgan Vercel tuguni, shu server regioni va so'rov tugunga kelgandan shu paytgacha o'tgan
+ * vaqt (`x-vercel-id` sarlavhasidan; Vercel'dan tashqarida — bo'sh).
+ */
+export function requestOrigin(vercelId: string | null): { pop: string | null; fn: string | null; lag: number | null } {
+  const { pop, at } = parseVercelId(vercelId);
+  return { pop, fn: process.env.VERCEL_REGION ?? null, lag: edgeLag(at, Date.now()) };
+}
 
 /** Bitta o'lchovni yozish (Vercel loglarida ham bir qator). Xato bo'lsa — jim o'tadi: o'lchov sahifani buzmasin. */
 export async function recordPerf(entry: PerfEntry): Promise<void> {
@@ -28,6 +40,8 @@ export async function recordPerf(entry: PerfEntry): Promise<void> {
     entry.wait != null ? `wait=${entry.wait}ms` : "",
     entry.conn ? `conn=${entry.conn}ms` : "",
     entry.cold ? `cold${entry.boot != null ? `=${entry.boot}ms` : ""}` : "",
+    entry.pop ? `pop=${entry.pop}${entry.fn ? `>${entry.fn}` : ""}` : "",
+    entry.lag != null ? `lag=${entry.lag}ms` : "",
   ].filter(Boolean);
   console.log(`[perf] ${entry.kind} ${entry.route} ${entry.ms}ms${parts.length ? ` ${parts.join(" ")}` : ""} (${entry.role})`);
   try {
@@ -42,6 +56,9 @@ export async function recordPerf(entry: PerfEntry): Promise<void> {
       conn: entry.conn ?? null,
       cold: entry.cold ?? null,
       boot: entry.boot ?? null,
+      pop: entry.pop ?? null,
+      fn: entry.fn ?? null,
+      lag: entry.lag ?? null,
       at: new Date(),
     });
   } catch (err) {
@@ -63,12 +80,14 @@ const BOOT_MAX_MS = 30_000;
  * so'rovga qo'yadi — prefetch va server action so'rovlarida u yo'q, ular o'lchanmaydi.
  */
 export const startServerPerf = cache(async (role: Role): Promise<void> => {
-  const route = perfRoute((await headers()).get(PERF_HEADER) ?? "");
+  const h = await headers();
+  const route = perfRoute(h.get(PERF_HEADER) ?? "");
   if (!route) return;
   const t0 = performance.now();
+  const origin = requestOrigin(h.get("x-vercel-id"));
   const cold = !warmed;
   warmed = true;
   // Jarayon ancha oldin ishga tushgan bo'lsa (boshqa so'rovlar uchun) — uyg'onish vaqti noma'lum
   const boot = cold && t0 <= BOOT_MAX_MS ? Math.round(t0) : null;
-  after(() => recordPerf({ route, kind: "server", ms: Math.round(performance.now() - t0), role, cold, boot }));
+  after(() => recordPerf({ route, kind: "server", ms: Math.round(performance.now() - t0), role, cold, boot, ...origin }));
 });
