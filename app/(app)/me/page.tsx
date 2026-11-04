@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { ArrowRight, Crown, HandCoins, History, KeyRound, PiggyBank, Wallet } from "lucide-react";
 import { changeMyPassword } from "@/app/actions/auth";
 import { ActivityList } from "@/components/ActivityList";
+import { SalaryCycleNote } from "@/components/SalaryCycleNote";
 import { OwnerPasswordForm } from "@/components/SettingsForms";
 import { btn, Card, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Tag, type Tone } from "@/components/ui";
 import { pageGuard } from "@/lib/auth";
@@ -88,8 +89,16 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
                 subtitle={
                   fixed
                     ? `${pay.share ? "Belgilangan oylik — har oy bir xil summa." : "Oylik hali belgilanmagan — rahbar «Xodimlar» bo‘limida belgilaydi."} Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring.`
-                    : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz shu oyda to‘lagan pullardan (o‘tgan oylar qarzi uchun to‘langani ham shu oyga)"} ${pay.percent}%. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring.`
+                    : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz to‘lagan pullardan (o‘tgan oylar qarzi uchun to‘langani ham)"} ${pay.percent}%. Oy «Oylik» olindi deb yozilguncha yopilmaydi — shungacha tushgan to‘lovlar shu oyga qo‘shiladi. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring.`
                 }
+              />
+              <SalaryCycleNote
+                cycle={pay.cycle}
+                month={month}
+                thisMonth={currentMonth()}
+                who={isOwner ? "owner" : "self"}
+                href={pay.cycle ? `/me?${new URLSearchParams({ month: pay.cycle.current })}` : undefined}
+                className="mb-6"
               />
               <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
                 {fixed ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilarim tushumi"} value={formatMoney(pay.base)} />}
