@@ -3,7 +3,7 @@ import "server-only";
 import { requireOwner } from "./auth";
 import { connectDB } from "./db";
 import { Perf } from "./models";
-import { PERF_ROUTES, perfStats, type PerfKind, type PerfStats } from "./perf-rules";
+import { PERF_ROUTES, perfStats, VERCEL_REGIONS, type PerfKind, type PerfStats } from "./perf-rules";
 import type { Role } from "./session";
 
 /**
@@ -33,6 +33,12 @@ export type PerfRow = {
   cold: ColdStats;
   views: number;
 };
+/**
+ * Vercel tuguni bo'yicha (brauzer o'lchovlari: foydalanuvchi qaysi tugun orqali kirgani): ulushi, sahifaga o'tish vaqti,
+ * shundan kutish va so'rov tugundan serverdagi kodgacha yetib borgan vaqt (mediana).
+ */
+export type PopRow = { pop: string; city: string | null; views: number; share: number; nav: PerfStats | null; wait: number | null; lag: number | null };
+
 export type SlowRow = { route: string; label: string; kind: PerfKind; ms: number; wait: number | null; role: Role; at: string };
 
 type Doc = {
@@ -46,6 +52,9 @@ type Doc = {
   conn?: number | null;
   cold?: boolean | null;
   boot?: number | null;
+  pop?: string | null;
+  fn?: string | null;
+  lag?: number | null;
 };
 
 const median = (xs: number[]) => perfStats(xs)?.median ?? null;
@@ -82,6 +91,35 @@ function summaryOf(docs: Doc[]) {
   };
 }
 
+function popsOf(docs: Doc[]): { pops: PopRow[]; fn: string | null } {
+  const browser = docs.filter((d) => d.pop && d.kind !== "server");
+  const byPop = new Map<string, Doc[]>();
+  for (const d of browser) {
+    const list = byPop.get(d.pop!);
+    if (list) list.push(d);
+    else byPop.set(d.pop!, [d]);
+  }
+  const pops: PopRow[] = [...byPop]
+    .map(([pop, list]) => {
+      const nav = list.filter((d) => d.kind === "nav");
+      return {
+        pop,
+        city: VERCEL_REGIONS[pop] ?? null,
+        views: list.length,
+        share: Math.round((list.length / browser.length) * 100),
+        nav: perfStats(nav.map((d) => d.ms)),
+        wait: median(nav.flatMap((d) => (d.wait != null ? [d.wait] : []))),
+        lag: median(list.flatMap((d) => (d.lag != null ? [d.lag] : []))),
+      };
+    })
+    .sort((a, b) => b.views - a.views);
+  // Server regioni: server o'lchovlarida eng ko'p uchragani
+  const fnCount = new Map<string, number>();
+  for (const d of docs) if (d.fn) fnCount.set(d.fn, (fnCount.get(d.fn) ?? 0) + 1);
+  const fn = [...fnCount].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return { pops, fn };
+}
+
 /** «Tezlik» sahifasi (rahbar): oxirgi `hours` soat bo'yicha har sahifaning va butun saytning vaqtlari. */
 export async function perfSummary(hours: number, role: Role | null) {
   await requireOwner();
@@ -89,7 +127,7 @@ export async function perfSummary(hours: number, role: Role | null) {
   const since = new Date(Date.now() - hours * 3600_000);
   const filter = { at: { $gte: since }, ...(role ? { role } : {}) };
   const docs = (
-    await Perf.find(filter, { route: 1, kind: 1, ms: 1, role: 1, at: 1, ttfb: 1, wait: 1, conn: 1, cold: 1, boot: 1, _id: 0 })
+    await Perf.find(filter, { route: 1, kind: 1, ms: 1, role: 1, at: 1, ttfb: 1, wait: 1, conn: 1, cold: 1, boot: 1, pop: 1, fn: 1, lag: 1, _id: 0 })
       .sort({ at: -1 })
       .limit(100_000)
       .lean<Doc[]>()
@@ -121,5 +159,5 @@ export async function perfSummary(hours: number, role: Role | null) {
     .slice(0, 10)
     .map((d) => ({ route: d.route, label: PERF_ROUTES[d.route], kind: d.kind as PerfKind, ms: d.ms, wait: d.wait ?? null, role: d.role as Role, at: d.at.toISOString() }));
 
-  return { rows, slowest, overall: summaryOf(docs), total: docs.length, since: since.toISOString() };
+  return { rows, slowest, overall: summaryOf(docs), ...popsOf(docs), total: docs.length, since: since.toISOString() };
 }

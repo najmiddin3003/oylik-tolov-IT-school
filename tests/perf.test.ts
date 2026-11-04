@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { formatMs, parsePerfBeacon, perfRoute, perfStats, perfTone } from "../lib/perf-rules";
+import { edgeLag, formatMs, parsePerfBeacon, parseVercelId, perfRoute, perfStats, perfTone, regionLabel } from "../lib/perf-rules";
 
 test("tezlik: manzil -> sahifa turi", () => {
   assert.equal(perfRoute("/"), "/");
@@ -64,4 +64,19 @@ test("tezlik: mediana, 90-persentil, baho va ko'rinish", () => {
   assert.equal(formatMs(850.4), "850 ms");
   assert.equal(formatMs(1234), "1,23 s");
   assert.equal(formatMs(12_400), "12,4 s");
+});
+
+test("tezlik: Vercel tuguni va tugundan kodgacha vaqt", () => {
+  // Keshdan javob (faqat tugun) va server ishlagan so'rov (tugun :: server regioni)
+  assert.deepEqual(parseVercelId("hkg1::x4vbv-1793793493358-3b4ecea58bad"), { pop: "hkg1", regions: ["hkg1"], at: 1793793493358 });
+  assert.deepEqual(parseVercelId("hkg1::arn1::abcde-1793793493358-0123456789ab"), { pop: "hkg1", regions: ["hkg1", "arn1"], at: 1793793493358 });
+  assert.deepEqual(parseVercelId(null), { pop: null, regions: [], at: null });
+  assert.deepEqual(parseVercelId("noto'g'ri"), { pop: null, regions: [], at: null });
+  assert.equal(edgeLag(1000, 1150), 150);
+  assert.equal(edgeLag(1000, 990), 0, "soatlar biroz farq qilsa");
+  assert.equal(edgeLag(1000, 500), null, "katta farq");
+  assert.equal(edgeLag(1000, 1000 + 120_000), null);
+  assert.equal(edgeLag(null, 1000), null);
+  assert.equal(regionLabel("hkg1"), "hkg1 · Gonkong");
+  assert.equal(regionLabel("xyz9"), "xyz9");
 });

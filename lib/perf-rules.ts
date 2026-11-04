@@ -76,6 +76,58 @@ export function parsePerfBeacon(raw: unknown): PerfBeacon | null {
   return { route, kind, ms, ttfb, wait, conn };
 }
 
+/** Vercel tugunlari (regionlar): kodi -> shahar */
+export const VERCEL_REGIONS: Record<string, string> = {
+  arn1: "Stokgolm",
+  bom1: "Mumbay",
+  cdg1: "Parij",
+  cle1: "Klivlend",
+  cpt1: "Keyptaun",
+  dub1: "Dublin",
+  dxb1: "Dubay",
+  fra1: "Frankfurt",
+  gru1: "San-Paulu",
+  hkg1: "Gonkong",
+  hnd1: "Tokio",
+  iad1: "Vashington",
+  icn1: "Seul",
+  kix1: "Osaka",
+  lhr1: "London",
+  pdx1: "Portlend",
+  sfo1: "San-Fransisko",
+  sin1: "Singapur",
+  syd1: "Sidney",
+  yul1: "Monreal",
+};
+
+/** "hkg1" -> "hkg1 · Gonkong"; noma'lum — kodi o'zi */
+export function regionLabel(code: string): string {
+  return VERCEL_REGIONS[code] ? `${code} · ${VERCEL_REGIONS[code]}` : code;
+}
+
+/**
+ * Vercel so'rov belgisi (`x-vercel-id`): "hkg1::arn1::x4vbv-1793793493358-3b4e…" — so'rov kirgan tugun (birinchi
+ * region), o'tgan regionlar va tugun so'rovni qabul qilgan vaqt (ms).
+ */
+export function parseVercelId(id: string | null | undefined): { pop: string | null; regions: string[]; at: number | null } {
+  if (!id) return { pop: null, regions: [], at: null };
+  const parts = id.split("::");
+  const regions = parts.filter((p) => /^[a-z]{3}\d$/.test(p));
+  const m = /-(\d{13})-/.exec(parts[parts.length - 1] ?? "");
+  return { pop: regions[0] ?? null, regions, at: m ? Number(m[1]) : null };
+}
+
+/**
+ * So'rov tugunga kelgandan bizning kod ishga tushguncha o'tgan vaqt (ms): tugundan serverga yo'l va ishga tushish.
+ * Serverlar soati biroz farq qilishi mumkin — kichik manfiy qiymat 0, katta farq yoki belgisiz — null.
+ */
+export function edgeLag(at: number | null, now: number): number | null {
+  if (at == null) return null;
+  const lag = now - at;
+  if (lag < -50 || lag > 60_000) return null;
+  return Math.max(0, Math.round(lag));
+}
+
 /** «Tezlik» sahifasidagi davrlar */
 export const PERF_PERIODS = [
   { key: "1h", label: "1 soat", hours: 1 },
