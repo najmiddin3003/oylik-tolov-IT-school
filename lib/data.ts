@@ -1128,9 +1128,11 @@ export async function getMySalaryHistory() {
   await connectDB();
   const doc = await getStaffById(v.staffId);
   if (!doc) return null;
-  const docs = await Salary.find({ staff: v.staffId }).sort({ date: -1, createdAt: -1 }).lean();
+  const [docs, nowPay] = await Promise.all([Salary.find({ staff: v.staffId }).sort({ date: -1, createdAt: -1 }).lean(), staffPay(doc, currentMonth())]);
   const rows = docs.map(toSalaryRow);
-  const months = [...new Set([currentMonth(), ...rows.map((r) => r.month)])].sort((a, b) => compareMonths(b, a)).slice(0, 24);
+  // Foizli oylikda: hozir to'lovlar qo'shilayotgan (hali «oylik» yozilmagan) oy; belgilangan oylikda — null
+  const open = nowPay.cycle?.current ?? null;
+  const months = [...new Set([currentMonth(), ...(open ? [open] : []), ...rows.map((r) => r.month)])].sort((a, b) => compareMonths(b, a)).slice(0, 24);
   const byMonth = await Promise.all(
     months.map(async (month) => ({
       month,
@@ -1141,6 +1143,7 @@ export async function getMySalaryHistory() {
   return {
     staff: toStaffView(doc),
     months: byMonth,
+    open,
     total: { avans: rows.filter((r) => r.kind === "avans").reduce((s, r) => s + r.amount, 0), oylik: rows.filter((r) => r.kind === "oylik").reduce((s, r) => s + r.amount, 0) },
   };
 }

@@ -358,6 +358,17 @@ function FilterChip({ href, active, children }: { href: string; active: boolean;
   );
 }
 
+/**
+ * Oylik davri haqida qisqa izoh (foizli oylik): ko'rilayotgan oydan oldingi oy oyligi hali olinmagan bo'lsa — to'lovlar
+ * o'sha oyga qo'shilmoqda; ko'rilayotgan oy tugagan, lekin oylik hali olinmagan bo'lsa — oy ochiq.
+ */
+function cycleHint(cycle: TeamMember["pay"]["cycle"], month: string): string | null {
+  if (!cycle || cycle.closedOn) return null;
+  if (month > cycle.current) return `${monthLabel(cycle.current)} oyligi hali olinmagan — to‘lovlar o‘shanga qo‘shilmoqda`;
+  if (month === cycle.current && month < currentMonth()) return "Oylik hali olinmagan — oy ochiq, to‘lovlar shu oyga qo‘shilmoqda";
+  return null;
+}
+
 /** Xodim kartasi (rahbar paneli): o'quvchilari, tushumi va oyligi. */
 function TeamCard({ m, month }: { m: TeamMember; month: string }) {
   const isTeacher = isTeaching(m);
@@ -424,6 +435,7 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
           <span className="font-medium text-ink-700">Qoldi</span>
           <span className={cx("font-bold", m.pay.left < 0 ? "text-rose-600" : "text-emerald-600")}>{formatMoney(m.pay.left)}</span>
         </div>
+        {cycleHint(m.pay.cycle, month) ? <p className="mt-1.5 text-xs leading-snug text-amber-700">{cycleHint(m.pay.cycle, month)}</p> : null}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -508,8 +520,8 @@ async function TeacherDashboard({ session, month, page }: { session: Session; mo
             { label: "Qoldi", value: formatMoney(pay?.left ?? 0), strong: true, negative: (pay?.left ?? 0) < 0 },
           ]}
           hint={
-            <Link href="/me" className="underline-offset-4 hover:underline">
-              Oylik tafsilotlari →
+            <Link href={`/me?${new URLSearchParams({ month: pay?.cycle && month > pay.cycle.current ? pay.cycle.current : month })}`} className="underline-offset-4 hover:underline">
+              {cycleHint(pay?.cycle ?? null, month) ?? "Oylik tafsilotlari"} →
             </Link>
           }
           icon={Wallet}

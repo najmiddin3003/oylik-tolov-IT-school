@@ -12,6 +12,7 @@ import { applyAmountFrom, applyPercentFrom } from "@/lib/fees";
 import { isId } from "@/lib/ids";
 import { Salary, Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { SALARY_CYCLE_FROM } from "@/lib/salary-cycle";
 import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 import { ROLES, type Role } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
@@ -245,9 +246,11 @@ export async function addSalary(staffId: string, _prev: FormState, fd: FormData)
   await Salary.create({ staff: staffId, kind, amount: amount!, date: date!, month, note, createdByStaff: session.staffId });
   await logActivity(session, "salary.add", `${staff.name}ga ${kind === "oylik" ? "oylik" : "avans"} ${formatMoney(amount!)} (${monthLabel(month)} hisobidan)`);
   refresh();
+  // Foizli oylikda «oylik» oyni yopadi — keyingi to'lovlar keyingi oyga
+  const closes = kind === "oylik" && payKindOf(staff.role) === "percent" && month >= SALARY_CYCLE_FROM;
   return {
     ok: true,
-    message: `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} — ${monthLabel(month)} hisobidan ayirildi`,
+    message: `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} — ${monthLabel(month)} hisobidan ayirildi${closes ? `; ${monthLabel(month)} yopildi, bundan keyin tushgan to‘lovlar keyingi oy oyligiga` : ""}`,
     nonce: Date.now(),
   };
 }

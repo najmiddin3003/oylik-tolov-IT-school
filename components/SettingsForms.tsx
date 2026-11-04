@@ -55,6 +55,7 @@ export function SalaryForm({
   narrow = false,
   defaultKind = "oylik",
   submitLabel = "Qo‘shish va ayirish",
+  openMonth = null,
 }: {
   month: string;
   today: string;
@@ -63,11 +64,22 @@ export function SalaryForm({
   narrow?: boolean;
   defaultKind?: "oylik" | "avans";
   submitLabel?: string;
+  /** Foizli oylikda: hali yopilmagan (to'lovlar qo'shilayotgan) oy — «oylik» shu oyni yopadi; belgilangan oylikda — null */
+  openMonth?: string | null;
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(action, {});
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
-      <SalaryFields key={state.nonce ?? 0} month={month} today={today} fe={state.fieldErrors ?? {}} narrow={narrow} defaultKind={defaultKind} />
+      <SalaryFields
+        // Oy (sahifadagi oy tanlagich) o'zgarsa ham maydonlar yangidan
+        key={`${state.nonce ?? 0}:${month}`}
+        month={month}
+        today={today}
+        fe={state.fieldErrors ?? {}}
+        narrow={narrow}
+        defaultKind={defaultKind}
+        openMonth={openMonth}
+      />
       <Result state={state} />
       <div>
         <Submit pending={pending} className={narrow ? "w-full" : undefined}>
@@ -85,14 +97,17 @@ function SalaryFields({
   fe,
   narrow,
   defaultKind,
+  openMonth,
 }: {
   month: string;
   today: string;
   fe: Record<string, string>;
   narrow: boolean;
   defaultKind: "oylik" | "avans";
+  openMonth: string | null;
 }) {
   const [kind, setKind] = useState<"oylik" | "avans">(defaultKind);
+  const [forMonth, setForMonth] = useState(month);
   return (
     <>
       <fieldset>
@@ -128,10 +143,17 @@ function SalaryFields({
         </div>
         <div>
           <span className={labelCls}>Qaysi oy uchun</span>
-          <MonthPicker name="month" defaultValue={month} invalid={!!fe.month} aria-label="Qaysi oy uchun" />
+          <MonthPicker name="month" defaultValue={month} onChange={setForMonth} invalid={!!fe.month} aria-label="Qaysi oy uchun" />
           <FieldError msg={fe.month} />
         </div>
       </div>
+      {openMonth && kind === "oylik" && forMonth >= openMonth ? (
+        <p className={cx("rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed", forMonth > openMonth ? "bg-amber-50 text-amber-900" : "bg-slate-50 text-ink-500")}>
+          {forMonth > openMonth
+            ? `Diqqat: ${monthLabel(openMonth)} oyligi hali yopilmagan. ${monthLabel(forMonth)} uchun «Oylik» yozilsa, ${monthLabel(openMonth)} ham shu kuni yopiladi — oylik ${monthLabel(openMonth)} uchun bo‘lsa, oyni o‘zgartiring.`
+            : `«Oylik» yozilgach ${monthLabel(forMonth)} yopiladi: olingan sanadan keyin tushgan to‘lovlar keyingi oy oyligiga hisoblanadi.`}
+        </p>
+      ) : null}
       <div>
         <label htmlFor="sal-note" className={labelCls}>
           Izoh <span className="font-normal text-ink-400">(ixtiyoriy)</span>

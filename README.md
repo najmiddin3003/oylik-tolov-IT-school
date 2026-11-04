@@ -45,6 +45,14 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
     rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). **Administratorda foiz yo‘q — belgilangan oylik**
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
+  - **Oylik davri** (foizli oylik, oktabr 2026 dan): oy **«Oylik» olindi deb yozilmaguncha yopilmaydi**. Masalan, oktabr
+    oyligi hali olinmagan bo‘lsa, noyabrda tushgan to‘lovlar ham oktabr oyligiga qo‘shiladi. Xodim «Olingan avans/oylik»
+    bo‘limida (yoki rahbar xodim sahifasida) «Oylik — Oktabr» deb yozgach, olingan sanadan keyin tushgan to‘lovlar noyabr
+    oyligiga o‘tadi (o‘sha kuni — yozuvdan keyin kiritilganlari). Avans oyni yopmaydi; oylik oy tugamasdan berilsa — undan
+    keyingi to‘lovlar keyingi oyga. Keyingi oy uchun «Oylik» yozilsa, oldingi ochiq oy ham yopiladi; o‘z oyida to‘lov
+    tushmagan oy (yangi xodim, ta’til) kutilmaydi. Oldindan to‘lov (dekabr uchun noyabrda) o‘z oyi boshlanganda tushgan
+    hisoblanadi. Oy holati («ochiq» / «yopildi») profil, «Olingan avans/oylik», xodim sahifasi va rahbar panelida ko‘rinadi;
+    formada ochiq oy o‘zi tanlanadi. Oktabr 2026 gacha bo‘lgan oylar — avvalgidek kalendar oyi bo‘yicha.
   - O‘quvchini o‘qituvchiga biriktirish — o‘quvchi formasidagi «O‘qituvchisi» maydoni yoki «O‘quvchilar» ro‘yxatida belgilab,
     «O‘qituvchi» tugmasi bilan (bir nechtasiga birdan).
   - **Birinchi kirish SMS bilan:** rahbar xodimni telefon raqami bilan qo‘shadi → xodim kirish sahifasida raqamini kiritadi →
@@ -215,6 +223,7 @@ components/ThemeToggle.tsx, theme-state.ts  yorug' / qorong'i mavzu
 lib/auth.ts, session.ts  rollar (rahbar / administrator / o'qituvchi), kim qayerga kira olishi, sessiya va parol barmoq izi
 lib/staff.ts, staff-rules.ts  xodimlar: qidirish, lavozim nomlari, foiz va oylik qoidalari (sof funksiyalar, testlangan)
 lib/pay.ts           oy bo'yicha tushum (o'qituvchilar kesimida) va xodim oyligi
+lib/salary-cycle.ts  oylik davri: to'lov qaysi oy oyligiga — oy «oylik» yozilguncha ochiq (sof funksiyalar, testlangan)
 lib/otp.ts, otp-code.ts  SMS tasdiqlash kodi: yuborish, tekshirish, cheklovlar
 lib/kassa.ts          administrator va rahbar kassasi (naqd / karta), topshiruvlar
 lib/tasks.ts          rahbardan administratorga topshiriqlar

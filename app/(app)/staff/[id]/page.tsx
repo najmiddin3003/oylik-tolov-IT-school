@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { BadgePercent, CircleSlash, Crown, HandCoins, KeyRound, PiggyBank, RotateCcw, Trash2, UserCheck, UserCog, Wallet } from "lucide-react";
 import { addSalary, deleteSalary, deleteStaff, setStaffAccess, setStaffPercent, setStaffSalary, updateStaff } from "@/app/actions/staff";
+import { SalaryCycleNote } from "@/components/SalaryCycleNote";
 import { FixedPayForm, PercentForm, SalaryForm } from "@/components/SettingsForms";
 import { StaffEditForm } from "@/components/StaffForms";
 import { ConfirmAction } from "@/components/SubmitButton";
@@ -132,9 +133,17 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
                 fixed
                   ? "Belgilangan oylik — har oy bir xil summa. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
                   : staff.shareBase === "center"
-                    ? "Butun markaz tushumidan foiz. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
-                    : "O‘z o‘quvchilari shu oyda to‘lagan pullardan foiz (o‘tgan oylar qarzi uchun to‘langani ham shu oyga). Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
+                    ? "Butun markaz tushumidan foiz. Oy «Oylik» berildi deb yozilguncha yopilmaydi — shungacha tushgan to‘lovlar shu oyga qo‘shiladi. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
+                    : "O‘z o‘quvchilari to‘lagan pullardan foiz (o‘tgan oylar qarzi uchun to‘langani ham). Oy «Oylik» berildi deb yozilguncha yopilmaydi — shungacha tushgan to‘lovlar shu oyga qo‘shiladi. Olingan oylik va avanslar ayiriladi. Oyni yuqoridagi oy tanlagichdan o‘zgartiring."
               }
+            />
+            <SalaryCycleNote
+              cycle={pay.cycle}
+              month={month}
+              thisMonth={currentMonth()}
+              who="owner"
+              href={pay.cycle ? `/staff/${staff.id}?${new URLSearchParams({ month: pay.cycle.current })}` : undefined}
+              className="mb-6"
             />
             <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
               {fixed ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilari tushumi"} value={formatMoney(pay.base)} />}
@@ -142,7 +151,12 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
               <Figure label="Olindi (oylik/avans)" value={`− ${formatMoney(pay.taken)}`} tone="amber" />
               <Figure label="Qoldi" value={formatMoney(pay.left)} tone={pay.left < 0 ? "rose" : "emerald"} strong />
             </div>
-            <SalaryForm month={month} today={todayISO()} action={addSalary.bind(null, staff.id)} />
+            <SalaryForm
+              month={pay.cycle && month > pay.cycle.current ? pay.cycle.current : month}
+              today={todayISO()}
+              action={addSalary.bind(null, staff.id)}
+              openMonth={pay.cycle?.current ?? null}
+            />
             <div className="mt-6 overflow-hidden rounded-2xl border border-line">
               <p className="flex items-center justify-between gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-sm font-semibold text-ink-700">
                 {monthLabel(month)} uchun olinganlar
