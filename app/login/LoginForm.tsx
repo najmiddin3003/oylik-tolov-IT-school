@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { startTransition, useActionState, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, KeyRound, Lock } from "lucide-react";
 import { checkLoginPhone, login, requestCode, type CodeState, type LoginState } from "@/app/actions/auth";
-import { PhoneInput } from "@/components/inputs";
+import { PhoneInput, RevealPasswordButton } from "@/components/inputs";
 import { OtpCodeStep } from "@/components/OtpCodeStep";
 import { btn, cx, inputCls, labelCls } from "@/components/ui";
 import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
@@ -161,6 +161,7 @@ export function LoginForm({ legacyHint }: { legacyHint: boolean }) {
 }
 
 function PasswordField({ label, error, autoFocus }: { label: string; error?: string; autoFocus?: boolean }) {
+  const [shown, setShown] = useState(false);
   return (
     <div>
       <label htmlFor="password" className={labelCls}>
@@ -171,13 +172,14 @@ function PasswordField({ label, error, autoFocus }: { label: string; error?: str
         <input
           id="password"
           name="password"
-          type="password"
+          type={shown ? "text" : "password"}
           autoComplete="current-password"
           autoFocus={autoFocus}
           required
-          className={cx(inputCls, "h-12 pl-11")}
+          className={cx(inputCls, "h-12 pl-11 pr-12")}
           aria-invalid={!!error}
         />
+        <RevealPasswordButton shown={shown} onToggle={() => setShown((v) => !v)} />
       </div>
       {error ? (
         <p className="mt-1.5 text-sm text-rose-600" role="alert">
