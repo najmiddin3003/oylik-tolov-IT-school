@@ -14,7 +14,13 @@ export default function NewStudentPage() {
     <div className="max-w-5xl">
       <PageHeader eyebrow="O‘quvchilar bazasi" title="Yangi o‘quvchi" subtitle="O‘quvchi ma’lumotlarini kiriting. * — majburiy maydonlar." />
       <Card>
-        <Suspense fallback={<Skeleton className="m-6 h-96" />}>
+        <Suspense
+          fallback={
+            <div data-page-skeleton="">
+              <Skeleton className="m-6 h-96" />
+            </div>
+          }
+        >
           <NewStudentForm />
         </Suspense>
       </Card>

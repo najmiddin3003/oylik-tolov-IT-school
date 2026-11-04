@@ -9,6 +9,7 @@ import {
   SidebarBody,
   SidebarSkeleton,
 } from "@/components/ShellParts";
+import { PerfWatcher } from "@/components/PerfWatcher";
 import { SidebarHotkeys, SidebarRailButton, SidebarResizer, SidebarToggleButton } from "@/components/Sidebar";
 import { BreadcrumbFallback } from "@/components/TopBar";
 import { BrandName, LogoMark } from "@/components/ui";
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="min-h-screen">
       <SidebarHotkeys />
+      <PerfWatcher />
 
       {/*
         Kompyuter: chap menyu (surib kengligini o'zgartirish, ixchamlashtirish yoki yopish mumkin).
