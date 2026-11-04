@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { listMyActivity, type ActivityRow } from "./activity";
 import { requireAuth, requireOwner, requireRole, type Session } from "./auth";
-import { nameMatches } from "./compare";
+import { mismatchKey, nameMatches } from "./compare";
 import { courseFee, courseNames, courseTeacher, courseTeachers, sameCourse, teacherCourses } from "./courses";
 import { connectDB } from "./db";
 import { eskizConfigured } from "./eskiz";
@@ -22,7 +22,7 @@ import {
   type StudentRow,
 } from "./ledger";
 import { cashierKassa, kassaState } from "./kassa";
-import { Handover, Payment, Salary, SmsLog, Staff, Student, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
+import { Handover, Payment, Salary, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
 import { normalizeText } from "./normalize";
 import { daysLeftInMonth, monthEndReminderActive } from "./reminders";
@@ -139,6 +139,8 @@ export type MismatchRow = {
   sheetDate: string;
   note: string;
   resolved: boolean;
+  /** Rahbar e'tiborsiz qoldirgan (ro'yxatda ko'rinmaydi) */
+  ignored: boolean;
   /** «Saytda yo'q o'quvchi»: saytda ismi (yoki Sheets'dagi bog'langan ismi) aynan mos o'quvchilar */
   siteMatches?: StudentPick[];
   /** «Saytda yo'q o'quvchi»: ismi o'xshash yozilgan o'quvchilar (taklif) */
@@ -851,9 +853,27 @@ function toRunView(r: Awaited<ReturnType<typeof findRuns>>[number]): SyncRunView
       sheetDate: m.sheetDate ?? "",
       note: m.note ?? "",
       resolved: m.resolved ?? false,
+      ignored: m.ignored ?? false,
     })),
   };
 }
+
+/** E'tiborsiz qoldirilgan farq («Google Sheets» sahifasidagi ro'yxat uchun). */
+export type SyncIgnoreRow = {
+  id: string;
+  kind: MismatchKind;
+  studentId: string | null;
+  studentName: string;
+  group: string;
+  month: string;
+  siteAmount: number;
+  sheetAmount: number;
+  sheetRows: number[];
+  sheetDate: string;
+  createdAt: string;
+  /** Oxirgi (muvaffaqiyatli) tekshiruvda bu farq uchramadi — yozuv o'zgargan yoki to'g'rilangan, olib tashlasa bo'ladi */
+  stale: boolean;
+};
 
 function findRuns(limit: number) {
   return SyncRun.find({}).sort({ startedAt: -1 }).limit(limit).lean();
@@ -862,8 +882,29 @@ function findRuns(limit: number) {
 export async function getSyncPageData() {
   await requireOwner();
   await connectDB();
-  const [settings, runs] = await Promise.all([getSettings({ fresh: true }), findRuns(10)]);
+  const [settings, runs, ignoreDocs] = await Promise.all([
+    getSettings({ fresh: true }),
+    findRuns(10),
+    SyncIgnore.find({}).sort({ createdAt: -1 }).limit(500).lean(),
+  ]);
   const views = runs.map(toRunView);
+  const lastIgnored = new Set(
+    (runs[0]?.mismatches ?? []).filter((m) => m.ignored).map((m) => mismatchKey(m, runs[0]!.basis === "date" ? "date" : "month")),
+  );
+  const ignores: SyncIgnoreRow[] = ignoreDocs.map((d) => ({
+    id: String(d._id),
+    kind: d.kind as MismatchKind,
+    studentId: d.studentId ? String(d.studentId) : null,
+    studentName: d.studentName ?? "",
+    group: d.group ?? "",
+    month: d.month ?? "",
+    siteAmount: d.siteAmount ?? 0,
+    sheetAmount: d.sheetAmount ?? 0,
+    sheetRows: d.sheetRows ?? [],
+    sheetDate: d.sheetDate ?? "",
+    createdAt: (d.createdAt ?? new Date()).toISOString(),
+    stale: Boolean(runs[0]?.ok) && !lastIgnored.has(d.key),
+  }));
   // Oxirgi tekshiruvdagi «saytda yo'q o'quvchi»lar: saytda hozir shu ismli yoki o'xshash ismli o'quvchi bormi
   // (ism tekshiruvdan keyin to'g'rilangan bo'lishi yoki Sheets'da boshqacha yozilgan bo'lishi mumkin)
   const unknown = (views[0]?.mismatches ?? []).filter((m) => m.kind === "unknown_student" && !m.resolved);
@@ -904,6 +945,8 @@ export async function getSyncPageData() {
       courses: settings.courses.map((c) => c.name),
     },
     runs: views,
+    /** E'tiborsiz qoldirilgan farqlar (eng yangisi tepada) */
+    ignores,
     /** Biriktirish tanlovi uchun (faqat «saytda yo'q o'quvchi» bo'lsa) */
     students,
     /** Oy -> shu oyda saytda to'lovi bor o'quvchilar */

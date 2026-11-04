@@ -1,8 +1,8 @@
 // Google Sheets bilan saytdagi to'lovlarni solishtirish va natijani bazaga yozish.
-import { compareRecords, parseSheet, type MismatchResult, type SheetWindow } from "./compare";
+import { compareRecords, mismatchKey, parseSheet, type MismatchResult, type SheetWindow } from "./compare";
 import { hasPaymentInMonth, importFromRun } from "./importer";
 import { LIVE } from "./ledger";
-import { Payment, Setting, Student, SyncRun } from "./models";
+import { Payment, Setting, Student, SyncIgnore, SyncRun } from "./models";
 import { getSettings } from "./settings";
 import { fetchSheetRows, SheetError } from "./sheets";
 import { dateToISO, isoToDate, lastScheduledTime, todayISO } from "./time";
@@ -53,8 +53,10 @@ export type SyncOutcome = {
   id: string;
   ok: boolean;
   error: string;
-  /** Hal qilinmay qolgan farqlar */
+  /** Hal qilinmay qolgan farqlar (e'tiborsiz qoldirilganlarsiz) */
   mismatches: number;
+  /** E'tiborsiz qoldirilgani uchun ko'rsatilmagan farqlar */
+  ignored: number;
   /** Sheets'dan avtomatik qo'shilgan to'lov qatorlari */
   imported: number;
 };
@@ -165,7 +167,16 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
       result = failed(err instanceof SheetError ? err.message : `Kutilmagan xato: ${(err as Error).message}`);
     }
 
-    const run = await SyncRun.create({ trigger, startedAt, finishedAt: new Date(), ...result });
+    // Rahbar «e'tiborsiz qoldirgan» farqlar (kaliti bir xil) — ro'yxatda va hisoblagichlarda ko'rinmaydi, avtomatik qo'shilmaydi
+    const ignoredKeys = new Set<string>();
+    if (result.ok && result.mismatches.length) {
+      for (const d of await SyncIgnore.find({}, { key: 1 }).lean()) ignoredKeys.add(d.key);
+    }
+    const isIgnored = (m: MismatchResult) => ignoredKeys.has(mismatchKey(m, result.basis));
+    const mismatches = result.mismatches.map((m) => (isIgnored(m) ? { ...m, ignored: true, resolved: true } : m));
+    const ignored = result.mismatches.filter(isIgnored).length;
+
+    const run = await SyncRun.create({ trigger, startedAt, finishedAt: new Date(), ...result, mismatches });
 
     // Sheets'da bor, saytda yo'q to'lovlar — avtomatik saytga. Yangi o'quvchilar va summa farqlari — qo'lda tasdiqlanadi.
     let imported = 0;
@@ -173,7 +184,7 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
     if (result.ok && settings.autoImport) {
       const ids: string[] = [];
       for (const m of run.mismatches) {
-        if (m.kind !== "missing_on_site" || !m.studentId) continue;
+        if (m.resolved || m.kind !== "missing_on_site" || !m.studentId) continue;
         // Ehtiyot: saytda shu o'quvchining shu oyga tegishli to'lovi jadval oralig'idan tashqarida bo'lsa
         // (masalan, saytga boshqa kuni kiritilgan) — ikki marta yozilmasligi uchun avtomatik qo'shilmaydi.
         if (await hasPaymentInMonth(String(m.studentId), m.month)) {
@@ -202,7 +213,7 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
     const old = await SyncRun.find({}, { _id: 1 }).sort({ startedAt: -1 }).skip(KEEP_RUNS).lean();
     if (old.length) await SyncRun.deleteMany({ _id: { $in: old.map((o) => o._id) } });
 
-    return { id: String(run._id), ok: result.ok, error: result.error, mismatches: result.mismatches.length - resolved, imported };
+    return { id: String(run._id), ok: result.ok, error: result.error, mismatches: result.mismatches.length - ignored - resolved, imported, ignored };
   } finally {
     await releaseLock();
   }
