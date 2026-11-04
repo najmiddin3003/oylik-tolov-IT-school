@@ -2,8 +2,9 @@
 
 // Raqamli maydonlar: telefon ("90 123 45 67") va pul ("1 250 000") — yozish paytida raqamlar guruhlab ajratiladi,
 // kursor joyidan sakramaydi. Forma qiymati ham shu ko'rinishda yuboriladi (server raqamlarni o'zi ajratib oladi).
+// Shuningdek, parol maydonidagi «ko'rsatish / yashirish» tugmasi.
 import { useLayoutEffect, useRef, useState, type ChangeEvent, type InputHTMLAttributes } from "react";
-import { Smartphone } from "lucide-react";
+import { Eye, EyeOff, Smartphone } from "lucide-react";
 import { cx, inputCls } from "./ui";
 
 /** 9 ta raqamni "90 123 45 67" ko'rinishiga. */
@@ -145,5 +146,21 @@ export function MoneyInput({
       />
       {suffix ? <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-ink-400">{suffix}</span> : null}
     </div>
+  );
+}
+
+/** Parol maydoni ichidagi «ko'rsatish / yashirish» tugmasi (maydonga o'ngdan `pr-11` joy qoldiring). */
+export function RevealPasswordButton({ shown, onToggle }: { shown: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="absolute right-1.5 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-ink-400 transition hover:bg-slate-100 hover:text-ink-700"
+      aria-label={shown ? "Parolni yashirish" : "Parolni ko‘rsatish"}
+      aria-pressed={shown}
+      title={shown ? "Parolni yashirish" : "Parolni ko‘rsatish"}
+    >
+      {shown ? <EyeOff className="size-[18px]" aria-hidden /> : <Eye className="size-[18px]" aria-hidden />}
+    </button>
   );
 }
