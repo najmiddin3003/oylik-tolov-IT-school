@@ -12,7 +12,9 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   Oylik to'lovdan ortiq summa keyingi oylarga avtomatik taqsimlanadi (masalan 300 ming oylikda 700 ming → 300 + 300 + 100).
 - **Qarzdorlar** (yon menyuda; rahbar, administrator, o'qituvchi — o'qituvchiga faqat o'z o'quvchilari) — tanlangan oy uchun
   **«Qarzdorlar»** (umuman to'lamaganlar, standart), **«Qisman to'laganlar»** va **«To'liq to'laganlar»** tugmalari, kurs,
-  ism/telefon va **to'lov sanasi oralig'i** («Sanadan» — «Sanagacha») bo'yicha filtr. Sana tanlansa, faqat shu kunlarda
+  ism/telefon, **dars vaqti** («Hozir darsda», «Bugun keladiganlar», bugungi har bir vaqt — masalan «16:00 da keladi ·
+  16:00–18:00», «Bugungi darsi tugagan», «Dars vaqti kiritilmagan»; holat sahifa ochilgan vaqt bo'yicha, har variantda soni) va
+  **to'lov sanasi oralig'i** («Sanadan» — «Sanagacha») bo'yicha filtr. Sana tanlansa, faqat shu kunlarda
   qilingan (shu oy uchun) to'lovlar hisobga olinadi. Ro'yxatda kursi, o'qituvchisi, keyingi darsi, to'lagani, qolgan qarzi va
   oxirgi to'lov sanasi; rahbar va administratorda «To'lov» tugmasi. Menyudagi son — shu oy umuman to'lamaganlar.
 - **Bosh sahifa** — tanlangan oy bo'yicha: to'lamaganlar ro'yxati (qarzi bilan), to'laganlar, yig'ilgan summa, reja bajarilishi, guruh bo'yicha filtr.

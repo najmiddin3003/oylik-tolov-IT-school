@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { CalendarRange, GraduationCap, Plus, UserCheck, UserRound, UserX, Wallet, X } from "lucide-react";
+import { CalendarClock, CalendarRange, GraduationCap, Plus, UserCheck, UserRound, UserX, Wallet, X } from "lucide-react";
 import { PaidCell, StudentCell } from "@/components/cells";
 import { FilterForm, SearchInput } from "@/components/FilterForm";
 import { NextLessonCell } from "@/components/Lessons";
@@ -9,11 +9,15 @@ import { DatePicker, Select } from "@/components/pickers";
 import { btn, Card, cx, EmptyState, GroupChip, MiniStat, PageHeader, PageSkeleton, Pagination, StatusBadge, td, th } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
 import { listDebtors, parseDebtTab, type DebtTab } from "@/lib/data";
+import { fromMinutes, parseLessonFilter, WEEKDAY_NAMES, type LessonState } from "@/lib/schedule";
 import { currentMonth, formatDate, formatMoney, isoToDate, isValidMonth, monthLabel, nowMs, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Qarzdorlar" };
 
 const PAGE_SIZE = 20;
+
+/** Dars vaqti varianti yonidagi izoh: holati */
+const SLOT_STATE: Record<LessonState, string> = { now: "hozir darsda", soon: "tez orada", later: "", done: "tugadi" };
 
 const TABS: { key: DebtTab; label: string }[] = [
   { key: "unpaid", label: "Qarzdorlar" },
@@ -37,13 +41,15 @@ async function Debtors({ searchParams }: { searchParams: PageProps<"/qarzdorlar"
   const q = str("q").slice(0, 100);
   const group = str("group").slice(0, 100);
   const tab = parseDebtTab(str("tab"));
+  // Bugungi dars holati: hozir darsda, bugun keladi, «16:00-18:00» da keladi, darsi tugagan, jadvalsiz
+  const lesson = parseLessonFilter(str("lesson"));
   const page = Math.max(1, Number(str("page")) || 1);
   // To'lov sanasi oralig'i: noto'g'ri sana e'tiborsiz; teskari tanlansa — almashtiriladi
   const date = (k: string) => (isoToDate(str(k)) ? str(k) : "");
   const [rawFrom, rawTo] = [date("from"), date("to")];
   const [from, to] = rawFrom && rawTo && rawFrom > rawTo ? [rawTo, rawFrom] : [rawFrom, rawTo];
 
-  const data = await listDebtors({ month, group, from, to, q, tab, page, pageSize: PAGE_SIZE });
+  const data = await listDebtors({ month, group, from, to, q, lesson, tab, page, pageSize: PAGE_SIZE });
   const { rows, counts, totals } = data;
   const isTeacher = role === "teacher";
   // To'lov kiritish — rahbar va administrator; o'quvchi profili — rahbar va o'qituvchi
@@ -52,10 +58,29 @@ async function Debtors({ searchParams }: { searchParams: PageProps<"/qarzdorlar"
   const serverNow = nowMs();
   const today = todayISO();
 
-  const base = { month, ...(q ? { q } : {}), ...(group ? { group } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}) };
+  const base = { month, ...(q ? { q } : {}), ...(group ? { group } : {}), ...(lesson ? { lesson } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}) };
   const tabHref = (t: DebtTab) => `/qarzdorlar?${new URLSearchParams({ ...base, ...(t !== "unpaid" ? { tab: t } : {}) })}`;
   const pageHref = (p: number) => `/qarzdorlar?${new URLSearchParams({ ...base, ...(tab !== "unpaid" ? { tab } : {}), page: String(p) })}`;
-  const filtered = Boolean(q || group || from || to);
+  const filtered = Boolean(q || group || lesson || from || to);
+  // «Dars vaqti» tanlovi: bugungi dars vaqtlari, har birida — tanlangan bo'limdagi o'quvchilar soni
+  const { clock, slots, counts: lc } = data.lessons;
+  const slotOptions = slots.map((s) => ({
+    value: s.key,
+    label: `${s.start} da keladi`,
+    hint: [`${s.start}–${s.end}`, SLOT_STATE[s.state], `${s.count} ta`].filter(Boolean).join(" · "),
+  }));
+  // Tanlangan vaqt bugun yo'q bo'lsa ham (eski havola) — tanlovda ko'rinsin
+  if (lesson.includes(":") && !slots.some((s) => s.key === lesson)) slotOptions.push({ value: lesson, label: `${lesson.slice(0, 5)} da keladi`, hint: "bugun yo‘q" });
+  const lessonOptions = [
+    { value: "", label: "Barcha dars vaqtlari" },
+    { value: "now", label: "Hozir darsda", hint: `${lc.now} ta` },
+    { value: "today", label: "Bugun keladiganlar", hint: `${lc.today} ta` },
+    ...slotOptions,
+    { value: "done", label: "Bugungi darsi tugagan", hint: `${lc.done} ta` },
+    { value: "none", label: "Dars vaqti kiritilmagan", hint: `${lc.none} ta` },
+  ];
+  const lessonNote =
+    lesson && lesson !== "none" ? `Bugun — ${WEEKDAY_NAMES[clock.weekday - 1].toLowerCase()}, soat ${fromMinutes(clock.minutes)} holati bo‘yicha. Holat sahifa yangilanganda yangilanadi.` : "";
   const range = from || to ? `${from ? formatDate(isoToDate(from)) : "…"} — ${to ? formatDate(isoToDate(to)) : "…"}` : "";
 
   return (
@@ -116,6 +141,15 @@ async function Debtors({ searchParams }: { searchParams: PageProps<"/qarzdorlar"
             wrapperClassName="w-full sm:w-52"
             options={[{ value: "", label: "Barcha kurslar" }, ...data.groups.map((g) => ({ value: g, label: g }))]}
           />
+          <Select
+            name="lesson"
+            defaultValue={lesson}
+            autoSubmit
+            searchable={false}
+            aria-label="Dars vaqti"
+            wrapperClassName="w-full sm:w-60"
+            options={lessonOptions}
+          />
           <DatePicker
             name="from"
             defaultValue={from}
@@ -145,6 +179,13 @@ async function Debtors({ searchParams }: { searchParams: PageProps<"/qarzdorlar"
           ) : null}
         </FilterForm>
 
+        {lessonNote ? (
+          <p className="mx-6 mb-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink-600">
+            <CalendarClock className="mt-0.5 size-4 shrink-0 text-ink-400" aria-hidden />
+            <span className="num">{lessonNote}</span>
+          </p>
+        ) : null}
+
         {range ? (
           <p className="mx-6 mb-5 flex items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink-600">
             <CalendarRange className="mt-0.5 size-4 shrink-0 text-ink-400" aria-hidden />
@@ -161,7 +202,7 @@ async function Debtors({ searchParams }: { searchParams: PageProps<"/qarzdorlar"
               icon={tab === "paid" ? UserCheck : UserX}
               tone={tab === "unpaid" ? "emerald" : "slate"}
             >
-              {filtered ? "Qidiruv, kurs yoki sana filtrini o‘zgartirib ko‘ring." : `${monthLabel(month)} uchun ro‘yxat bo‘sh.`}
+              {filtered ? "Qidiruv, kurs, dars vaqti yoki sana filtrini o‘zgartirib ko‘ring." : `${monthLabel(month)} uchun ro‘yxat bo‘sh.`}
             </EmptyState>
           </div>
         ) : (

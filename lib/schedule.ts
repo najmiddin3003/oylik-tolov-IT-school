@@ -254,3 +254,45 @@ export function matchesDayFilter(lessons: Lesson[], f: DayFilter, todayWeekday: 
   const wd = filterWeekday(f, todayWeekday);
   return wd !== null && lessons.some((l) => l.day === wd);
 }
+
+// ---------- Qarzdorlar: bugungi dars holati bo'yicha filtr ----------
+
+/**
+ * "" — hammasi; now — hozir darsda; today — bugun keladi; done — bugungi darsi tugagan; none — dars vaqti kiritilmagan;
+ * "16:00-18:00" — bugun shu vaqtda keladi.
+ */
+export type LessonFilter = "" | "now" | "today" | "done" | "none" | `${string}-${string}`;
+
+const SLOT_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/;
+
+export function parseLessonFilter(v: unknown): LessonFilter {
+  if (v === "now" || v === "today" || v === "done" || v === "none") return v;
+  return typeof v === "string" && SLOT_RE.test(v) ? (v as LessonFilter) : "";
+}
+
+/** Dars vaqti kaliti: "16:00-18:00" */
+export function slotKey(l: Pick<Lesson, "start" | "end">): string {
+  return `${l.start}-${l.end}`;
+}
+
+export function matchesLessonFilter(lessons: Lesson[], f: LessonFilter, clock: Pick<Clock, "weekday" | "minutes">): boolean {
+  if (!f) return true;
+  if (f === "none") return lessons.length === 0;
+  const l = lessonOn(lessons, clock.weekday);
+  if (!l) return false;
+  if (f === "today") return true;
+  if (f === "now" || f === "done") return lessonState(l, clock.minutes) === f;
+  return slotKey(l) === f;
+}
+
+export type TodaySlot = { key: string; start: string; end: string; state: LessonState };
+
+/** Bugungi dars vaqtlari (takrorlanmasdan, boshlanishi bo'yicha) va har birining hozirgi holati. */
+export function todaySlots(all: Lesson[][], clock: Pick<Clock, "weekday" | "minutes">): TodaySlot[] {
+  const slots = new Map<string, TodaySlot>();
+  for (const lessons of all) {
+    const l = lessonOn(lessons, clock.weekday);
+    if (l && !slots.has(slotKey(l))) slots.set(slotKey(l), { key: slotKey(l), start: l.start, end: l.end, state: lessonState(l, clock.minutes) });
+  }
+  return [...slots.values()].sort((a, b) => toMinutes(a.start) - toMinutes(b.start) || toMinutes(a.end) - toMinutes(b.end));
+}

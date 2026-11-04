@@ -4,6 +4,9 @@ import {
   daysLabel,
   lessonState,
   matchesDayFilter,
+  matchesLessonFilter,
+  parseLessonFilter,
+  todaySlots,
   minutesUntil,
   nextLesson,
   nextLessonLabel,
@@ -154,4 +157,34 @@ test("jadval: ko'p uchraydiganlar va kun filtri", () => {
   assert.equal(matchesDayFilter(at([1, 2, 3, 4, 5, 6]), "har", 1), true);
   assert.equal(matchesDayFilter(at([1, 2, 3, 4, 5, 6]), "toq", 1), false, "har kungi o'quvchi toq kunlarga kirmaydi");
   assert.equal(matchesDayFilter([], "toq", 1), false);
+});
+
+test("qarzdorlar: bugungi dars holati bo'yicha filtr", () => {
+  const morning: Lesson[] = [{ day: 2, start: "09:00", end: "11:00" }, { day: 4, start: "09:00", end: "11:00" }];
+  const evening: Lesson[] = [{ day: 2, start: "16:00", end: "18:00" }];
+  const monday: Lesson[] = [{ day: 1, start: "14:00", end: "16:00" }];
+  // Seshanba, 10:15 — ertalabki guruh darsda, kechki hali kelmagan
+  const clock = { weekday: 2, minutes: 10 * 60 + 15 };
+  assert.equal(parseLessonFilter("now"), "now");
+  assert.equal(parseLessonFilter("16:00-18:00"), "16:00-18:00");
+  assert.equal(parseLessonFilter("25:00-18:00"), "", "noto'g'ri vaqt");
+  assert.equal(parseLessonFilter("x"), "");
+
+  assert.equal(matchesLessonFilter(morning, "", clock), true);
+  assert.equal(matchesLessonFilter(morning, "now", clock), true);
+  assert.equal(matchesLessonFilter(evening, "now", clock), false);
+  assert.equal(matchesLessonFilter(evening, "today", clock), true);
+  assert.equal(matchesLessonFilter(monday, "today", clock), false, "bugun darsi yo'q");
+  assert.equal(matchesLessonFilter(evening, "16:00-18:00", clock), true);
+  assert.equal(matchesLessonFilter(morning, "16:00-18:00", clock), false);
+  assert.equal(matchesLessonFilter([], "none", clock), true);
+  assert.equal(matchesLessonFilter(morning, "none", clock), false);
+  // 11:30 — ertalabki dars tugagan
+  assert.equal(matchesLessonFilter(morning, "done", { weekday: 2, minutes: 11 * 60 + 30 }), true);
+  assert.equal(matchesLessonFilter(evening, "done", { weekday: 2, minutes: 11 * 60 + 30 }), false);
+
+  assert.deepEqual(todaySlots([evening, morning, morning, monday, []], clock), [
+    { key: "09:00-11:00", start: "09:00", end: "11:00", state: "now" },
+    { key: "16:00-18:00", start: "16:00", end: "18:00", state: "later" },
+  ]);
 });

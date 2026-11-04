@@ -30,12 +30,15 @@ import {
   filterWeekday,
   lessonOn,
   matchesDayFilter,
+  matchesLessonFilter,
   normalizeLessons,
   popularSchedules,
   tashkentClock,
+  todaySlots,
   toMinutes,
   type DayFilter,
   type Lesson,
+  type LessonFilter,
 } from "./schedule";
 import { getSettings, standardFee } from "./settings";
 import type { Role } from "./session";
@@ -499,9 +502,20 @@ export type DebtorRow = StudentRow & {
 /**
  * «Qarzdorlar» bo'limi: tanlangan oy uchun to'lashi kerak bo'lgan (faol, o'qishni boshlagan) o'quvchilar holati —
  * kurs va to'lov sanasi oralig'i bo'yicha. Sana tanlansa, faqat shu kunlarda qilingan (shu oy uchun) to'lovlar
- * hisobga olinadi. O'qituvchiga — faqat o'z o'quvchilari.
+ * hisobga olinadi. Dars holati (`lesson`) — bugungi jadval va hozirgi vaqt (Toshkent) bo'yicha. O'qituvchiga — faqat o'z
+ * o'quvchilari.
  */
-export async function listDebtors(opts: { month: string; group: string; from: string; to: string; q: string; tab: DebtTab; page: number; pageSize: number }) {
+export async function listDebtors(opts: {
+  month: string;
+  group: string;
+  from: string;
+  to: string;
+  q: string;
+  lesson: LessonFilter;
+  tab: DebtTab;
+  page: number;
+  pageSize: number;
+}) {
   await requireRole(["owner", "admin", "teacher"]);
   const v = await viewer();
   await connectDB();
@@ -524,7 +538,21 @@ export async function listDebtors(opts: { month: string; group: string; from: st
   const owing = students.map((s) => toRow(s, paidMap, opts.month)).filter((r) => r.active && r.started);
   // Kurs tanlagichi uchun — shu oy to'lashi kerak bo'lgan o'quvchilar kurslari
   const groups = [...new Set(owing.map((r) => r.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const filtered = owing.filter((r) => (!opts.group || sameCourse(r.group, opts.group)) && matchesQuery(r, opts.q));
+  const base = owing.filter((r) => (!opts.group || sameCourse(r.group, opts.group)) && matchesQuery(r, opts.q));
+
+  // Dars holati: bugungi dars vaqtlari va har bir variantda tanlangan bo'limdagi o'quvchilar soni
+  const clock = tashkentClock(nowMs());
+  const inTab = base.filter((r) => r.status === opts.tab);
+  const countFor = (f: LessonFilter) => inTab.filter((r) => matchesLessonFilter(r.lessons, f, clock)).length;
+  const slots = todaySlots(base.map((r) => r.lessons), clock).map((slot) => ({ ...slot, count: countFor(slot.key as LessonFilter) }));
+  const lessonCounts = { now: countFor("now"), today: countFor("today"), done: countFor("done"), none: countFor("none") };
+  const filtered = base.filter((r) => matchesLessonFilter(r.lessons, opts.lesson, clock));
+  // Bugungi darslar bo'yicha tanlansa — dars boshlanishi bo'yicha tartib
+  const startToday = (r: StudentRow) => {
+    const l = lessonOn(r.lessons, clock.weekday);
+    return l ? toMinutes(l.start) : Number.POSITIVE_INFINITY;
+  };
+  const byTime = opts.lesson === "today" || opts.lesson === "done";
 
   const counts = {
     unpaid: filtered.filter((r) => r.status === "unpaid").length,
@@ -533,7 +561,7 @@ export async function listDebtors(opts: { month: string; group: string; from: st
   };
   const tabRows = filtered
     .filter((r) => r.status === opts.tab)
-    .sort((a, b) => (opts.tab === "paid" ? 0 : b.debt - a.debt) || a.fullName.localeCompare(b.fullName));
+    .sort((a, b) => (byTime ? startToday(a) - startToday(b) : 0) || (opts.tab === "paid" ? 0 : b.debt - a.debt) || a.fullName.localeCompare(b.fullName));
   const totals = {
     students: tabRows.length,
     debt: tabRows.reduce((s, r) => s + r.debt, 0),
@@ -550,7 +578,7 @@ export async function listDebtors(opts: { month: string; group: string; from: st
     lastPaidAt: lastMap.get(r.id)?.toISOString() ?? null,
     teacherName: r.teacherId ? (names.get(r.teacherId) ?? null) : null,
   }));
-  return { rows, counts, totals, groups, page, pages };
+  return { rows, counts, totals, groups, page, pages, lessons: { clock, slots, counts: lessonCounts } };
 }
 
 // ---------- O'quvchilar ----------
