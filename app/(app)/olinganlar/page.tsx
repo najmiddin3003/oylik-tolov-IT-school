@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { HandCoins, PiggyBank, Plus, Trash2, Wallet } from "lucide-react";
 import { addMySalary, deleteMySalary } from "@/app/actions/me";
+import { SalaryCycleNote } from "@/components/SalaryCycleNote";
 import { SalaryForm } from "@/components/SettingsForms";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { btn, Card, cx, EmptyState, IconTile, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
 import { getMySalaryHistory } from "@/lib/data";
 import { payLabel } from "@/lib/staff-rules";
-import { currentMonth, formatDate, formatMoney, formatNumber, monthLabel, todayISO } from "@/lib/time";
+import { currentMonth, formatDate, formatMoney, formatNumber, isoToDate, monthLabel, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Olingan avans/oylik" };
 
@@ -37,7 +38,9 @@ async function MySalaries() {
     );
   }
 
-  const now = data.months.find((m) => m.month === currentMonth()) ?? data.months[0];
+  const thisMonth = currentMonth();
+  // Foizli oylikda — hali yopilmagan (to'lovlar qo'shilayotgan) oy, aks holda joriy oy
+  const now = data.months.find((m) => m.month === (data.open ?? thisMonth)) ?? data.months[0];
   const entries = data.months.reduce((n, m) => n + m.salaries.length, 0);
 
   return (
@@ -45,8 +48,14 @@ async function MySalaries() {
       <PageHeader
         eyebrow="Oylik"
         title="Olingan avans/oylik"
-        subtitle="Rahbardan olgan avans va oyliklaringizni yozib boring — ular o‘sha oy oyligingizdan avtomatik ayiriladi."
+        subtitle={
+          data.open
+            ? "Rahbardan olgan avans va oyliklaringizni yozib boring — ular o‘sha oy oyligingizdan avtomatik ayiriladi. Oy «Oylik» yozilganda yopiladi: shungacha tushgan to‘lovlar o‘sha oyga qo‘shilib boradi."
+            : "Rahbardan olgan avans va oyliklaringizni yozib boring — ular o‘sha oy oyligingizdan avtomatik ayiriladi."
+        }
       />
+
+      <SalaryCycleNote cycle={now.pay.cycle} month={now.month} thisMonth={thisMonth} who="selfForm" className="mb-6" />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
         <MiniStat label={`${monthLabel(now.month)}: ${payLabel(now.pay).toLowerCase()}`} value={formatMoney(now.pay.share)} icon={PiggyBank} tone="brand" />
@@ -76,12 +85,19 @@ async function MySalaries() {
             </Card>
           ) : null}
           {data.months
-            .filter((m) => m.salaries.length || m.month === currentMonth())
+            .filter((m) => m.salaries.length || m.month === thisMonth || m.month === data.open)
             .map((m) => (
               <Card key={m.month} className="overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-soft px-5 py-4 sm:px-6">
                   <div>
-                    <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">{monthLabel(m.month)}</h2>
+                    <h2 className="flex flex-wrap items-center gap-2 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">
+                      {monthLabel(m.month)}
+                      {m.pay.cycle?.closedOn ? (
+                        <Tag tone="emerald">yopildi · {formatDate(isoToDate(m.pay.cycle.closedOn))}</Tag>
+                      ) : m.month === data.open ? (
+                        <Tag tone="amber">ochiq — to‘lovlar shu oyga</Tag>
+                      ) : null}
+                    </h2>
                     <p className="num mt-0.5 text-sm text-ink-500">
                       {payLabel(m.pay)} {formatMoney(m.pay.share)} · olindi {formatMoney(m.pay.taken)}
                     </p>
@@ -138,7 +154,7 @@ async function MySalaries() {
               <p className="mt-0.5 text-sm text-ink-500">Avans yoki oylik, qachon va qaysi oy uchun</p>
             </div>
           </div>
-          <SalaryForm month={currentMonth()} today={todayISO()} action={addMySalary} narrow defaultKind="avans" submitLabel="Yozib qo‘yish" />
+          <SalaryForm month={data.open ?? thisMonth} today={todayISO()} action={addMySalary} narrow defaultKind="avans" submitLabel="Yozib qo‘yish" openMonth={data.open} />
           <p className="mt-4 text-xs leading-relaxed text-ink-400">Rahbar ham yozuvlarni ko‘radi. Xato yozgan bo‘lsangiz — o‘zingiz o‘chira olasiz; rahbar yozganlarini faqat rahbar o‘zgartiradi.</p>
         </Card>
       </div>

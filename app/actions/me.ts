@@ -8,6 +8,7 @@ import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
 import { Salary, Staff } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { SALARY_CYCLE_FROM } from "@/lib/salary-cycle";
 import { updateSettings } from "@/lib/settings";
 import { formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 import type { FormState } from "./types";
@@ -36,7 +37,9 @@ export async function addMySalary(_prev: FormState, fd: FormData): Promise<FormS
   const what = `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} (${monthLabel(month)} hisobidan)`;
   await logActivity(session, "salary.self_add", `Olingan pul yozildi: ${what}`);
   refresh();
-  return { ok: true, message: `${what} yozildi`, nonce: Date.now() };
+  // Foizli oylikda (o'qituvchi) «oylik» oyni yopadi — keyingi to'lovlar keyingi oyga
+  const closes = kind === "oylik" && session.role === "teacher" && month >= SALARY_CYCLE_FROM;
+  return { ok: true, message: `${what} yozildi${closes ? ` — ${monthLabel(month)} yopildi, bundan keyin tushgan to‘lovlar keyingi oy oyligiga` : ""}`, nonce: Date.now() };
 }
 
 /** O'zi yozgan avans/oylik yozuvini o'chirish (rahbar yozganlarini faqat rahbar o'chiradi). */

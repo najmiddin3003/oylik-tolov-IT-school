@@ -3,13 +3,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 import { AuthShell } from "@/components/AuthShell";
+import { normalizeUzPhone } from "@/lib/phone";
 import { RegisterForm } from "./RegisterForm";
 
 export const metadata: Metadata = { title: "Ro‘yxatdan o‘tish" };
 
 export default function RegisterPage({ searchParams }: PageProps<"/register">) {
   return (
-    <Suspense fallback={<Shell reset={false} />}>
+    <Suspense fallback={<Shell reset={false} phone="" />}>
       <RegisterView searchParams={searchParams} />
     </Suspense>
   );
@@ -17,10 +18,12 @@ export default function RegisterPage({ searchParams }: PageProps<"/register">) {
 
 async function RegisterView({ searchParams }: { searchParams: PageProps<"/register">["searchParams"] }) {
   const sp = await searchParams;
-  return <Shell reset={sp.reset === "1"} />;
+  // Kirish sahifasidagi «Parolimni unutdim»dan — yozilgan raqam bilan
+  const phone = typeof sp.phone === "string" ? (normalizeUzPhone(sp.phone) ?? "") : "";
+  return <Shell reset={sp.reset === "1"} phone={phone} />;
 }
 
-function Shell({ reset }: { reset: boolean }) {
+function Shell({ reset, phone }: { reset: boolean; phone: string }) {
   return (
     <AuthShell
       title={reset ? "Parolni tiklash" : "Ro‘yxatdan o‘tish"}
@@ -36,7 +39,7 @@ function Shell({ reset }: { reset: boolean }) {
         </Link>
       }
     >
-      <RegisterForm />
+      <RegisterForm key={phone} defaultPhone={phone} />
     </AuthShell>
   );
 }

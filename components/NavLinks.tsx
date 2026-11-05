@@ -28,16 +28,15 @@ export function SidebarNav({ counts, role }: { counts: NavCounts | null; role: R
     <>
       {navFor(role).map((item) => {
         const active = isActivePath(pathname, item.href);
-        const count =
-          item.key === "students"
-            ? counts?.students
-            : item.key === "payments"
-              ? counts?.payments
-              : item.key === "staff"
-                ? counts?.staff
-                : item.key === "kassa" && counts?.kassa
-                  ? counts.kassa
-                  : undefined;
+        const byKey: Partial<Record<typeof item.key, number | undefined>> = {
+          students: counts?.students,
+          debtors: counts?.debtors,
+          payments: counts?.payments,
+          staff: counts?.staff,
+          // Kassa — faqat kutilayotgan topshiruv bo'lsa
+          kassa: counts?.kassa || undefined,
+        };
+        const count = byKey[item.key];
         const dot = item.key === "sync" && counts?.sync ? SYNC_DOT[counts.sync] : null;
         return (
           <Link

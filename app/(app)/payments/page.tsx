@@ -187,7 +187,7 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
             </span>
           }
         >
-          {share ? <ShareBox share={share} /> : null}
+          {share ? <ShareBox share={share} month={month} /> : null}
         </MoneyCard>
         <MoneyCard
           label="Qolgan qarz"
@@ -496,7 +496,8 @@ function MoneyCard({
 }
 
 /** O'qituvchi uchun: o'z oyligi (o'quvchilari tushumidan foiz), olingan oylik/avans va qolgani. */
-function ShareBox({ share }: { share: PayView }) {
+function ShareBox({ share, month }: { share: PayView; month: string }) {
+  const open = share.cycle && !share.cycle.closedOn && month > share.cycle.current ? share.cycle.current : null;
   return (
     <dl className="num mt-3 grid gap-1 rounded-xl bg-linear-to-br from-brand-50 to-violet-50/70 px-3 py-2.5 text-[13px] ring-1 ring-inset ring-brand-100">
       <div className="flex items-center justify-between gap-3">
@@ -515,6 +516,13 @@ function ShareBox({ share }: { share: PayView }) {
         <dt className="font-medium text-ink-700">Qoldi</dt>
         <dd className={cx("text-[15px] font-bold", share.left < 0 ? "text-rose-600" : "text-emerald-600")}>{formatMoney(share.left)}</dd>
       </div>
+      {open ? (
+        <p className="mt-1 text-xs leading-snug text-amber-700">
+          <Link href={`/me?${new URLSearchParams({ month: open })}`} className="underline-offset-4 hover:underline">
+            {monthLabel(open)} oyligi hali olinmagan — to‘lovlar o‘shanga qo‘shilmoqda →
+          </Link>
+        </p>
+      ) : null}
     </dl>
   );
 }

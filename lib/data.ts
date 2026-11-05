@@ -30,12 +30,15 @@ import {
   filterWeekday,
   lessonOn,
   matchesDayFilter,
+  matchesLessonFilter,
   normalizeLessons,
   popularSchedules,
   tashkentClock,
+  todaySlots,
   toMinutes,
   type DayFilter,
   type Lesson,
+  type LessonFilter,
 } from "./schedule";
 import { getSettings, standardFee } from "./settings";
 import type { Role } from "./session";
@@ -179,6 +182,8 @@ export type SyncState = "ok" | "warn" | "error" | "off";
 export type NavCounts = {
   role: Role;
   students?: number;
+  /** Shu oy uchun umuman to'lov qilmaganlar («Qarzdorlar» bo'limi) */
+  debtors?: number;
   payments: number;
   sync?: SyncState;
   staff?: number;
@@ -289,32 +294,36 @@ export const getNavCounts = cache(async (): Promise<NavCounts> => {
   const role = v.role;
   await connectDB();
   const month = currentMonth();
+  // «Qarzdorlar»: shu oy uchun umuman to'lamaganlar (o'qituvchiga — o'z o'quvchilari)
+  const unpaidCount = async (list?: StudentLean[]) => (await monthRows(month, list)).filter((r) => r.status === "unpaid").length;
   if (role === "admin") {
-    const [payments, tasks] = await Promise.all([Payment.countDocuments({ ...LIVE, month }), Task.countDocuments({ toRole: "admin", status: "open" })]);
-    return { role, payments, tasks };
+    const [payments, tasks, debtors] = await Promise.all([
+      Payment.countDocuments({ ...LIVE, month }),
+      Task.countDocuments({ toRole: "admin", status: "open" }),
+      unpaidCount(),
+    ]);
+    return { role, payments, tasks, debtors };
   }
   if (role === "teacher") {
     const mine = await visibleStudents(v);
-    return {
-      role,
-      students: mine.filter((s) => s.active ?? true).length,
-      payments: await Payment.countDocuments({ ...LIVE, month, student: { $in: mine.map((s) => s._id) } }),
-    };
+    const [payments, debtors] = await Promise.all([Payment.countDocuments({ ...LIVE, month, student: { $in: mine.map((s) => s._id) } }), unpaidCount(mine)]);
+    return { role, students: mine.filter((s) => s.active ?? true).length, payments, debtors };
   }
-  const [students, payments, settings, last, staff, kassa] = await Promise.all([
+  const [students, payments, settings, last, staff, kassa, debtors] = await Promise.all([
     Student.countDocuments({ active: true }),
     Payment.countDocuments({ ...LIVE, month }),
     getSettings(),
     SyncRun.findOne({}).select("ok mismatches.resolved").sort({ startedAt: -1 }).lean(),
     Staff.countDocuments({ status: { $ne: "disabled" } }),
     Handover.countDocuments({ status: "pending" }),
+    unpaidCount(),
   ]);
   let sync: SyncState = "off";
   if (settings.sheetUrl && last) {
     if (!last.ok) sync = "error";
     else sync = (last.mismatches ?? []).some((m) => !m.resolved) ? "warn" : "ok";
   }
-  return { role, students, payments, sync, staff, kassa };
+  return { role, students, payments, sync, staff, kassa, debtors };
 });
 
 // ---------- Oy bo'yicha umumiy holat (bosh sahifa va to'lovlar sahifasi) ----------
@@ -473,6 +482,105 @@ export const getReminders = cache(async (): Promise<Reminder[]> => {
 export async function listUnpaid(month: string, group = ""): Promise<UnpaidStudent[]> {
   const { debtors } = await getMonthOverview(month, group);
   return debtors.map(toUnpaid);
+}
+
+// ---------- Qarzdorlar bo'limi ----------
+
+/** «Qarzdorlar» bo'limidagi tugmalar: to'lamaganlar (standart), qisman to'laganlar, to'liq to'laganlar */
+export type DebtTab = "unpaid" | "partial" | "paid";
+
+/** URL dagi `tab` qiymati (noma'lum — "unpaid"). */
+export function parseDebtTab(v: string): DebtTab {
+  return v === "partial" || v === "paid" ? v : "unpaid";
+}
+
+export type DebtorRow = StudentRow & {
+  /** Hisobga olingan oxirgi to'lov sanasi (ISO) */
+  lastPaidAt: string | null;
+  /** O'qituvchisi ismi (rahbar va administratorga) */
+  teacherName: string | null;
+};
+
+/**
+ * «Qarzdorlar» bo'limi: tanlangan oy uchun to'lashi kerak bo'lgan (faol, o'qishni boshlagan) o'quvchilar holati —
+ * kurs va to'lov sanasi oralig'i bo'yicha. Sana tanlansa, faqat shu kunlarda qilingan (shu oy uchun) to'lovlar
+ * hisobga olinadi. Dars holati (`lesson`) — bugungi jadval va hozirgi vaqt (Toshkent) bo'yicha. O'qituvchiga — faqat o'z
+ * o'quvchilari.
+ */
+export async function listDebtors(opts: {
+  month: string;
+  group: string;
+  from: string;
+  to: string;
+  q: string;
+  lesson: LessonFilter;
+  tab: DebtTab;
+  page: number;
+  pageSize: number;
+}) {
+  await requireRole(["owner", "admin", "teacher"]);
+  const v = await viewer();
+  await connectDB();
+  const start = opts.from ? isoToDate(opts.from) : null;
+  const endDay = opts.to ? isoToDate(opts.to) : null;
+  const paidAt = {
+    ...(start ? { $gte: start } : {}),
+    ...(endDay ? { $lt: new Date(endDay.getTime() + 24 * 3600_000) } : {}),
+  };
+  const [students, agg, names] = await Promise.all([
+    visibleStudents(v),
+    Payment.aggregate<{ _id: mongoose.Types.ObjectId; total: number; last: Date }>([
+      { $match: { ...LIVE, month: opts.month, ...(start || endDay ? { paidAt } : {}) } },
+      { $group: { _id: "$student", total: { $sum: "$amount" }, last: { $max: "$paidAt" } } },
+    ]),
+    v.teacherId ? Promise.resolve(new Map<string, string>()) : teacherNames(),
+  ]);
+  const paidMap = new Map(agg.map((a) => [String(a._id), a.total]));
+  const lastMap = new Map(agg.map((a) => [String(a._id), a.last]));
+  const owing = students.map((s) => toRow(s, paidMap, opts.month)).filter((r) => r.active && r.started);
+  // Kurs tanlagichi uchun — shu oy to'lashi kerak bo'lgan o'quvchilar kurslari
+  const groups = [...new Set(owing.map((r) => r.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const base = owing.filter((r) => (!opts.group || sameCourse(r.group, opts.group)) && matchesQuery(r, opts.q));
+
+  // Dars holati: bugungi dars vaqtlari va har bir variantda tanlangan bo'limdagi o'quvchilar soni
+  const clock = tashkentClock(nowMs());
+  const inTab = base.filter((r) => r.status === opts.tab);
+  const countFor = (f: LessonFilter) => inTab.filter((r) => matchesLessonFilter(r.lessons, f, clock)).length;
+  const slots = todaySlots(base.map((r) => r.lessons), clock).map((slot) => ({ ...slot, count: countFor(slot.key as LessonFilter) }));
+  const lessonCounts = { now: countFor("now"), today: countFor("today"), done: countFor("done"), none: countFor("none") };
+  const filtered = base.filter((r) => matchesLessonFilter(r.lessons, opts.lesson, clock));
+  // Bugungi darslar bo'yicha tanlansa — dars boshlanishi bo'yicha tartib
+  const startToday = (r: StudentRow) => {
+    const l = lessonOn(r.lessons, clock.weekday);
+    return l ? toMinutes(l.start) : Number.POSITIVE_INFINITY;
+  };
+  const byTime = opts.lesson === "today" || opts.lesson === "done";
+
+  const counts = {
+    unpaid: filtered.filter((r) => r.status === "unpaid").length,
+    partial: filtered.filter((r) => r.status === "partial").length,
+    paid: filtered.filter((r) => r.status === "paid").length,
+  };
+  const tabRows = filtered
+    .filter((r) => r.status === opts.tab)
+    .sort((a, b) => (byTime ? startToday(a) - startToday(b) : 0) || (opts.tab === "paid" ? 0 : b.debt - a.debt) || a.fullName.localeCompare(b.fullName));
+  const totals = {
+    students: tabRows.length,
+    debt: tabRows.reduce((s, r) => s + r.debt, 0),
+    paid: tabRows.reduce((s, r) => s + r.paid, 0),
+    /** Filtrdagi barcha o'quvchilar bo'yicha (tugmalardan qat'i nazar) */
+    allDebt: filtered.reduce((s, r) => s + r.debt, 0),
+    expected: filtered.reduce((s, r) => s + r.monthlyFee, 0),
+  };
+
+  const pages = Math.max(1, Math.ceil(tabRows.length / opts.pageSize));
+  const page = Math.min(Math.max(1, opts.page), pages);
+  const rows: DebtorRow[] = tabRows.slice((page - 1) * opts.pageSize, page * opts.pageSize).map((r) => ({
+    ...r,
+    lastPaidAt: lastMap.get(r.id)?.toISOString() ?? null,
+    teacherName: r.teacherId ? (names.get(r.teacherId) ?? null) : null,
+  }));
+  return { rows, counts, totals, groups, page, pages, lessons: { clock, slots, counts: lessonCounts } };
 }
 
 // ---------- O'quvchilar ----------
@@ -1181,9 +1289,11 @@ export async function getMySalaryHistory() {
   await connectDB();
   const doc = await getStaffById(v.staffId);
   if (!doc) return null;
-  const docs = await Salary.find({ staff: v.staffId }).sort({ date: -1, createdAt: -1 }).lean();
+  const [docs, nowPay] = await Promise.all([Salary.find({ staff: v.staffId }).sort({ date: -1, createdAt: -1 }).lean(), staffPay(doc, currentMonth())]);
   const rows = docs.map(toSalaryRow);
-  const months = [...new Set([currentMonth(), ...rows.map((r) => r.month)])].sort((a, b) => compareMonths(b, a)).slice(0, 24);
+  // Foizli oylikda: hozir to'lovlar qo'shilayotgan (hali «oylik» yozilmagan) oy; belgilangan oylikda — null
+  const open = nowPay.cycle?.current ?? null;
+  const months = [...new Set([currentMonth(), ...(open ? [open] : []), ...rows.map((r) => r.month)])].sort((a, b) => compareMonths(b, a)).slice(0, 24);
   const byMonth = await Promise.all(
     months.map(async (month) => ({
       month,
@@ -1194,6 +1304,7 @@ export async function getMySalaryHistory() {
   return {
     staff: toStaffView(doc),
     months: byMonth,
+    open,
     total: { avans: rows.filter((r) => r.kind === "avans").reduce((s, r) => s + r.amount, 0), oylik: rows.filter((r) => r.kind === "oylik").reduce((s, r) => s + r.amount, 0) },
   };
 }

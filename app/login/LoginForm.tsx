@@ -1,24 +1,35 @@
 "use client";
 
 // Kirish: 1) telefon raqam; 2) ro'yxatdan o'tgan bo'lsa — parol, birinchi marta bo'lsa — SMS kod va yangi parol.
+// «Parolimni unutdim» — parol oynasida SMS kod shu yerda yuboriladi, raqam oynasida — tiklash sahifasiga (raqam bilan).
 // O'tish davrida (rahbar yoki administrator profili hali faol bo'lmasa) — eski umumiy parol bilan ham kirish mumkin.
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { startTransition, useActionState, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Lock } from "lucide-react";
-import { checkLoginPhone, login, type CodeState, type LoginState } from "@/app/actions/auth";
-import { PhoneInput } from "@/components/inputs";
+import { ArrowLeft, ArrowRight, KeyRound, Lock } from "lucide-react";
+import { checkLoginPhone, login, requestCode, type CodeState, type LoginState } from "@/app/actions/auth";
+import { PhoneInput, RevealPasswordButton } from "@/components/inputs";
 import { OtpCodeStep } from "@/components/OtpCodeStep";
 import { btn, cx, inputCls, labelCls } from "@/components/ui";
-import { formatUzPhone } from "@/lib/phone";
+import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 
 export function LoginForm({ legacyHint }: { legacyHint: boolean }) {
+  const router = useRouter();
   const [flow, flowAction, checking] = useActionState<CodeState, FormData>(checkLoginPhone, { step: "phone" });
   const [loginState, loginAction, signingIn] = useActionState<LoginState, FormData>(login, {});
+  // «Parolimni unutdim»: shu raqamga SMS kod (yangi parol qo'yish oynasi shu yerda ochiladi)
+  const [reset, resetAction, sendingReset] = useActionState<CodeState, FormData>(requestCode, { step: "phone" });
   // «Raqamni o'zgartirish» bosilgan holat: yangi javob kelguncha raqam bosqichi ko'rsatiladi
   const [backFrom, setBackFrom] = useState<CodeState | null>(null);
+  // Bekor qilingan parol tiklash (raqam o'zgartirilganda) — qayta ko'rsatilmaydi
+  const [resetClosed, setResetClosed] = useState<CodeState | null>(null);
   const [legacy, setLegacy] = useState(false);
   const step = flow === backFrom ? "phone" : flow.step;
   const submitPhone = (fd: FormData) => startTransition(() => flowAction(fd));
+  const sendReset = (fd: FormData) => startTransition(() => resetAction(fd));
+  const changePhone = () => {
+    setBackFrom(flow);
+    setResetClosed(reset);
+  };
 
   if (legacy) {
     return (
@@ -40,6 +51,10 @@ export function LoginForm({ legacyHint }: { legacyHint: boolean }) {
 
   if (step === "password") {
     const phone = flow.phone ?? "";
+    const resetOpen = reset !== resetClosed && reset.phone === phone;
+    if (resetOpen && reset.step === "code") {
+      return <OtpCodeStep state={reset} sending={sendingReset} onResend={sendReset} onChangePhone={changePhone} />;
+    }
     return (
       <form action={loginAction} className="grid gap-5">
         <input type="hidden" name="phone" value={phone} />
@@ -47,24 +62,37 @@ export function LoginForm({ legacyHint }: { legacyHint: boolean }) {
         <input type="text" name="username" autoComplete="username" value={formatUzPhone(phone)} readOnly className="sr-only" tabIndex={-1} aria-hidden />
         <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-slate-50/70 px-4 py-3">
           <span className="num text-[15px] font-semibold text-ink-900">{formatUzPhone(phone)}</span>
-          <button type="button" onClick={() => setBackFrom(flow)} className="text-[13px] font-medium text-brand-600 hover:text-brand-800">
+          <button type="button" onClick={changePhone} className="text-[13px] font-medium text-brand-600 hover:text-brand-800">
             O‘zgartirish
           </button>
         </div>
-        <PasswordField
-          label="Parol"
-          autoFocus
-          error={loginState.phone === phone ? loginState.error : undefined}
-          extra={
-            <Link href="/register?reset=1" className="text-[13px] font-medium text-brand-600 hover:text-brand-800">
-              Parolni unutdingizmi?
-            </Link>
-          }
-        />
+        <PasswordField label="Parol" autoFocus error={loginState.phone === phone ? loginState.error : undefined} />
         <button type="submit" disabled={signingIn} className={cx(btn.primary, "h-12 w-full")}>
           {signingIn ? "Tekshirilmoqda…" : "Kirish"}
           {signingIn ? null : <ArrowRight className="size-[18px]" aria-hidden />}
         </button>
+        <div className="-mt-1 grid gap-2 border-t border-line-soft pt-4">
+          <button
+            type="button"
+            disabled={sendingReset}
+            onClick={() => {
+              const fd = new FormData();
+              fd.set("phone", phone);
+              sendReset(fd);
+            }}
+            className={cx(btn.outline, "h-12 w-full")}
+          >
+            <KeyRound className="size-[18px]" aria-hidden />
+            {sendingReset ? "SMS kod yuborilmoqda…" : "Parolimni unutdim"}
+          </button>
+          {resetOpen && reset.error ? (
+            <p className="text-center text-sm text-rose-600" role="alert">
+              {reset.error}
+            </p>
+          ) : (
+            <p className="text-center text-xs leading-relaxed text-ink-400">Raqamingizga SMS kod keladi — kodni kiritib, yangi parol qo‘yasiz.</p>
+          )}
+        </div>
       </form>
     );
   }
@@ -107,6 +135,19 @@ export function LoginForm({ legacyHint }: { legacyHint: boolean }) {
         {checking ? "Tekshirilmoqda…" : "Davom etish"}
         {checking ? null : <ArrowRight className="size-[18px]" aria-hidden />}
       </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          // Yozilgan raqam tiklash sahifasiga o'tadi (qayta yozish shart emas)
+          const typed = new FormData(e.currentTarget.form ?? undefined).get("phone");
+          const phone = normalizeUzPhone(typeof typed === "string" ? typed : "");
+          router.push(`/register?${new URLSearchParams({ reset: "1", ...(phone ? { phone } : {}) })}`);
+        }}
+        className="mx-auto -mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-600 hover:text-brand-800"
+      >
+        <KeyRound className="size-3.5" aria-hidden />
+        Parolimni unutdim
+      </button>
       {legacyHint ? (
         <p className="-mt-1 text-center text-xs leading-relaxed text-ink-400">
           Xodim profillari hali to‘liq sozlanmagan.{" "}
@@ -119,27 +160,26 @@ export function LoginForm({ legacyHint }: { legacyHint: boolean }) {
   );
 }
 
-function PasswordField({ label, error, extra, autoFocus }: { label: string; error?: string; extra?: ReactNode; autoFocus?: boolean }) {
+function PasswordField({ label, error, autoFocus }: { label: string; error?: string; autoFocus?: boolean }) {
+  const [shown, setShown] = useState(false);
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <label htmlFor="password" className="text-sm font-medium text-ink-700">
-          {label}
-        </label>
-        {extra}
-      </div>
+      <label htmlFor="password" className={labelCls}>
+        {label}
+      </label>
       <div className="relative">
         <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-ink-400" strokeWidth={1.8} aria-hidden />
         <input
           id="password"
           name="password"
-          type="password"
+          type={shown ? "text" : "password"}
           autoComplete="current-password"
           autoFocus={autoFocus}
           required
-          className={cx(inputCls, "h-12 pl-11")}
+          className={cx(inputCls, "h-12 pl-11 pr-12")}
           aria-invalid={!!error}
         />
+        <RevealPasswordButton shown={shown} onToggle={() => setShown((v) => !v)} />
       </div>
       {error ? (
         <p className="mt-1.5 text-sm text-rose-600" role="alert">

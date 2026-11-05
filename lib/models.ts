@@ -379,6 +379,34 @@ const handoverSchema = new Schema(
 handoverSchema.index({ status: 1, createdAt: -1 });
 handoverSchema.index({ fromStaff: 1, createdAt: -1 });
 
+// ---------- Sayt tezligi o'lchovi (rahbarning «Tezlik» sahifasi; 30 kundan keyin o'zi o'chadi) ----------
+const perfSchema = new Schema(
+  {
+    /** Sahifa turi: "/payments", "/students/[id]" (lib/perf-rules.ts) */
+    route: { type: String, required: true, maxlength: 60 },
+    /** server — serverda tayyorlanish; load — birinchi ochilish (brauzer); nav — sahifaga o'tish (brauzer) */
+    kind: { type: String, enum: ["server", "load", "nav"], required: true },
+    ms: { type: Number, required: true, min: 0 },
+    /** Brauzer: serverdan birinchi javob kelguncha */
+    ttfb: { type: Number, default: null },
+    /** Brauzer: server ma'lumoti to'liq kelguncha; ms − wait — brauzerda chizish */
+    wait: { type: Number, default: null },
+    /** Brauzer: yangi ulanish o'rnatish vaqti (0 — avvalgi ulanish) */
+    conn: { type: Number, default: null },
+    /** Server: shu server nusxasining birinchi so'rovi («uyg'onish») va unga ketgan taxminiy vaqt */
+    cold: { type: Boolean, default: null },
+    boot: { type: Number, default: null },
+    /** So'rov kirgan Vercel tuguni ("hkg1"), server regioni ("arn1") va tugundan kodgacha o'tgan vaqt (ms) */
+    pop: { type: String, default: null, maxlength: 10 },
+    fn: { type: String, default: null, maxlength: 10 },
+    lag: { type: Number, default: null },
+    role: { type: String, enum: STAFF_ROLES, required: true },
+    at: { type: Date, required: true },
+  },
+  { versionKey: false },
+);
+perfSchema.index({ at: 1 }, { expireAfterSeconds: 30 * 24 * 3600 });
+
 // ---------- Faoliyat jurnali: har bir xodimning amallari (faqat o'ziga ko'rinadi) ----------
 const activitySchema = new Schema(
   {
@@ -439,3 +467,4 @@ export const Otp: Model<InferSchemaType<typeof otpSchema>> = models.Otp || model
 export const Task: Model<InferSchemaType<typeof taskSchema>> = models.Task || model("Task", taskSchema);
 export const Handover: Model<InferSchemaType<typeof handoverSchema>> = models.Handover || model("Handover", handoverSchema);
 export const Activity: Model<InferSchemaType<typeof activitySchema>> = models.Activity || model("Activity", activitySchema);
+export const Perf: Model<InferSchemaType<typeof perfSchema>> = models.Perf || model("Perf", perfSchema);

@@ -10,6 +10,13 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 - **O'quvchilar** — qo'shish, tahrirlash, o'chirish (to'lovlari bilan birga), qidirish (ism / telefon / guruh), faol-nofaol holat.
 - **To'lovlar** — qaysi oy uchun, summa, sana, usul (naqd / karta / o'tkazma), izoh. Bir oyga bir necha qisman to'lov mumkin.
   Oylik to'lovdan ortiq summa keyingi oylarga avtomatik taqsimlanadi (masalan 300 ming oylikda 700 ming → 300 + 300 + 100).
+- **Qarzdorlar** (yon menyuda; rahbar, administrator, o'qituvchi — o'qituvchiga faqat o'z o'quvchilari) — tanlangan oy uchun
+  **«Qarzdorlar»** (umuman to'lamaganlar, standart), **«Qisman to'laganlar»** va **«To'liq to'laganlar»** tugmalari, kurs,
+  ism/telefon, **dars vaqti** («Hozir darsda», «Bugun keladiganlar», bugungi har bir vaqt — masalan «16:00 da keladi ·
+  16:00–18:00», «Bugungi darsi tugagan», «Dars vaqti kiritilmagan»; holat sahifa ochilgan vaqt bo'yicha, har variantda soni) va
+  **to'lov sanasi oralig'i** («Sanadan» — «Sanagacha») bo'yicha filtr. Sana tanlansa, faqat shu kunlarda
+  qilingan (shu oy uchun) to'lovlar hisobga olinadi. Ro'yxatda kursi, o'qituvchisi, keyingi darsi, to'lagani, qolgan qarzi va
+  oxirgi to'lov sanasi; rahbar va administratorda «To'lov» tugmasi. Menyudagi son — shu oy umuman to'lamaganlar.
 - **Bosh sahifa** — tanlangan oy bo'yicha: to'lamaganlar ro'yxati (qarzi bilan), to'laganlar, yig'ilgan summa, reja bajarilishi, guruh bo'yicha filtr.
 - **O'quvchi sahifasi** — boshlagan oyidan beri har oy holati, umumiy qarz, to'lovlar tarixi.
 - **Google Sheets bilan solishtirish** — har kuni bir marta (standart: 06:00, Toshkent) avtomatik, yoki «Hozir tekshirish» tugmasi bilan.
@@ -47,11 +54,20 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
     Xodim sahifasida (va «Profilim»da) oylik kartasining o‘zida **oy tanlagich** (‹ oy ›) va **«Oylar bo‘yicha»** jadvali:
     oxirgi 12 oy — tushum, hisoblangan oylik, olingan oylik/avans, qolgani va jami; oy bosilsa, o‘sha oy tafsiloti ochiladi.
+  - **Oylik davri** (foizli oylik, oktabr 2026 dan): oy **«Oylik» olindi deb yozilmaguncha yopilmaydi**. Masalan, oktabr
+    oyligi hali olinmagan bo‘lsa, noyabrda tushgan to‘lovlar ham oktabr oyligiga qo‘shiladi. Xodim «Olingan avans/oylik»
+    bo‘limida (yoki rahbar xodim sahifasida) «Oylik — Oktabr» deb yozgach, olingan sanadan keyin tushgan to‘lovlar noyabr
+    oyligiga o‘tadi (o‘sha kuni — yozuvdan keyin kiritilganlari). Avans oyni yopmaydi; oylik oy tugamasdan berilsa — undan
+    keyingi to‘lovlar keyingi oyga. Keyingi oy uchun «Oylik» yozilsa, oldingi ochiq oy ham yopiladi; o‘z oyida to‘lov
+    tushmagan oy (yangi xodim, ta’til) kutilmaydi. Oldindan to‘lov (dekabr uchun noyabrda) o‘z oyi boshlanganda tushgan
+    hisoblanadi. Oy holati («ochiq» / «yopildi») profil, «Olingan avans/oylik», xodim sahifasi va rahbar panelida ko‘rinadi;
+    formada ochiq oy o‘zi tanlanadi. Oktabr 2026 gacha bo‘lgan oylar — avvalgidek kalendar oyi bo‘yicha.
   - O‘quvchini o‘qituvchiga biriktirish — o‘quvchi formasidagi «O‘qituvchisi» maydoni yoki «O‘quvchilar» ro‘yxatida belgilab,
     «O‘qituvchi» tugmasi bilan (bir nechtasiga birdan).
   - **Birinchi kirish SMS bilan:** rahbar xodimni telefon raqami bilan qo‘shadi → xodim kirish sahifasida raqamini kiritadi →
     birinchi marta raqamiga 6 xonali kod keladi → kodni kiritib o‘zi parol qo‘yadi. Keyingi safar SMS kelmaydi — raqam va
-    o‘z paroli bilan kiradi. Parolni unutsa — «Parolni unutdingizmi?», yo‘li xuddi shunday. Kod 10 daqiqa amal qiladi,
+    o‘z paroli bilan kiradi. Parolni unutsa — kirish sahifasidagi **«Parolimni unutdim»** tugmasi: raqamiga SMS kod keladi,
+    kodni kiritib yangi parol qo‘yadi (parol oynasida kod shu yerning o‘zida yuboriladi). Kod 10 daqiqa amal qiladi,
     5 marta xato kiritilsa bekor bo‘ladi, qayta yuborish — 1 daqiqadan keyin (bir raqamga kuniga ko‘pi bilan 5 ta). Bazada
     kodning o‘zi emas, faqat izi saqlanadi; parollar — scrypt.
   - **Rahbarning birinchi kirishi:** rahbar profili hali yo‘q bo‘lsa, rahbar raqami (`OWNER_PHONE`, standart — 94 176 14 05)
@@ -73,6 +89,15 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   qo‘ng‘iroqchada «To‘lovlarni yig‘ing: … N ta o‘quvchi to‘lov qilmabdi» chiqadi (ro‘yxati bilan), bajargach «Bajarildi».
 - **Faoliyat tarixi** — har bir kirish va amal (to‘lov, o‘quvchi, kassa, sozlama, Excel yuklash…) vaqti, qurilmasi va manzili
   bilan yoziladi; har kim **faqat o‘z** amallarini ko‘radi (profil menyusi → «Faoliyat tarixi»).
+- **Tezlik** (rahbar) — sahifalar foydalanuvchilarda qancha vaqtda ochilayotgani: har sahifa bo'yicha **sahifaga o'tish**
+  (menyu/havola/filtr bosilgandan mazmun chiqquncha), **birinchi ochilish** (sayt yangidan ochilib ishlatsa bo'ladigan
+  bo'lguncha) va **serverda** tayyorlanish vaqti — mediana va 90%, ochilishlar soni, eng sekin 10 ta ochilish; 1 soat / 24 soat /
+  7 kun / 30 kun va kim ochgani bo'yicha. Sahifaga o'tish **kutish** (server ma'lumoti to'liq kelguncha: tarmoq, server
+  uyg'onishi, serverda ishlash) va **chizish** (brauzerda ekranga chiqarish) ga bo'linadi; yangi ulanishlar va server
+  **uyg'onishi** (ishlamay turgan server nusxasining birinchi so'rovi, taxminiy vaqti bilan) ham ko'rsatiladi — tepadagi
+  «Sahifaga o'tishda vaqt qayerga ketyapti» kartasi. «Qaysi Vercel tuguni orqali kirilmoqda» — foydalanuvchilar kiradigan
+  tugunlar ulushi (`x-vercel-id`), har biridan o'tish vaqti va so'rov tugundan serverdagi kodgacha yetib borgan vaqt. O'lchov har ochilishda o'zi yoziladi (javob yuborilgandan keyin — foydalanuvchini kutdirmaydi),
+  30 kun saqlanadi, Vercel loglarida ham `[perf] …` qatori bo'lib chiqadi. Prefetch va server action so'rovlari o'lchanmaydi.
 - **Reja va yangiliklar** (rahbar) — kelgusida qilinadigan ishlar va shu paytgacha qilinganlar, ochiladigan bo‘limlarda.
 - **Oy oxiri eslatmasi** — oy tugashiga 10 kun qolganda (va o‘tgan oyda to‘lamaganlar qolgan bo‘lsa) yuqoridagi qo‘ng‘iroqchada va
   sahifalarda: «10 ta o‘quvchi to‘lov qilmadi» — bosilsa ism-familiyalar ro‘yxati.
@@ -206,7 +231,7 @@ xodimlarni ulab olish uchun. Tartib:
 ## Tuzilma
 
 ```
-app/(app)/            sahifalar: bosh sahifa (rahbar paneli / o'qituvchi sahifasi), students, payments, kassa, olinganlar,
+app/(app)/            sahifalar: bosh sahifa (rahbar paneli / o'qituvchi sahifasi), students, qarzdorlar, payments, kassa, olinganlar,
                       staff, me, faoliyat, reja, settings, sync
 app/login, register   kirish (telefon + parol) va SMS kod bilan ro'yxatdan o'tish / parolni tiklash
 app/actions/          server action'lar (kirish va SMS kod, xodimlar, o'quvchi, to'lov, kassa, topshiriq, o'zim, sozlamalar, Sheets)
@@ -221,6 +246,9 @@ components/ThemeToggle.tsx, theme-state.ts  yorug' / qorong'i mavzu
 lib/auth.ts, session.ts  rollar (rahbar / administrator / o'qituvchi), kim qayerga kira olishi, sessiya va parol barmoq izi
 lib/staff.ts, staff-rules.ts  xodimlar: qidirish, lavozim nomlari, foiz va oylik qoidalari (sof funksiyalar, testlangan)
 lib/pay.ts           oy bo'yicha tushum (o'qituvchilar kesimida) va xodim oyligi
+lib/perf.ts, perf-report.ts, perf-rules.ts  tezlik o'lchovi: yozish, «Tezlik» sahifasi xulosasi, sahifa turlari va statistika
+components/PerfWatcher.tsx, instrumentation-client.ts  brauzerdagi o'lchov (sahifa mazmuni chiqqan payt) → /api/perf
+lib/salary-cycle.ts  oylik davri: to'lov qaysi oy oyligiga — oy «oylik» yozilguncha ochiq (sof funksiyalar, testlangan)
 lib/otp.ts, otp-code.ts  SMS tasdiqlash kodi: yuborish, tekshirish, cheklovlar
 lib/kassa.ts          administrator va rahbar kassasi (naqd / karta), topshiruvlar
 lib/tasks.ts          rahbardan administratorga topshiriqlar
@@ -239,6 +267,6 @@ lib/importer.ts       Sheets farqlaridan saytga o'quvchi va to'lov qo'shish
 lib/normalize.ts      ism / telefon / summa / oy / sana normallashtirish
 lib/sheets.ts         Sheets'dan yuklash (CSV yoki service account)
 lib/sync.ts           tekshiruvni bajarish, natijani saqlash, kunlik rejim
-lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Handover, Activity
+lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Handover, Activity, Perf
 proxy.ts              kirmagan foydalanuvchini /login ga, har bir rolni o'z bo'limlariga yo'naltiradi
 ```

@@ -1,11 +1,12 @@
 "use client";
 
 // SMS kod bosqichi (birinchi kirish / parolni tiklash): SMS'dagi kod + yangi parol, kodni qayta yuborish va raqamni o'zgartirish.
-import { startTransition, useActionState, useSyncExternalStore } from "react";
+import { startTransition, useActionState, useState, useSyncExternalStore } from "react";
 import { ArrowRight, KeyRound, RotateCcw } from "lucide-react";
 import { verifyCode, type CodeState } from "@/app/actions/auth";
 import { formatUzPhone } from "@/lib/phone";
 import { MIN_PASSWORD_LENGTH } from "@/lib/passwords-rules";
+import { RevealPasswordButton } from "./inputs";
 import { btn, cx, inputCls, labelCls } from "./ui";
 
 // Soniyalar sanog'i (qayta yuborish tugmasi uchun) — har soniyada yangilanadi
@@ -45,6 +46,9 @@ export function OtpCodeStep({
   const phone = state.phone ?? "";
   const purpose = state.purpose ?? "activate";
   const fe = verifyState.fieldErrors ?? {};
+  // Yangi parol va takrori — bitta tugma bilan birga ko'rsatiladi / yashiriladi
+  const [shown, setShown] = useState(false);
+  const toggle = () => setShown((v) => !v);
 
   return (
     <div className="grid gap-5">
@@ -96,14 +100,34 @@ export function OtpCodeStep({
             <label htmlFor="reg-password" className={labelCls}>
               {purpose === "reset" ? "Yangi parol" : "Parol yarating"}
             </label>
-            <input id="reg-password" name="password" type="password" autoComplete="new-password" className={cx(inputCls, "h-12")} aria-invalid={!!fe.password} />
+            <div className="relative">
+              <input
+                id="reg-password"
+                name="password"
+                type={shown ? "text" : "password"}
+                autoComplete="new-password"
+                className={cx(inputCls, "h-12 pr-12")}
+                aria-invalid={!!fe.password}
+              />
+              <RevealPasswordButton shown={shown} onToggle={toggle} />
+            </div>
             {fe.password ? <p className="mt-1.5 text-xs text-rose-600">{fe.password}</p> : <p className="mt-1.5 text-xs text-ink-400">Kamida {MIN_PASSWORD_LENGTH} ta belgi</p>}
           </div>
           <div>
             <label htmlFor="reg-confirm" className={labelCls}>
               Parolni takrorlang
             </label>
-            <input id="reg-confirm" name="confirm" type="password" autoComplete="new-password" className={cx(inputCls, "h-12")} aria-invalid={!!fe.confirm} />
+            <div className="relative">
+              <input
+                id="reg-confirm"
+                name="confirm"
+                type={shown ? "text" : "password"}
+                autoComplete="new-password"
+                className={cx(inputCls, "h-12 pr-12")}
+                aria-invalid={!!fe.confirm}
+              />
+              <RevealPasswordButton shown={shown} onToggle={toggle} />
+            </div>
             {fe.confirm ? <p className="mt-1.5 text-xs text-rose-600">{fe.confirm}</p> : null}
           </div>
         </div>
