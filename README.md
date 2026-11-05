@@ -52,6 +52,8 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
     rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). **Administratorda foiz yo‘q — belgilangan oylik**
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
+    Xodim sahifasida (va «Profilim»da) oylik kartasining o‘zida **oy tanlagich** (‹ oy ›) va **«Oylar bo‘yicha»** jadvali:
+    oxirgi 12 oy — tushum, hisoblangan oylik, olingan oylik/avans, qolgani va jami; oy bosilsa, o‘sha oy tafsiloti ochiladi.
   - **Oylik davri** (foizli oylik, oktabr 2026 dan): oy **«Oylik» olindi deb yozilmaguncha yopilmaydi**. Masalan, oktabr
     oyligi hali olinmagan bo‘lsa, noyabrda tushgan to‘lovlar ham oktabr oyligiga qo‘shiladi. Xodim «Olingan avans/oylik»
     bo‘limida (yoki rahbar xodim sahifasida) «Oylik — Oktabr» deb yozgach, olingan sanadan keyin tushgan to‘lovlar noyabr
@@ -108,6 +110,10 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   masalan faqat 25-sanadan ham qilsa bo‘ladi). SMS’dan oldin Google Sheets’dagi yangi to‘lovlar olib kelinadi.
 - **Avtomatik qo‘shish** — Sheets’da bor, saytda yo‘q to‘lovlar har tekshiruvda o‘zi saytga yoziladi (Google Sheets sozlamalarida
   o‘chirsa bo‘ladi); saytda yo‘q yangi o‘quvchilar va summa farqlari tugma bilan tasdiqlanadi.
+- **E’tiborsiz qoldirish** — «Google Sheets» sahifasida har bir farq yonidagi tugma: farq keyingi tekshiruvlarda (qo‘lda,
+  cron va avtomatik) ko‘rsatilmaydi, ogohlantirish va hisoblagichlarga kirmaydi, saytga avtomatik qo‘shilmaydi. Masalan, Sheets’ni
+  boshqa odam yuritsa va xatoni tuzatib bo‘lmasa. Farq o‘zining «kaliti» bo‘yicha taniladi (o‘quvchi, oy, summalar, Sheets
+  qatorining sanasi); shu yozuv o‘zgarsa — farq yana chiqadi. «E’tiborsiz qoldirilganlar» bo‘limida ro‘yxat va «Qaytarish».
 - **Dars jadvali** — har o‘quvchining dars kunlari va vaqti: «Toq kunlar» (Du·Ch·Ju), «Juft kunlar» (Se·Pa·Sh), «Har kuni»
   yoki o‘zingiz tanlagan kunlar; boshlanish — tugash vaqti (tugashi avtomatik +2 soat, o‘zgartirsa bo‘ladi), kerak bo‘lsa
   har kunga alohida vaqt. O‘quvchi formasida yoki «O‘quvchilar» ro‘yxatida bir nechtasini belgilab «Dars vaqti» tugmasi bilan

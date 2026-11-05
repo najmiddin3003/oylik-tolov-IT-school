@@ -195,6 +195,8 @@ const mismatchSchema = new Schema(
     parts: { type: [sheetPartSchema], default: [] },
     note: { type: String, default: "" },
     resolved: { type: Boolean, default: false },
+    /** Rahbar «e'tiborsiz qoldirgan» farq: ro'yxatda va hisoblagichlarda ko'rinmaydi (resolved ham true bo'ladi) */
+    ignored: { type: Boolean, default: false },
   },
   { _id: true },
 );
@@ -226,6 +228,25 @@ const syncRunSchema = new Schema(
   { timestamps: false },
 );
 syncRunSchema.index({ startedAt: -1 });
+
+// ---------- E'tiborsiz qoldirilgan farqlar: keyingi tekshiruvlarda (qo'lda va avtomatik) ko'rsatilmaydi ----------
+const syncIgnoreSchema = new Schema(
+  {
+    /** Farq kaliti (lib/compare.ts → mismatchKey): ma'lumot o'zgarsa — kalit ham o'zgaradi va farq yana ko'rinadi */
+    key: { type: String, required: true, unique: true },
+    kind: { type: String, enum: MISMATCH_KINDS, required: true },
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", default: null },
+    studentName: { type: String, default: "" },
+    group: { type: String, default: "" },
+    month: { type: String, default: "" },
+    siteAmount: { type: Number, default: 0 },
+    sheetAmount: { type: Number, default: 0 },
+    /** Ro'yxatda ko'rsatish uchun: o'sha paytdagi Sheets qatorlari va sanasi */
+    sheetRows: { type: [Number], default: [] },
+    sheetDate: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
 
 // ---------- Oylik va avanslar (tushum ulushidan ayiriladi) ----------
 const salarySchema = new Schema(
@@ -433,6 +454,8 @@ export const Counter: Model<InferSchemaType<typeof counterSchema>> =
   models.Counter || model("Counter", counterSchema);
 export const SyncRun: Model<InferSchemaType<typeof syncRunSchema>> =
   models.SyncRun || model("SyncRun", syncRunSchema);
+export const SyncIgnore: Model<InferSchemaType<typeof syncIgnoreSchema>> =
+  models.SyncIgnore || model("SyncIgnore", syncIgnoreSchema);
 export const Salary: Model<InferSchemaType<typeof salarySchema>> =
   models.Salary || model("Salary", salarySchema);
 export const SmsLog: Model<InferSchemaType<typeof smsLogSchema>> =

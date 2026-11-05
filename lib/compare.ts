@@ -510,3 +510,29 @@ export function compareRecords(
   );
   return { mismatches, matchedCount, matchedByCourse };
 }
+
+/** Farq kaliti uchun kerakli maydonlar: tekshiruv natijasi ham, bazadagi yozuv ham (ObjectId — `String()` bilan). */
+export type MismatchKeySource = {
+  kind: string;
+  studentId?: unknown;
+  studentName?: string | null;
+  month: string;
+  siteAmount?: number | null;
+  sheetAmount?: number | null;
+  parts?: { row?: number | null; date?: string | null; amount?: number | null }[] | null;
+};
+
+/**
+ * Farqning barqaror kaliti — «e'tiborsiz qoldirilgan» farqni keyingi tekshiruvlarda (qo'lda va avtomatik) tanish uchun.
+ * Kalitga farq turi, o'quvchi (saytda yo'q bo'lsa — Sheets'dagi ismi), oy, ikkala summa va Sheets qatorlarining sanasi
+ * bilan summasi kiradi; qator raqami kirmaydi (jadvalga yuqoridan qator qo'shilsa ham kalit o'zgarmaydi).
+ * Shu farqqa tegishli narsa o'zgarsa (summa, sana, yangi to'lov) — kalit ham o'zgaradi va farq yana ko'rinadi.
+ */
+export function mismatchKey(m: MismatchKeySource, basis: "month" | "date"): string {
+  const who = m.studentId ? String(m.studentId) : `name:${nameKey(m.studentName ?? "")}`;
+  const sheet = (m.parts ?? [])
+    .map((p) => `${p.date || `#${p.row ?? 0}`}=${p.amount ?? 0}`)
+    .sort()
+    .join(",");
+  return [basis, m.kind, who, m.month, m.siteAmount ?? 0, m.sheetAmount ?? 0, sheet].join("|");
+}

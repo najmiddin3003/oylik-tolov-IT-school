@@ -3,13 +3,15 @@
 import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
 import { requireOwner } from "@/lib/auth";
+import { mismatchKey } from "@/lib/compare";
 import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
 import { importFromRun } from "@/lib/importer";
-import { SyncRun } from "@/lib/models";
+import { SyncIgnore, SyncRun, type MismatchKind } from "@/lib/models";
 import { getSettings, updateSettings } from "@/lib/settings";
 import { parseSheetUrl } from "@/lib/sheets";
 import { runSync } from "@/lib/sync";
+import { monthLabel } from "@/lib/time";
 import type { FormState } from "./types";
 
 const COLUMN_FIELDS = ["name", "phone", "month", "amount", "date", "cash", "card", "fee", "course"] as const;
@@ -43,11 +45,18 @@ export async function runSyncNow(): Promise<FormState> {
   const res = await runSync("manual");
   refresh();
   if (!res) return { error: "Hozir boshqa tekshiruv ketmoqda, birozdan keyin urinib ko'ring" };
-  await logActivity(session, "sync.run", res.ok ? `Sheets bilan tekshirildi: ${res.mismatches} ta farq${res.imported ? `, ${res.imported} ta to‘lov qo‘shildi` : ""}` : `Sheets tekshiruvi xato: ${res.error}`);
+  await logActivity(
+    session,
+    "sync.run",
+    res.ok
+      ? `Sheets bilan tekshirildi: ${res.mismatches} ta farq${res.imported ? `, ${res.imported} ta to‘lov qo‘shildi` : ""}${res.ignored ? ` (${res.ignored} tasi e’tiborsiz qoldirilgan)` : ""}`
+      : `Sheets tekshiruvi xato: ${res.error}`,
+  );
   if (!res.ok) return { error: res.error };
   const parts = [
     res.imported ? `${res.imported} ta to‘lov Sheets’dan saytga qo‘shildi` : "",
     res.mismatches ? `${res.mismatches} ta farq topildi` : "",
+    res.ignored ? `${res.ignored} ta e’tiborsiz qoldirilgan farq ko‘rsatilmadi` : "",
   ].filter(Boolean);
   return { ok: true, message: parts.length ? `Tekshirildi: ${parts.join(", ")}` : "Tekshirildi: hammasi bir xil ✓" };
 }
@@ -108,5 +117,73 @@ export async function resolveMismatch(runId: string, mismatchId: string): Promis
   mismatch.resolved = true;
   await run.save();
   await logActivity(session, "sync.resolve", `Farq hal qilindi deb belgilandi: ${mismatch.studentName}`);
+  refresh();
+}
+
+const KIND_TEXT: Record<MismatchKind, string> = {
+  missing_on_site: "Saytda yo‘q",
+  missing_in_sheet: "Sheets’da yo‘q",
+  amount_diff: "Summa farqi",
+  unknown_student: "Saytda yo‘q o‘quvchi",
+};
+
+/**
+ * Farqni e'tiborsiz qoldirish: shu tekshiruvda yashiriladi va keyingi tekshiruvlarda (qo'lda, cron, avtomatik) ham
+ * ko'rsatilmaydi, saytga avtomatik qo'shilmaydi. Shu yozuv o'zgarsa (summa, sana, yangi to'lov) — farq yana chiqadi.
+ */
+export async function ignoreMismatch(runId: string, mismatchId: string): Promise<void> {
+  const session = await requireOwner({ fresh: true });
+  if (!isId(runId) || !isId(mismatchId)) return;
+  await connectDB();
+  const run = await SyncRun.findById(runId);
+  const m = run?.mismatches.id(mismatchId);
+  if (!run || !m || m.ignored) return;
+  const key = mismatchKey(m, run.basis === "date" ? "date" : "month");
+  await SyncIgnore.updateOne(
+    { key },
+    {
+      $setOnInsert: {
+        key,
+        kind: m.kind,
+        studentId: m.studentId ?? null,
+        studentName: m.studentName ?? "",
+        group: m.group ?? "",
+        month: m.month,
+        siteAmount: m.siteAmount ?? 0,
+        sheetAmount: m.sheetAmount ?? 0,
+        sheetRows: m.sheetRows ?? [],
+        sheetDate: m.sheetDate ?? "",
+      },
+    },
+    { upsert: true },
+  );
+  m.ignored = true;
+  m.resolved = true;
+  await run.save();
+  await logActivity(session, "sync.ignore", `E’tiborsiz qoldirildi: ${m.studentName} — ${KIND_TEXT[m.kind as MismatchKind]}, ${monthLabel(m.month)}`);
+  refresh();
+}
+
+/** E'tiborsiz qoldirishni bekor qilish: farq oxirgi tekshiruvda bo'lsa — darhol, aks holda keyingi tekshiruvda yana ko'rinadi. */
+export async function unignoreMismatch(ignoreId: string): Promise<void> {
+  const session = await requireOwner({ fresh: true });
+  if (!isId(ignoreId)) return;
+  await connectDB();
+  const doc = await SyncIgnore.findByIdAndDelete(ignoreId).lean();
+  if (!doc) return;
+  const last = await SyncRun.findOne({}).sort({ startedAt: -1 });
+  if (last) {
+    const basis = last.basis === "date" ? "date" : "month";
+    let changed = false;
+    for (const m of last.mismatches) {
+      if (m.ignored && mismatchKey(m, basis) === doc.key) {
+        m.ignored = false;
+        m.resolved = false;
+        changed = true;
+      }
+    }
+    if (changed) await last.save();
+  }
+  await logActivity(session, "sync.unignore", `E’tiborsiz qoldirish bekor qilindi: ${doc.studentName} — ${KIND_TEXT[doc.kind as MismatchKind]}, ${monthLabel(doc.month)}`);
   refresh();
 }

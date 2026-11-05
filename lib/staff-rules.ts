@@ -3,6 +3,7 @@
 import { amountFor, percentFor, type AmountChange, type PercentChange } from "./fees";
 import { normalizeUzPhone } from "./phone";
 import type { Role } from "./session";
+import { compareMonths, shiftMonth } from "./time";
 
 /**
  * Rahbarning telefon raqami: rahbar profili hali umuman yo'q bo'lsa, shu raqam kirish sahifasida birinchi marta
@@ -100,6 +101,30 @@ export function payOf(base: number, percent: number, taken: number) {
 /** Belgilangan oylik: shu oy uchun summa, olingan oylik/avans ayiriladi. */
 export function fixedPayOf(amount: number, taken: number) {
   return { kind: "fixed" as PayKind, base: 0, percent: 0, share: amount, taken, left: amount - taken };
+}
+
+/**
+ * «Oylar bo'yicha oylik» jadvali uchun oylar, eng yangisi birinchi: joriy oygacha oxirgi `count` oy.
+ * Tanlangan oy bu oraliqdan tashqarida bo'lsa (ancha eski yoki kelgusi oy) — tanlangan oygacha oxirgi `count` oy.
+ */
+export function payHistoryMonths(selected: string, current: string, count = 12): string[] {
+  const inWindow = compareMonths(selected, current) <= 0 && compareMonths(selected, shiftMonth(current, -(count - 1))) >= 0;
+  const end = inWindow ? current : selected;
+  return Array.from({ length: count }, (_, i) => shiftMonth(end, -i));
+}
+
+/**
+ * Oylik hali belgilanmagan eng eski oylar (oylik ham, olingan pul ham 0) jadvaldan tushiriladi — xodim ishga kirmasdan
+ * oldingi bo'sh oylar ko'rinmaydi. Qatorlar eng yangisi birinchi; tanlangan oy va undan keyingilari doim qoladi.
+ */
+export function trimEmptyPayMonths<T extends { month: string; share: number; taken: number }>(rows: T[], selected: string): T[] {
+  let end = rows.length;
+  while (end > 0) {
+    const r = rows[end - 1];
+    if (r.share !== 0 || r.taken !== 0 || compareMonths(r.month, selected) >= 0) break;
+    end--;
+  }
+  return rows.slice(0, end);
 }
 
 /** Oylik yozuvi: foizda — "Oylik (40%)", belgilangan oylikda — "Oylik". */

@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { BookOpen, CalendarClock, CircleCheck, Download, Eye, FileSpreadsheet, Info, TriangleAlert } from "lucide-react";
-import { importAllMismatches, importMismatch, linkMismatch, resolveMismatch } from "@/app/actions/sync";
+import { BookOpen, CalendarClock, CircleCheck, Download, Eye, EyeOff, FileSpreadsheet, Info, TriangleAlert, Undo2 } from "lucide-react";
+import { ignoreMismatch, importAllMismatches, importMismatch, linkMismatch, resolveMismatch, unignoreMismatch } from "@/app/actions/sync";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { LinkStudentPicker, RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
 import { Avatar, btn, Card, CardHeader, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
 import { courseLabel } from "@/lib/compare";
 import { sameCourse } from "@/lib/courses";
-import { getSyncPageData, type MismatchRow, type StudentPick, type SyncRunView } from "@/lib/data";
+import { getSyncPageData, type MismatchRow, type StudentPick, type SyncIgnoreRow, type SyncRunView } from "@/lib/data";
 import type { MismatchKind } from "@/lib/models";
 import { syncHour } from "@/lib/sync";
 import { formatDate, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
@@ -41,7 +41,7 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
   await ownerGuard();
   const sp = await searchParams;
   const course = typeof sp.kurs === "string" ? sp.kurs.slice(0, 80) : "";
-  const { settings, runs, students, paidByMonth } = await getSyncPageData();
+  const { settings, runs, ignores, students, paidByMonth } = await getSyncPageData();
   const last = runs[0];
   const hour = String(syncHour()).padStart(2, "0");
 
@@ -72,6 +72,8 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
           </EmptyState>
         </Card>
       ) : null}
+
+      {ignores.length ? <IgnoredList ignores={ignores} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card id="sozlamalar" className="scroll-mt-24 p-6">
@@ -136,7 +138,10 @@ function LastRun({
   const inCourse = (m: MismatchRow) => !selected || sameCourse(courseLabel(m.group), selected);
   const allOpen = run.mismatches.filter((m) => !m.resolved);
   const open = allOpen.filter(inCourse);
-  const resolved = run.mismatches.filter(inCourse).length - open.length;
+  // E'tiborsiz qoldirilganlar ham resolved — «hal qilingan»lar sonidan alohida
+  const ignoredHere = run.mismatches.filter((m) => m.ignored && inCourse(m)).length;
+  const resolved = run.mismatches.filter(inCourse).length - open.length - ignoredHere;
+  const hidden = [resolved ? `${resolved} tasi hal qilingan` : "", ignoredHere ? `${ignoredHere} tasi e’tiborsiz` : ""].filter(Boolean).join(", ");
   const importable = allOpen.filter(isImportable);
   // Bir xil ismli bir nechta yoki o'xshash ismli o'quvchi bor — ommaviy qo'shishda o'tkazib yuboriladi, alohida tanlanadi
   const needsChoice = importable.filter(needsStudentChoice);
@@ -172,7 +177,7 @@ function LastRun({
           tone="brand"
         />
         <MiniStat label="Mos keldi" value={stat ? stat.matched : run.matchedCount} icon={CircleCheck} tone="emerald" />
-        <MiniStat label={resolved ? `Farqlar (${resolved} tasi hal qilingan)` : "Farqlar"} value={open.length} icon={TriangleAlert} tone={open.length ? "amber" : "emerald"} />
+        <MiniStat label="Farqlar" value={open.length} hint={hidden || undefined} icon={TriangleAlert} tone={open.length ? "amber" : "emerald"} />
       </div>
       {run.autoImported ? (
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-emerald-200/80 bg-emerald-50/70 px-4 py-3 text-sm sm:px-5" role="status">
@@ -218,6 +223,7 @@ function LastRun({
           <div className="border-t border-line-soft">
             <EmptyState title={selected ? `«${selected}»: farq yo‘q ✓` : "Sayt va Google Sheets bir xil ✓"} icon={CircleCheck}>
               {(stat ? stat.rows : run.sheetRowCount) ? `${periodLabel(run)} oralig‘idagi barcha to‘lovlar mos keldi.` : "Sheets’da solishtiriladigan to‘lov topilmadi."}
+              {ignoredHere ? ` E’tiborsiz qoldirilgan ${ignoredHere} ta farq ko‘rsatilmadi.` : ""}
             </EmptyState>
           </div>
         ) : (
@@ -403,9 +409,82 @@ function MismatchItem({
           >
             Hal qilindi ✓
           </ConfirmAction>
+          <ConfirmAction
+            action={ignoreMismatch.bind(null, runId, m.id)}
+            confirmText={`${m.studentName}: bu farq e’tiborsiz qoldirilsinmi? U keyingi tekshiruvlarda (qo‘lda ham, avtomatik ham) ko‘rsatilmaydi${
+              isImportable(m) ? " va saytga avtomatik qo‘shilmaydi" : ""
+            }. Sheets’da yoki saytda shu yozuv o‘zgarsa (summa, sana) — yana chiqadi. «E’tiborsiz qoldirilganlar» bo‘limidan qaytarish mumkin.`}
+            className={cx(btn.sm, "text-ink-500")}
+            pendingText="…"
+            title="Keyingi tekshiruvlarda ko‘rsatmaslik"
+          >
+            <EyeOff className="size-4" aria-hidden />
+            E’tiborsiz qoldirish
+          </ConfirmAction>
         </div>
       </div>
     </li>
+  );
+}
+
+/** E'tiborsiz qoldirilgan farqlar: tekshiruvlarda ko'rsatilmaydi; «Qaytarish» — yana ko'rinadi. */
+function IgnoredList({ ignores }: { ignores: SyncIgnoreRow[] }) {
+  return (
+    <Card className="mb-6">
+      <details>
+        <summary className="flex cursor-pointer flex-wrap items-center gap-2 px-6 py-4 text-sm font-medium text-ink-700">
+          <EyeOff className="size-4 text-ink-400" aria-hidden />
+          E’tiborsiz qoldirilganlar: {ignores.length} ta <span className="text-ink-400">(ko‘rsatish)</span>
+        </summary>
+        <p className="border-t border-line-soft bg-slate-50/70 px-6 py-2.5 text-[13px] leading-relaxed text-ink-500">
+          Bu farqlar tekshiruvlarda (qo‘lda ham, avtomatik ham) ko‘rsatilmaydi va saytga avtomatik qo‘shilmaydi. Sheets’da yoki saytda shu yozuv
+          o‘zgarsa (summa, sana) — farq yana chiqadi.
+        </p>
+        <ul className="divide-y divide-line-soft border-t border-line-soft">
+          {ignores.map((x) => {
+            const k = KIND[x.kind];
+            return (
+              <li key={x.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-3">
+                <div className="min-w-0 flex-1 basis-64">
+                  <p className="flex flex-wrap items-center gap-2">
+                    {x.studentId ? (
+                      <Link href={`/students/${x.studentId}?month=${x.month}`} className="text-[15px] font-medium text-ink-900 hover:text-brand-600">
+                        {x.studentName}
+                      </Link>
+                    ) : (
+                      <span className="text-[15px] font-medium text-ink-900">{x.studentName}</span>
+                    )}
+                    <span title={k.help}>
+                      <Tag tone={k.tone}>{k.label}</Tag>
+                    </span>
+                    {x.stale ? (
+                      <span title="Oxirgi tekshiruvda bu farq uchramadi — yozuv o‘zgargan yoki to‘g‘rilangan. Ro‘yxatdan olib tashlasa bo‘ladi.">
+                        <Tag tone="emerald">endi uchramayapti</Tag>
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="num mt-0.5 text-[13px] text-ink-500">
+                    {monthLabel(x.month)} · Saytda {x.siteAmount ? formatMoney(x.siteAmount) : "—"} · Sheets’da {x.sheetAmount ? formatMoney(x.sheetAmount) : "—"}
+                    {x.sheetRows.length ? ` · ${x.sheetRows.join(", ")}-qator` : ""}
+                    {x.sheetDate ? ` (${formatDate(x.sheetDate)})` : ""}
+                  </p>
+                  <p className="num mt-0.5 text-xs text-ink-400">E’tiborsiz qoldirilgan: {formatDateTime(x.createdAt)}</p>
+                </div>
+                <ConfirmAction
+                  action={unignoreMismatch.bind(null, x.id)}
+                  confirmText={`${x.studentName}: bu farq yana ko‘rsatilsinmi? Oxirgi tekshiruvda bo‘lsa — darhol, aks holda keyingi tekshiruvda chiqadi.`}
+                  className={btn.sm}
+                  pendingText="…"
+                >
+                  <Undo2 className="size-4" aria-hidden />
+                  Qaytarish
+                </ConfirmAction>
+              </li>
+            );
+          })}
+        </ul>
+      </details>
+    </Card>
   );
 }
 

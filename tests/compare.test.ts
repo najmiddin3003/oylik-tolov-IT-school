@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { allocateAmount, importFromMonth } from "../lib/allocate";
 import { parseCSV } from "../lib/csv";
-import { compareRecords, courseFilterTokens, DEFAULT_COLUMNS, matchesCourse, parseSheet } from "../lib/compare";
+import { compareRecords, courseFilterTokens, DEFAULT_COLUMNS, matchesCourse, mismatchKey, parseSheet } from "../lib/compare";
 import { nameKey, parseAmount, parseDateCell, parseMonthCell, phoneKey } from "../lib/normalize";
 import { parseSheetUrl } from "../lib/sheets";
 import { lastScheduledTime, shiftMonth } from "../lib/time";
@@ -289,4 +289,62 @@ test("tushumdan ulush (40%)", async () => {
   assert.equal(shareOf(1_650_000, 40), 660_000);
   assert.equal(shareOf(333_333, 40), 133_333);
   assert.equal(shareOf(0, 40), 0);
+});
+
+test("e'tiborsiz qoldirish: farq kaliti keyingi tekshiruvda ham bir xil, ma'lumot o'zgarsa — boshqa", () => {
+  const parsed = parseSheet(parseCSV(CENTER_CSV), DEFAULT_COLUMNS, CENTER_OPTS);
+  const students = [{ id: "rh", fullName: "Rahimov Husan", phone: "", parentPhone: "", group: "Web dasturlash" }];
+  const site = [{ studentId: "rh", month: "2026-10", paidDate: "2026-10-01", amount: 300000 }];
+  const run = () => compareRecords(parsed.records, students, site, { window: parsed.window, courseFilter: "Web dasturlash" }).mismatches;
+  const keys = (list: ReturnType<typeof run>) => list.map((m) => mismatchKey(m, "date"));
+
+  // Ikki tekshiruv — bir xil kalitlar (takrorlanmaydi)
+  const first = keys(run());
+  assert.deepEqual(keys(run()), first);
+  assert.equal(new Set(first).size, first.length);
+
+  // Bazadagi yozuv: ObjectId (String() bilan) va ortiqcha maydonlar — kalit o'zgarmaydi
+  const m = run().find((x) => x.kind === "missing_in_sheet")!;
+  const stored = { ...m, studentId: { toString: () => "rh" }, _id: "x", resolved: false, parts: [] };
+  assert.equal(mismatchKey(stored, "date"), mismatchKey(m, "date"));
+
+  // Saytda summa o'zgarsa — boshqa kalit (farq yana ko'rinadi)
+  assert.notEqual(mismatchKey({ ...m, siteAmount: 250000 }, "date"), mismatchKey(m, "date"));
+  // Boshqa solishtirish usuli — boshqa kalit
+  assert.notEqual(mismatchKey(m, "month"), mismatchKey(m, "date"));
+});
+
+test("e'tiborsiz qoldirish: Sheets tomoni — ism, sana, summa va qatorlar", () => {
+  const base = {
+    kind: "unknown_student",
+    studentId: null,
+    studentName: "Alijanov  Alisher",
+    month: "2026-11",
+    siteAmount: 0,
+    sheetAmount: 200000,
+    parts: [{ row: 83, date: "2026-11-04", amount: 200000 }],
+  };
+  const key = mismatchKey(base, "date");
+  // Ism: katta-kichik harf, bo'sh joy va so'zlar tartibi muhim emas
+  assert.equal(mismatchKey({ ...base, studentName: "alisher ALIJANOV" }, "date"), key);
+  // Jadvalga yuqoridan qator qo'shilib, qator raqami siljisa ham — o'sha yozuv
+  assert.equal(mismatchKey({ ...base, parts: [{ row: 85, date: "2026-11-04", amount: 200000 }] }, "date"), key);
+  // Sana yoki summa o'zgarsa, yangi qator qo'shilsa — boshqa yozuv
+  assert.notEqual(mismatchKey({ ...base, parts: [{ row: 83, date: "2026-11-05", amount: 200000 }] }, "date"), key);
+  assert.notEqual(mismatchKey({ ...base, sheetAmount: 250000, parts: [{ row: 83, date: "2026-11-04", amount: 250000 }] }, "date"), key);
+  assert.notEqual(
+    mismatchKey({ ...base, sheetAmount: 500000, parts: [...base.parts, { row: 90, date: "2026-11-10", amount: 300000 }] }, "date"),
+    key,
+  );
+  // Qatorlar tartibi muhim emas
+  const two = [
+    { row: 4, date: "2026-09-07", amount: 50000 },
+    { row: 7, date: "2026-09-29", amount: 200000 },
+  ];
+  assert.equal(mismatchKey({ ...base, parts: two }, "date"), mismatchKey({ ...base, parts: [...two].reverse() }, "date"));
+  // Boshqa o'quvchi yoki boshqa oy — boshqa kalit
+  assert.notEqual(mismatchKey({ ...base, studentName: "Alijanov Azizbek" }, "date"), key);
+  assert.notEqual(mismatchKey({ ...base, month: "2026-10" }, "date"), key);
+  // Saytdagi o'quvchiga bog'langan bo'lsa — ism emas, o'quvchi bo'yicha
+  assert.notEqual(mismatchKey({ ...base, kind: "missing_on_site", studentId: "az" }, "date"), mismatchKey({ ...base, kind: "missing_on_site" }, "date"));
 });

@@ -24,10 +24,12 @@ import {
   parsePercent,
   payKindOf,
   payLabel,
+  payHistoryMonths,
   payOf,
   staffInitials,
   staffPercent,
   staffSalary,
+  trimEmptyPayMonths,
 } from "../lib/staff-rules";
 
 process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-123";
@@ -177,4 +179,40 @@ test("oylik qaysi oyga: o'tgan oy qarzi — olingan oyga, oldindan to'lov — o'
   assert.equal(salaryMonthOf("2026-10", "2026-10"), "2026-10");
   assert.equal(salaryMonthOf("2026-11", "2026-10"), "2026-11", "noyabr uchun oldindan — noyabr oyligiga");
   assert.equal(salaryMonthOf("2026-12", "2027-01"), "2027-01", "yil almashishi");
+});
+
+test("«Oylar bo'yicha» jadvali: qaysi oylar ko'rinadi", () => {
+  const months = payHistoryMonths("2026-11", "2026-11");
+  assert.equal(months.length, 12);
+  assert.equal(months[0], "2026-11", "eng yangisi birinchi");
+  assert.equal(months[11], "2025-12");
+  // Oxirgi 12 oy ichidagi oy tanlansa — jadval joriy oygacha qoladi
+  assert.deepEqual(payHistoryMonths("2026-03", "2026-11"), months);
+  assert.deepEqual(payHistoryMonths("2025-12", "2026-11"), months, "oraliqning eng eski oyi");
+  // Ancha eski oy — o'sha oygacha 12 oy (yil almashishi bilan)
+  const old = payHistoryMonths("2025-06", "2026-11");
+  assert.equal(old[0], "2025-06");
+  assert.equal(old[11], "2024-07");
+  // Kelgusi oy — o'sha oygacha (joriy oy ham ichida)
+  const future = payHistoryMonths("2027-01", "2026-11");
+  assert.equal(future[0], "2027-01");
+  assert.ok(future.includes("2026-11"));
+  assert.equal(payHistoryMonths("2026-11", "2026-11", 3).join(","), "2026-11,2026-10,2026-09");
+});
+
+test("«Oylar bo'yicha» jadvali: oylik belgilanmagan eski oylar tushiriladi", () => {
+  const row = (month: string, share: number, taken = 0) => ({ month, share, taken });
+  const rows = [row("2026-11", 0), row("2026-10", 500_000, 200_000), row("2026-09", 0, 100_000), row("2026-08", 0), row("2026-07", 0)];
+  assert.deepEqual(
+    trimEmptyPayMonths(rows, "2026-11").map((r) => r.month),
+    ["2026-11", "2026-10", "2026-09"],
+    "olingan pul bor oy qoladi, undan oldingi bo'sh oylar tushadi; o'rtadagi va yangi bo'sh oylar qoladi",
+  );
+  assert.deepEqual(
+    trimEmptyPayMonths(rows, "2026-07").map((r) => r.month),
+    ["2026-11", "2026-10", "2026-09", "2026-08", "2026-07"],
+    "tanlangan oy bo'sh bo'lsa ham ko'rinadi",
+  );
+  assert.deepEqual(trimEmptyPayMonths([row("2026-11", 0), row("2026-10", 0)], "2026-11").map((r) => r.month), ["2026-11"], "hammasi bo'sh — faqat tanlangan oy");
+  assert.deepEqual(trimEmptyPayMonths([], "2026-11"), []);
 });
