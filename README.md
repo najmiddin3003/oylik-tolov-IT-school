@@ -57,6 +57,8 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   - **Bu oy rejasi** (xodim sahifasi va «Profilim», foizli oylikda): o‘qituvchining o‘quvchilari shu oy qancha to‘lashi kerak
     (oylik to‘lovlari jami), **hamma to‘lasa oylik qancha bo‘ladi** (jami × foiz), **amalda qancha yig‘ildi** (rejaning necha
     foizi) va qancha yig‘ilmagan — to‘lamaganlar ro‘yxatiga havola bilan. Markaz tushumidan oladigan xodimda — barcha o‘quvchilar.
+    Shu oy uchun to‘lanib, oylik davri bo‘yicha **oldingi oy oyligiga hisoblangan pul** (masalan, oktabr oyligi olinmasdan tushgan
+    noyabr to‘lovi) alohida ko‘rsatiladi va bu oy oyligiga qayta qo‘shilmaydi — rejadagi oylik faqat qo‘lga tegmagan puldan.
   - **Oylik davri** (foizli oylik, oktabr 2026 dan): oy **«Oylik» olindi deb yozilmaguncha yopilmaydi**. Masalan, oktabr
     oyligi hali olinmagan bo‘lsa, noyabrda tushgan to‘lovlar ham oktabr oyligiga qo‘shiladi. Xodim «Olingan avans/oylik»
     bo‘limida (yoki rahbar xodim sahifasida) «Oylik — Oktabr» deb yozgach, olingan sanadan keyin tushgan to‘lovlar noyabr

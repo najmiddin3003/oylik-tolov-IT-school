@@ -135,31 +135,55 @@ export type PayPlan = {
   paidCount: number;
   /** To'lamagan yoki qisman to'laganlar */
   debtors: number;
-  /** O'quvchilarning shu oy uchun oylik to'lovlari jami — hamma to'lasa yig'iladigan summa */
+  /** O'quvchilarning shu oy uchun oylik to'lovlari jami */
   expected: number;
-  /** Amalda yig'ildi: shu oy uchun to'langan (har o'quvchida oylik to'lovidan oshmagan qismi) */
+  /**
+   * Shu oy uchun to'langan, lekin oldingi oy oyligiga hisoblangan (oylik davri bo'yicha: masalan, oktabr oyligi hali
+   * olinmagan paytda tushgan noyabr to'lovi) — bu oy oyligiga qayta qo'shilmaydi
+   */
+  earlier: number;
+  /** `earlier` qaysi oylar oyligiga hisoblangan ("YYYY-MM") */
+  earlierMonths: string[];
+  /** Amalda yig'ildi — shu oy oyligiga: shu oy uchun to'langan (oylik to'lovidan oshmagan qismi), `earlier` siz */
   collected: number;
   /** Hali to'lanmagan */
   debt: number;
   percent: number;
-  /** Rejadagi oylik: hamma to'lasa (expected × foiz) */
+  /** Rejadagi oylik — faqat qo'lga tegmagan pul: hamma to'lasa (collected + debt) × foiz */
   planShare: number;
 };
 
-/** O'quvchilar ro'yxatidan (shu oy holati bilan) bu oy rejasi. `debt` — o'quvchining shu oy uchun qolgan qarzi. */
-export function payPlanOf(rows: { monthlyFee: number; debt: number }[], percent: number): PayPlan {
-  const expected = rows.reduce((s, r) => s + r.monthlyFee, 0);
-  const debt = rows.reduce((s, r) => s + Math.min(Math.max(r.debt, 0), r.monthlyFee), 0);
-  const debtors = rows.filter((r) => r.debt > 0).length;
+/**
+ * O'quvchilar ro'yxatidan (shu oy holati bilan) bu oy rejasi. `debt` — o'quvchining shu oy uchun qolgan qarzi,
+ * `earlier` — uning shu oy uchun to'lovlaridan oldingi oy oyligiga hisoblangani.
+ * expected = earlier + collected + debt.
+ */
+export function payPlanOf(rows: { monthlyFee: number; debt: number; earlier?: number }[], percent: number, earlierMonths: string[] = []): PayPlan {
+  let expected = 0;
+  let debt = 0;
+  let earlier = 0;
+  let debtors = 0;
+  for (const r of rows) {
+    const fee = r.monthlyFee;
+    const owe = Math.min(Math.max(r.debt, 0), fee);
+    const paid = fee - owe;
+    expected += fee;
+    debt += owe;
+    earlier += Math.min(Math.max(r.earlier ?? 0, 0), paid);
+    if (r.debt > 0) debtors++;
+  }
+  const collected = expected - debt - earlier;
   return {
     students: rows.length,
     paidCount: rows.length - debtors,
     debtors,
     expected,
-    collected: expected - debt,
+    earlier,
+    earlierMonths: earlier ? earlierMonths : [],
+    collected,
     debt,
     percent,
-    planShare: Math.round((expected * percent) / 100),
+    planShare: Math.round(((collected + debt) * percent) / 100),
   };
 }
 

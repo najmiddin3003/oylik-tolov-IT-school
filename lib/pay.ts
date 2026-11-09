@@ -171,3 +171,32 @@ export async function staffPay(staff: StaffLean, month: string): Promise<StaffPa
   const cycle = percent > 0 ? { closedOn: cycles.closedOn(month), current: cycles.current } : null;
   return { staffId: id, ...payOf(cycles.bases.get(month) ?? 0, percent, taken), cycle };
 }
+
+/**
+ * Shu oy (`month`) uchun to'lovlardan oldingi oylar oyligiga hisoblanganlari (oylik davri bo'yicha): masalan, oktabr oyligi
+ * hali olinmagan paytda tushgan noyabr to'lovi oktabr oyligiga qo'shilgan — noyabr oyligiga qayta hisoblanmaydi.
+ * O'quvchi → summa va o'sha oylar. Belgilangan oylikda va oylik davridan oldingi oylarda — bo'sh.
+ */
+export async function paidInEarlierSalary(
+  staff: StaffLean,
+  month: string,
+  studentIds: string[],
+): Promise<{ byStudent: Map<string, number>; months: string[] }> {
+  const empty = { byStudent: new Map<string, number>(), months: [] };
+  if (payKindOf(staff.role) === "fixed" || month < SALARY_CYCLE_FROM || !studentIds.length) return empty;
+  await connectDB();
+  const [cycles, docs] = await Promise.all([
+    staffCycles(String(staff._id), staff.shareBase === "center"),
+    Payment.find({ ...LIVE, month, student: { $in: studentIds } }, { student: 1, month: 1, amount: 1, paidAt: 1, createdAt: 1 }).lean(),
+  ]);
+  const byStudent = new Map<string, number>();
+  const months = new Set<string>();
+  for (const p of docs) {
+    const m = cycles.monthOf({ month: p.month, amount: p.amount, paidAt: p.paidAt, createdAt: p.createdAt });
+    if (m >= month) continue;
+    const id = String(p.student);
+    byStudent.set(id, (byStudent.get(id) ?? 0) + p.amount);
+    months.add(m);
+  }
+  return { byStudent, months: [...months].sort() };
+}

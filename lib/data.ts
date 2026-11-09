@@ -23,7 +23,7 @@ import {
 } from "./ledger";
 import { cashierKassa, kassaState } from "./kassa";
 import { Handover, Payment, Salary, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
-import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
+import { monthCollections, monthSalaries, paidInEarlierSalary, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
 import { normalizeText } from "./normalize";
 import { daysLeftInMonth, monthEndReminderActive } from "./reminders";
 import {
@@ -1135,7 +1135,8 @@ async function payHistory(doc: StaffLean, month: string): Promise<PayMonth[]> {
 
 /**
  * Bu oy rejasi (foizli oylik): o'qituvchining o'z o'quvchilari (markaz tushumidan oladiganda — barcha o'quvchilar) shu oy
- * qancha to'lashi kerak, qanchasi to'landi va hamma to'lasa oylik qancha bo'ladi. Belgilangan oylikda — null.
+ * qancha to'lashi kerak, qanchasi oldingi oy oyligida olingan, qanchasi shu oy oyligiga yig'ildi va hamma to'lasa oylik
+ * qancha bo'ladi (faqat qo'lga tegmagan puldan). Belgilangan oylikda — null.
  */
 async function staffPlan(doc: StaffLean, pay: StaffPay, month: string): Promise<PayPlan | null> {
   if (pay.kind !== "percent") return null;
@@ -1145,7 +1146,13 @@ async function staffPlan(doc: StaffLean, pay: StaffPay, month: string): Promise<
   const mine = center ? rows : rows.filter((r) => r.teacherId === id);
   // Foiz 0 va o'z o'quvchisi yo'q (masalan, oylik olmaydigan rahbar) — reja ko'rsatilmaydi
   if (!pay.percent && !mine.length) return null;
-  return payPlanOf(mine, pay.percent);
+  // Oldingi oy oyligida hisoblangan to'lovlar (qo'lga tekkan pul) bu oy oyligiga qayta qo'shilmaydi
+  const earlier = await paidInEarlierSalary(doc, month, mine.map((r) => r.id));
+  return payPlanOf(
+    mine.map((r) => ({ monthlyFee: r.monthlyFee, debt: r.debt, earlier: earlier.byStudent.get(r.id) ?? 0 })),
+    pay.percent,
+    earlier.months,
+  );
 }
 
 /** Bitta xodim (rahbar uchun): ma'lumotlari, shu oydagi oyligi va olgan oylik/avanslari. */

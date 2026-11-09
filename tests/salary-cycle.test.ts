@@ -117,3 +117,14 @@ test("yil almashishi", () => {
   assert.deepEqual(base(c), { "2026-12": 600_000 });
   assert.equal(c.current, "2026-12");
 });
+
+test("monthOf: to'lov qaysi oy oyligiga hisoblangani — bases bilan bir xil", () => {
+  const nov1 = pay("2026-11", 300_000, "2026-11-02"); // oktabr hali ochiq — oktabrga
+  const nov2 = pay("2026-11", 300_000, "2026-11-10"); // oktabr yopilgach — noyabrga
+  const dec = pay("2026-12", 300_000, "2026-11-20"); // oldindan to'lov — dekabr boshlanganda, noyabr hali ochiq — noyabrga
+  const c = salaryCycles([pay("2026-10", 300_000, "2026-10-05"), nov1, nov2, dec], [oylik("2026-10", "2026-11-05")], at("2026-11-25"));
+  assert.equal(c.monthOf(nov1), "2026-10", "noyabr uchun to'lov oktabr oyligida olingan");
+  assert.equal(c.monthOf(nov2), "2026-11");
+  assert.equal(c.monthOf(dec), "2026-11");
+  assert.deepEqual(base(c), { "2026-10": 600_000, "2026-11": 600_000 });
+});
