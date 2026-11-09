@@ -16,12 +16,10 @@ import {
   UserRound,
   Users,
   UsersRound,
-  Coins,
   Wallet,
 } from "lucide-react";
 import { PaidCell, StudentCell } from "@/components/cells";
 import { NextLessonCell, TodayLessons } from "@/components/Lessons";
-import { ReminderBanner, SyncAlert } from "@/components/ShellParts";
 import {
   btn,
   Card,
@@ -31,7 +29,6 @@ import {
   EmptyState,
   GroupChip,
   HeroKpiCard,
-  IconTile,
   KpiCard,
   PageHeader,
   PageSkeleton,
@@ -43,7 +40,7 @@ import {
   th,
 } from "@/components/ui";
 import { pageGuard, type Session } from "@/lib/auth";
-import { getBellExtras, getMonthOverview, getMyProfile, getTeamOverview, listGroups, listTeacherOptions, type StudentRow, type TeamMember } from "@/lib/data";
+import { getMonthOverview, getMyProfile, getTeamOverview, listGroups, listTeacherOptions, type StudentRow, type TeamMember } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
 import { isTeaching, payLabel, ROLE_LABEL, staffInitials } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, formatNumber, isValidMonth, monthLabel, nowMs } from "@/lib/time";
@@ -73,15 +70,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/">["searc
 // ---------- Rahbar paneli ----------
 
 async function HeadDashboard({ session, month, page, group, teacher }: { session: Session; month: string; page: number; group: string; teacher: string }) {
-  const [{ debtors, totals }, groups, team, settings, teachers, bell] = await Promise.all([
+  const [{ debtors, totals }, groups, team, settings, teachers] = await Promise.all([
     getMonthOverview(month, group, teacher),
     listGroups(),
     getTeamOverview(month),
     getSettings(),
     listTeacherOptions(),
-    getBellExtras(),
   ]);
-  const pendingKassa = bell.handovers.reduce((s, h) => s + h.cash + h.card, 0);
   const center = team.totals;
   const planDone = center.expected - center.debt;
   const planPct = center.expected ? Math.round((planDone / center.expected) * 100) : 0;
@@ -143,32 +138,6 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
           </div>
         </div>
       </section>
-
-      {bell.handovers.length ? (
-        <Link
-          href="/kassa"
-          className="group mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-orange-200/80 bg-linear-to-r from-orange-50 to-amber-50/50 px-4 py-3.5 transition hover:shadow-pop sm:px-5"
-        >
-          <IconTile icon={Coins} tone="orange" variant="solid" />
-          <span className="min-w-[200px] flex-1 text-sm">
-            <span className="block font-semibold text-orange-950">Kassa: {bell.handovers.length} ta topshiruvni qabul qilishingiz kerak</span>
-            <span className="num block text-orange-900/70">
-              Jami {formatMoney(pendingKassa)} · {bell.handovers.map((h) => h.fromName).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
-            </span>
-          </span>
-          <span className="inline-flex items-center gap-1 text-sm font-semibold text-orange-800">
-            Qabul qilish
-            <ArrowUpRight className="size-4" aria-hidden />
-          </span>
-        </Link>
-      ) : null}
-
-      <Suspense fallback={null}>
-        <SyncAlert />
-      </Suspense>
-      <Suspense fallback={null}>
-        <ReminderBanner />
-      </Suspense>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
         <KpiCard label="Faol o‘quvchilar" value={center.students} hint={center.groups ? `${center.groups} ta kursda` : "kurs belgilanmagan"} icon={Users} tone="violet" />
@@ -504,10 +473,6 @@ async function TeacherDashboard({ session, month, page }: { session: Session; mo
           </a>
         }
       />
-
-      <Suspense fallback={null}>
-        <ReminderBanner />
-      </Suspense>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_1fr] xl:gap-5">
         <HeroKpiCard

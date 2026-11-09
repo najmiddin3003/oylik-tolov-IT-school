@@ -1,19 +1,15 @@
 // Ilova qobig'ining server qismlari (sessiya va ma'lumot o'qiydi — Suspense ichida ishlatiladi).
-import Link from "next/link";
-import { ArrowRight, BellRing, Building2, TriangleAlert } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { pageGuard } from "@/lib/auth";
-import { getBellExtras, getNavCounts, getReminders, getSyncAlert, getTaskStatus } from "@/lib/data";
-import { reminderTitle } from "@/lib/reminders";
-import type { Role } from "@/lib/session";
+import { getBellExtras, getNavCounts, getReminders, getSyncAlert } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
-import { currentMonth, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
+import { currentMonth } from "@/lib/time";
 import { HistoryNav } from "./HistoryNav";
 import { navFor } from "./nav";
 import { BottomNav, SidebarNav } from "./NavLinks";
-import { NotificationBell, UnpaidButton } from "./Notifications";
-import { SendTaskButton } from "./TaskButtons";
+import { NotificationBell } from "./Notifications";
 import { Breadcrumb, HeaderMonth, HeaderSearch } from "./TopBar";
-import { cx, IconTile, Skeleton } from "./ui";
+import { IconTile, Skeleton } from "./ui";
 import { UserMenu } from "./UserMenu";
 
 /** Yon menyu tarkibi: markaz va bo'limlar (ekran past bo'lsa aylanadi). Akkaunt — yuqori panelda (bitta joyda). */
@@ -27,7 +23,7 @@ export async function SidebarBody() {
         <span className="min-w-0 leading-tight">
           <span className="block truncate whitespace-nowrap text-[15px] font-semibold text-ink-900">{settings.centerName}</span>
           <span className="mt-0.5 block whitespace-nowrap text-xs text-ink-400">
-            {role === "owner" ? "Rahbar boshqaruvi" : role === "teacher" ? "O‘qituvchi maydoni" : "To‘lovlar va kassa"}
+            {role === "owner" ? "Rahbar boshqaruvi" : role === "teacher" ? "O‘qituvchi maydoni" : "To‘lovlar va o‘quvchilar"}
           </span>
         </span>
       </div>
@@ -64,7 +60,7 @@ export async function HeaderTools() {
       {canSearch ? <HeaderSearch /> : null}
       <HeaderMonth fallbackMonth={currentMonth()} />
       <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden />
-      <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} handovers={extras.handovers} />
+      <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} sent={extras.sent} />
       <UserMenu role={role} name={name} />
     </>
   );
@@ -100,108 +96,5 @@ export async function MobileNav() {
     <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Asosiy menyu">
       <BottomNav role={role} />
     </nav>
-  );
-}
-
-/**
- * Oxirgi Sheets tekshiruvida farq yoki xato bo'lsa — sahifa sarlavhasi ostida ogohlantirish (faqat rahbar,
- * o'zi Sozlamalarda o'chirmagan bo'lsa).
- */
-export async function SyncAlert() {
-  await pageGuard();
-  const alert = await getSyncAlert();
-  if (!alert) return null;
-  const isError = Boolean(alert.error);
-  return (
-    <div className="group mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3 sm:px-5" role="status">
-      <IconTile icon={TriangleAlert} tone="amber" size="sm" />
-      <p className="min-w-[200px] flex-1 text-sm leading-relaxed">
-        <span className="font-semibold text-amber-900">
-          {isError ? "Google Sheets tekshiruvi bajarilmadi" : `Sayt va Google Sheets o‘rtasida ${alert.unresolved} ta farq bor`}
-        </span>
-        <span className="ml-2 text-amber-800/75">{isError ? alert.error : `Oxirgi tekshiruv: ${formatDateTime(alert.at)}`}</span>
-      </p>
-      <span className="flex items-center gap-3">
-        <Link href="/settings#funksiyalar" className="text-xs font-medium text-amber-800/70 underline-offset-4 hover:text-amber-900 hover:underline">
-          O‘chirish
-        </Link>
-        <Link href="/sync" className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-800 transition hover:text-amber-950">
-          {isError ? "Sozlash" : "Ko‘rish"}
-          <ArrowRight className="size-4" aria-hidden />
-        </Link>
-      </span>
-    </div>
-  );
-}
-
-/**
- * Oy oxiri eslatmasi: "Oy tugashiga 7 kun qoldi — 10 ta o'quvchi to'lov qilmadi".
- * Rahbarda — «Administratorga topshiriq yuborish», boshqalarda — ro'yxat.
- */
-export async function ReminderBanner() {
-  const { role } = await pageGuard();
-  const reminders = await getReminders();
-  if (!reminders.length) return null;
-  const tasks = role === "owner" ? await getTaskStatus(reminders.map((r) => r.month)) : {};
-  return (
-    <div className="mb-6 grid gap-3">
-      {reminders.map((r) => (
-        <ReminderRow key={r.month} role={role} reminder={r} task={tasks[r.month] ?? null} />
-      ))}
-    </div>
-  );
-}
-
-function ReminderRow({
-  role,
-  reminder: r,
-  task,
-}: {
-  role: Role;
-  reminder: Awaited<ReturnType<typeof getReminders>>[number];
-  task: Awaited<ReturnType<typeof getTaskStatus>>[string] | null;
-}) {
-  const urgent = r.daysLeft === null || r.daysLeft <= 3;
-  const listButton = cx(
-    "inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-surface px-4 text-sm font-semibold shadow-card ring-1 ring-inset transition sm:w-auto",
-    urgent ? "text-rose-700 ring-rose-200 hover:bg-rose-50" : "text-amber-800 ring-amber-200 hover:bg-amber-50",
-  );
-  return (
-    <div
-      className={cx(
-        "group flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border px-4 py-3.5 sm:px-5",
-        urgent ? "border-rose-200/80 bg-linear-to-r from-rose-50 to-amber-50/60" : "border-amber-200/80 bg-linear-to-r from-amber-50 to-orange-50/40",
-      )}
-      role="status"
-    >
-      <IconTile icon={BellRing} tone={urgent ? "rose" : "amber"} variant="solid" />
-      <div className="min-w-[200px] flex-1 text-sm leading-relaxed">
-        <p className={cx("font-semibold", urgent ? "text-rose-900" : "text-amber-900")}>
-          {reminderTitle(r)}: {r.students.length} ta o‘quvchi to‘lov qilmadi
-        </p>
-        {/* <div>: ichida modal oyna (<dialog>) bor — <p> ichiga joylab bo'lmaydi */}
-        <div className={cx("num flex flex-wrap items-center gap-x-2", urgent ? "text-rose-800/75" : "text-amber-800/75")}>
-          {monthLabel(r.month)} · qolgan qarz {formatMoney(r.total)}
-          {role === "owner" ? (
-            <UnpaidButton
-              month={r.month}
-              students={r.students}
-              role={role}
-              className="font-semibold underline decoration-dotted underline-offset-4 hover:decoration-solid"
-            >
-              ro‘yxat
-            </UnpaidButton>
-          ) : null}
-        </div>
-      </div>
-      {role === "owner" ? (
-        <SendTaskButton month={r.month} task={task} tone={urgent ? "rose" : "amber"} />
-      ) : (
-        <UnpaidButton month={r.month} students={r.students} role={role} className={listButton}>
-          Ro‘yxatni ko‘rish
-          <ArrowRight className="size-4" aria-hidden />
-        </UnpaidButton>
-      )}
-    </div>
   );
 }

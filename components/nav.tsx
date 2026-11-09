@@ -11,7 +11,6 @@ import {
   Settings2,
   UsersRound,
   Users,
-  Coins,
   Wallet,
   UserX,
   type LucideIcon,
@@ -19,7 +18,7 @@ import {
 import type { Role } from "@/lib/session";
 import type { Tone } from "./ui";
 
-export type NavKey = "home" | "students" | "debtors" | "payments" | "kassa" | "salary" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
+export type NavKey = "home" | "students" | "debtors" | "payments" | "salary" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
 
 export type NavItem = {
   key: NavKey;
@@ -61,7 +60,6 @@ export const NAV: NavItem[] = [
   },
   { key: "debtors", href: "/qarzdorlar", label: "Qarzdorlar", short: "Qarzdorlar", icon: UserX, tone: "rose", monthAware: true, roles: ["owner", "admin", "teacher"] },
   { key: "payments", href: "/payments", label: "To‘lovlar", short: "To‘lovlar", icon: Wallet, tone: "emerald", monthAware: true, roles: ["owner", "admin", "teacher"] },
-  { key: "kassa", href: "/kassa", label: "Kassa", short: "Kassa", icon: Coins, tone: "orange", monthAware: false, roles: ["owner", "admin"] },
   {
     key: "salary",
     href: "/olinganlar",

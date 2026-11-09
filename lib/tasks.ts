@@ -54,7 +54,7 @@ export async function tasksFor(role: Role): Promise<TaskRow[]> {
   return docs.map(toTaskRow);
 }
 
-/** Rahbar uchun: oylar bo'yicha oxirgi yuborilgan topshiriq (eslatma bannerida holatini ko'rsatish uchun). */
+/** Rahbar uchun: oylar bo'yicha oxirgi yuborilgan topshiriq (qo'ng'iroqchadagi eslatmada holatini ko'rsatish uchun). */
 export async function latestTasksByMonth(months: string[]): Promise<Record<string, TaskRow>> {
   if (!months.length) return {};
   await connectDB();

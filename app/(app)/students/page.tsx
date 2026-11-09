@@ -5,7 +5,6 @@ import { ArrowUpDown, BookOpen, CalendarClock, Download, Plus, UserCheck, Users 
 import { FilterForm, SearchInput } from "@/components/FilterForm";
 import { Select } from "@/components/pickers";
 import { QuickStudentButton } from "@/components/QuickStudent";
-import { SyncAlert } from "@/components/ShellParts";
 import { StudentsTable } from "@/components/StudentsTable";
 import { btn, Card, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Pagination } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
@@ -112,12 +111,6 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
           </>
         }
       />
-
-      {isOwner ? (
-        <Suspense fallback={null}>
-          <SyncAlert />
-        </Suspense>
-      ) : null}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
         <MiniStat label="Jami o‘quvchilar" value={stats.total} icon={Users} tone="violet" />

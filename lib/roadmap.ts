@@ -65,7 +65,7 @@ export const ROADMAP: RoadmapItem[] = [
     title: "Xarajatlar va sof foyda",
     summary: "Ijara, kommunal, reklama kabi xarajatlarni yozib, oy yakunida sof foydani ko‘rish.",
     details: [
-      "Rahbar kassasidan xarajat chiqarish (naqd / karta).",
+      "Xarajatni yozib borish (naqd / karta).",
       "Oy bo‘yicha: tushum − xodimlar oyligi − xarajatlar = sof foyda.",
       "Excel hisobotga qo‘shiladi.",
     ],
@@ -76,7 +76,7 @@ export const ROADMAP: RoadmapItem[] = [
     title: "Telegram bot",
     summary: "Rahbarga kunlik qisqa hisobot, administratorga topshiriqlar Telegram’da.",
     details: [
-      "Har kuni kechqurun: bugungi tushum, kassada turgan pul, qarzdorlar soni.",
+      "Har kuni kechqurun: bugungi tushum (naqd / karta), qarzdorlar soni.",
       "Administratorga «To‘lovlarni yig‘ing» topshirig‘i Telegram’da ham keladi.",
       "Bot orqali o‘quvchini tez qidirish.",
     ],
@@ -98,27 +98,19 @@ export const ROADMAP: RoadmapItem[] = [
 export const DONE: DoneGroup[] = [
   {
     id: "kassa",
-    title: "Kassa, topshiriqlar, faoliyat jurnali va qorong‘i mavzu",
+    title: "Topshiriqlar, faoliyat jurnali va qorong‘i mavzu",
     date: "14-oktabr, 2026",
     items: [
       {
-        title: "Administrator kassasi",
-        details: [
-          "Administrator kiritgan to‘lovlar uning kassasiga tushadi (naqd va karta alohida).",
-          "Kun oxirida «Rahbarga topshirish»; rahbar «Qabul qildim» deguncha pul administrator kassasida turadi.",
-          "Rahbar «Kassa» bo‘limida qabul qilish kutilayotgan, qabul qilingan pullar va har bir administrator kassasini ko‘radi.",
-        ],
-      },
-      {
         title: "Rahbardan administratorga topshiriq",
         details: [
-          "«…hali yopilmagan: N ta o‘quvchi to‘lov qilmadi» bannerida — «Administratorga topshiriq yuborish».",
+          "Qo‘ng‘iroqchadagi «…hali yopilmagan: N ta o‘quvchi to‘lov qilmadi» eslatmasida — «Administratorga topshiriq yuborish».",
           "Administrator «To‘lovlarni yig‘ing» topshirig‘ini ro‘yxati bilan ko‘radi va «Bajarildi» deb belgilaydi.",
         ],
       },
       {
         title: "Faoliyat jurnali",
-        details: ["Har bir kirish va amal (to‘lov, o‘quvchi, sozlama, kassa…) vaqti va qurilmasi bilan yoziladi.", "Har kim faqat o‘z amallarini ko‘radi."],
+        details: ["Har bir kirish va amal (to‘lov, o‘quvchi, sozlama…) vaqti va qurilmasi bilan yoziladi.", "Har kim faqat o‘z amallarini ko‘radi."],
       },
       {
         title: "Kurslar",

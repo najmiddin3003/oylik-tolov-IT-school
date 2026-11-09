@@ -48,7 +48,7 @@ test("tarix: tugma bilan orqaga/oldinga va yangi o'tishda «oldinga» qismi o'ch
   h = recordVisit(h, "/students");
   assert.deepEqual(h, { entries: ["/", "/students"], index: 1 });
   // Kutilgan sahifa boshqa joyga yo'naltirsa — o'sha qadamdan oddiy o'tish
-  const r = arriveAt(visit("/", "/staff", "/kassa"), 1, "/");
+  const r = arriveAt(visit("/", "/staff", "/payments"), 1, "/");
   assert.deepEqual(r, { entries: ["/", "/staff", "/"], index: 2 });
 });
 

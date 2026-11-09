@@ -103,7 +103,7 @@ function EditPaymentForm({ payment, onDone }: { payment: EditablePayment; onDone
         </div>
 
         <p className="text-xs leading-relaxed text-ink-400">
-          Qarz, oy rejasi, kassa va oyliklar yangi summa bo‘yicha qayta hisoblanadi. Asl summa saqlanib qoladi.
+          Qarz, oy rejasi va oyliklar yangi summa bo‘yicha qayta hisoblanadi. Asl summa saqlanib qoladi.
         </p>
 
         {state.error ? (

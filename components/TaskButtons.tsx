@@ -1,6 +1,6 @@
 "use client";
 
-// Rahbar → administrator topshiriqlari: yuborish (eslatma bannerida) va «Bajarildi» (administratorda).
+// Rahbar → administrator topshiriqlari: yuborish (qo'ng'iroqchadagi oy oxiri eslatmasida) va «Bajarildi» (administratorda).
 import { useState, useTransition } from "react";
 import { CheckCheck, LoaderCircle, Send } from "lucide-react";
 import { completeTask, sendCollectTask } from "@/app/actions/tasks";
@@ -9,7 +9,18 @@ import { formatDateTime } from "@/lib/time";
 import { btn, cx } from "./ui";
 
 /** Rahbar: «Administratorga topshiriq yuborish». Yuborilgan bo'lsa — holati va qayta yuborish. */
-export function SendTaskButton({ month, task, tone }: { month: string; task: TaskRow | null; tone: "rose" | "amber" }) {
+export function SendTaskButton({
+  month,
+  task,
+  tone,
+  compact = false,
+}: {
+  month: string;
+  task: TaskRow | null;
+  tone: "rose" | "amber";
+  /** Ixcham ko'rinish (qo'ng'iroqcha ro'yxati ichida) */
+  compact?: boolean;
+}) {
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const send = () =>
@@ -19,14 +30,15 @@ export function SendTaskButton({ month, task, tone }: { month: string; task: Tas
     });
 
   const base = cx(
-    "inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-surface px-4 text-sm font-semibold shadow-card ring-1 ring-inset transition disabled:opacity-60 sm:w-auto",
+    "inline-flex items-center justify-center gap-1.5 bg-surface font-semibold shadow-card ring-1 ring-inset transition disabled:opacity-60",
+    compact ? "h-8 rounded-lg px-3 text-xs" : "h-10 w-full rounded-xl px-4 text-sm sm:w-auto",
     tone === "rose" ? "text-rose-700 ring-rose-200 hover:bg-rose-50" : "text-amber-800 ring-amber-200 hover:bg-amber-50",
   );
 
   return (
-    <div className="flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end">
+    <div className={compact ? "flex flex-col items-start gap-1" : "flex w-full flex-col items-stretch gap-1.5 sm:w-auto sm:items-end"}>
       <button type="button" onClick={send} disabled={pending} className={base}>
-        {pending ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+        {pending ? <LoaderCircle className={cx("animate-spin", compact ? "size-3.5" : "size-4")} aria-hidden /> : <Send className={compact ? "size-3.5" : "size-4"} aria-hidden />}
         {task?.status === "open" ? "Topshiriqni yangilash" : "Administratorga topshiriq yuborish"}
       </button>
       {msg ? (

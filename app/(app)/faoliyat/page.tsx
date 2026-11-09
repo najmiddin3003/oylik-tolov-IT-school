@@ -16,7 +16,7 @@ const PAGE = 60;
 /** Rolga qarab ma'noli guruhlar (masalan, o'qituvchida to'lov kiritish yo'q). */
 const GROUPS_FOR: Record<Role, ActivityGroup[]> = {
   owner: ACTIVITY_GROUPS.map((g) => g.key),
-  admin: ["auth", "payment", "student", "kassa", "task", "salary", "export"],
+  admin: ["auth", "payment", "student", "task", "salary", "export"],
   teacher: ["auth", "salary", "export"],
 };
 

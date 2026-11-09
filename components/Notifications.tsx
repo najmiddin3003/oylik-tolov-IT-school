@@ -3,8 +3,8 @@
 // Oy oxiri eslatmalari: to'lamaganlar ro'yxati oynasi va yuqoridagi qo'ng'iroqcha.
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, BellRing, CalendarClock, ClipboardList, FileSpreadsheet, Phone, Plus, Coins, X } from "lucide-react";
-import type { BellHandover, Reminder, UnpaidStudent } from "@/lib/data";
+import { Bell, BellRing, CalendarClock, ClipboardList, FileSpreadsheet, Phone, Plus, X } from "lucide-react";
+import type { Reminder, UnpaidStudent } from "@/lib/data";
 import { reminderTitle } from "@/lib/reminders";
 import { minutesUntil, nextLesson, nextLessonLabel, scheduleLabel, tashkentClock } from "@/lib/schedule";
 import type { Role } from "@/lib/session";
@@ -13,6 +13,7 @@ import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
 import { LiveDot } from "./Lessons";
 import { Avatar, btn, cx, IconTile } from "./ui";
 import { useDialog } from "./Modal";
+import { SendTaskButton } from "./TaskButtons";
 import { useNow } from "./useNow";
 
 /** To'lov qilmagan o'quvchilar ro'yxati (modal oyna). */
@@ -170,26 +171,28 @@ export function UnpaidButton({
 type SyncAlertData = { unresolved: number; error: string; at: string } | null;
 
 /**
- * Yuqori paneldagi qo'ng'iroqcha: oy oxiri eslatmalari, rahbarga — Sheets farqlari va qabul qilinishi kerak bo'lgan kassa
- * topshiruvlari, administratorga — rahbardan kelgan topshiriqlar.
+ * Yuqori paneldagi qo'ng'iroqcha (barcha ogohlantirishlar shu yerda — sahifalarda alohida banner yo'q): oy oxiri
+ * eslatmalari (rahbarga — administratorga topshiriq yuborish tugmasi bilan), rahbarga — Sheets farqlari,
+ * administratorga — rahbardan kelgan topshiriqlar.
  */
 export function NotificationBell({
   reminders,
   sync,
   role,
   tasks = [],
-  handovers = [],
+  sent = {},
 }: {
   reminders: Reminder[];
   sync: SyncAlertData;
   role: Role;
   tasks?: TaskRow[];
-  handovers?: BellHandover[];
+  /** Rahbar: eslatma oyi -> administratorga yuborilgan oxirgi topshiriq */
+  sent?: Record<string, TaskRow>;
 }) {
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<Reminder | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const count = reminders.length + (sync ? 1 : 0) + tasks.length + handovers.length;
+  const count = reminders.length + (sync ? 1 : 0) + tasks.length;
 
   useEffect(() => {
     if (!open) return;
@@ -255,29 +258,15 @@ export function NotificationBell({
                   </Link>
                 </li>
               ))}
-              {handovers.map((h) => (
-                <li key={h.id}>
-                  <Link href="/kassa" onClick={() => setOpen(false)} className="group flex items-start gap-3 rounded-xl px-3 py-2.5 transition hover:bg-orange-50/70">
-                    <IconTile icon={Coins} tone="orange" size="sm" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-ink-900">Kassa: qabul qiling</span>
-                      <span className="num mt-0.5 block text-[13px] text-ink-500">
-                        {h.fromName} {formatMoney(h.cash + h.card)} topshirdi
-                        {h.cash && h.card ? ` (naqd ${formatNumber(h.cash)}, karta ${formatNumber(h.card)})` : h.card ? " (karta)" : " (naqd)"}
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
               {reminders.map((r) => (
-                <li key={r.month}>
+                <li key={r.month} className="rounded-xl transition hover:bg-amber-50/70">
                   <button
                     type="button"
                     onClick={() => {
                       setOpen(false);
                       setDialog(r);
                     }}
-                    className="group flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-amber-50/70"
+                    className="group flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left"
                   >
                     <IconTile icon={BellRing} tone="amber" size="sm" />
                     <span className="min-w-0 flex-1">
@@ -288,6 +277,11 @@ export function NotificationBell({
                       <span className="mt-1 inline-block text-xs font-semibold text-amber-700">Ro‘yxatni ko‘rish →</span>
                     </span>
                   </button>
+                  {role === "owner" ? (
+                    <div className="pb-2.5 pl-14 pr-3">
+                      <SendTaskButton month={r.month} task={sent[r.month] ?? null} tone={r.daysLeft === null || r.daysLeft <= 3 ? "rose" : "amber"} compact />
+                    </div>
+                  ) : null}
                 </li>
               ))}
               {sync && role === "owner" ? (

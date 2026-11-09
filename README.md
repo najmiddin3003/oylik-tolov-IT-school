@@ -20,7 +20,7 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 - **Bosh sahifa** — tanlangan oy bo'yicha: to'lamaganlar ro'yxati (qarzi bilan), to'laganlar, yig'ilgan summa, reja bajarilishi, guruh bo'yicha filtr.
 - **O'quvchi sahifasi** — boshlagan oyidan beri har oy holati, umumiy qarz, to'lovlar tarixi.
 - **Google Sheets bilan solishtirish** — har kuni bir marta (standart: 06:00, Toshkent) avtomatik, yoki «Hozir tekshirish» tugmasi bilan.
-  Farq topilsa, saytning har sahifasi tepasida ogohlantirish chiqadi. Farq turlari:
+  Farq topilsa, yuqoridagi qo'ng'iroqchada bildirishnoma chiqadi. Farq turlari:
   - **Saytda yo'q** — Sheets'da to'lov bor, saytda yo'q;
   - **Sheets'da yo'q** — saytda bor, Sheets'da yozilmagan;
   - **Summa farqi** — ikkala joyda bor, summa har xil;
@@ -43,7 +43,7 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     **«Olingan avans/oylik»** bo‘limida o‘zi olgan pulni yozib boradi (oyligidan ayiriladi), butun tarixi oylar bo‘yicha.
   - **Administrator** — «To‘lovlar»: oy rejasi va bajarilish foizi, bugun keladigan o‘quvchilar, to‘lov kiritish (avval kurs,
     keyin o‘quvchi; sana — sozlamaga qarab), **«Yangi o‘quvchi»** oynasi (kurs, oylik to‘lov, dars vaqti), rahbardan kelgan
-    **topshiriqlar**; **«Kassa»** — o‘zi yig‘gan pul va rahbarga topshirish; «Olingan avans/oylik» va «Profilim».
+    **topshiriqlar**; «Olingan avans/oylik» va «Profilim».
   - **Kurs o‘qituvchilari** — Sozlamalar → Kurslar’da (yoki o‘qituvchi qo‘shishda «Kursi») kursga bir yoki bir nechta o‘qituvchi
     biriktiriladi. Kursda **bitta** o‘qituvchi bo‘lsa, shu kursdagi o‘qituvchisiz o‘quvchilar unga o‘zi biriktiriladi; yangi
     o‘quvchi, Sheets’dan import va ro‘yxatdagi ommaviy «Kurs» amali ham uni o‘zi qo‘yadi; yagona o‘qituvchi almashsa, avvalgisining
@@ -84,15 +84,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   usul va **kun** bo‘yicha filtr. To‘lov kiritishda avval **kurs** tanlanadi, keyin shu kurs o‘quvchilari ro‘yxati o‘zi ochiladi.
   O‘chirilgan to‘lov **arxivga** o‘tadi — hech qayerda hisoblanmaydi, rahbar arxivdan ko‘radi, tiklaydi yoki butunlay o‘chiradi.
   **Summani tahrirlash** — to‘lovlar tarixida (va o‘quvchi sahifasida) qalamcha tugmasi: rahbar va administrator to‘lov
-  summasini o‘zgartiradi; qarz, reja, kassa va oyliklar yangi summa bo‘yicha qayta hisoblanadi. To‘lov «avval 300 000 so‘m»
+  summasini o‘zgartiradi; qarz, reja va oyliklar yangi summa bo‘yicha qayta hisoblanadi. To‘lov «avval 300 000 so‘m»
   belgisi bilan ko‘rinadi (birinchi kiritilgan summa saqlanadi), amal faoliyat tarixiga yoziladi.
-- **Kassa** — administrator kiritgan to‘lovlar uning kassasiga tushadi (naqd va karta alohida). Kun oxirida «Rahbarga topshirish»;
-  rahbar «Qabul qildim» deguncha pul administrator kassasida turadi, qabul qilingach — rahbar kassasiga o‘tadi (rad etish ham
-  mumkin). Rahbar o‘zi kiritgan to‘lovlar to‘g‘ridan-to‘g‘ri rahbar kassasiga. Kassa shu versiyadan keyin kiritilgan to‘lovlar
-  bo‘yicha yuritiladi (oldingilari va Sheets’dan import qilinganlari kirmaydi).
-- **Topshiriqlar** — rahbar oy eslatmasi bannerida «Administratorga topshiriq yuborish»ni bosadi; administrator sahifasida va
+- **Topshiriqlar** — rahbar qo‘ng‘iroqchadagi oy eslatmasida «Administratorga topshiriq yuborish»ni bosadi; administrator sahifasida va
   qo‘ng‘iroqchada «To‘lovlarni yig‘ing: … N ta o‘quvchi to‘lov qilmabdi» chiqadi (ro‘yxati bilan), bajargach «Bajarildi».
-- **Faoliyat tarixi** — har bir kirish va amal (to‘lov, o‘quvchi, kassa, sozlama, Excel yuklash…) vaqti, qurilmasi va manzili
+- **Faoliyat tarixi** — har bir kirish va amal (to‘lov, o‘quvchi, sozlama, Excel yuklash…) vaqti, qurilmasi va manzili
   bilan yoziladi; har kim **faqat o‘z** amallarini ko‘radi (profil menyusi → «Faoliyat tarixi»).
 - **Tezlik** (rahbar) — sahifalar foydalanuvchilarda qancha vaqtda ochilayotgani: har sahifa bo'yicha **sahifaga o'tish**
   (menyu/havola/filtr bosilgandan mazmun chiqquncha), **birinchi ochilish** (sayt yangidan ochilib ishlatsa bo'ladigan
@@ -104,8 +100,8 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   tugunlar ulushi (`x-vercel-id`), har biridan o'tish vaqti va so'rov tugundan serverdagi kodgacha yetib borgan vaqt. O'lchov har ochilishda o'zi yoziladi (javob yuborilgandan keyin — foydalanuvchini kutdirmaydi),
   30 kun saqlanadi, Vercel loglarida ham `[perf] …` qatori bo'lib chiqadi. Prefetch va server action so'rovlari o'lchanmaydi.
 - **Reja va yangiliklar** (rahbar) — kelgusida qilinadigan ishlar va shu paytgacha qilinganlar, ochiladigan bo‘limlarda.
-- **Oy oxiri eslatmasi** — oy tugashiga 10 kun qolganda (va o‘tgan oyda to‘lamaganlar qolgan bo‘lsa) yuqoridagi qo‘ng‘iroqchada va
-  sahifalarda: «10 ta o‘quvchi to‘lov qilmadi» — bosilsa ism-familiyalar ro‘yxati.
+- **Oy oxiri eslatmasi** — oy tugashiga 10 kun qolganda (va o‘tgan oyda to‘lamaganlar qolgan bo‘lsa) yuqoridagi
+  qo‘ng‘iroqchada: «10 ta o‘quvchi to‘lov qilmadi» — bosilsa ism-familiyalar ro‘yxati.
 - **Sozlamalar** (rahbar): **kurslar** (nomi, standart narxi va o‘qituvchisi; nomi o‘zgarsa — o‘quvchilari ham o‘tadi), oylik to‘lov narxi
   (tanlangan oydan boshlab; hammaga, bitta kursga yoki ma’lum narxdagilarga), **funksiyalar** (galochka bilan, darhol saqlanadi:
   «To‘langan sana» maydoni rahbarda/administratorda, Google Sheets ogohlantiruvi — har kim o‘zi uchun, Sheets’dan avtomatik
@@ -259,10 +255,10 @@ xodimlarni ulab olish uchun. Tartib:
 ## Tuzilma
 
 ```
-app/(app)/            sahifalar: bosh sahifa (rahbar paneli / o'qituvchi sahifasi), students, qarzdorlar, payments, kassa, olinganlar,
+app/(app)/            sahifalar: bosh sahifa (rahbar paneli / o'qituvchi sahifasi), students, qarzdorlar, payments, olinganlar,
                       staff, me, faoliyat, reja, settings, sync
 app/login, register   kirish (telefon + parol) va SMS kod bilan ro'yxatdan o'tish / parolni tiklash
-app/actions/          server action'lar (kirish va SMS kod, xodimlar, o'quvchi, to'lov, kassa, topshiriq, o'zim, sozlamalar, Sheets)
+app/actions/          server action'lar (kirish va SMS kod, xodimlar, o'quvchi, to'lov, topshiriq, o'zim, sozlamalar, Sheets)
 app/api/cron/         kunlik tekshiruv va SMS endpoint'lari (CRON_SECRET bilan)
 app/api/export/       Excel eksport
 components/pickers.tsx  Select, DatePicker, MonthPicker, TimePicker (o'z dizayni)
@@ -278,7 +274,6 @@ lib/perf.ts, perf-report.ts, perf-rules.ts  tezlik o'lchovi: yozish, «Tezlik» 
 components/PerfWatcher.tsx, instrumentation-client.ts  brauzerdagi o'lchov (sahifa mazmuni chiqqan payt) → /api/perf
 lib/salary-cycle.ts  oylik davri: to'lov qaysi oy oyligiga — oy «oylik» yozilguncha ochiq (sof funksiyalar, testlangan)
 lib/otp.ts, otp-code.ts  SMS tasdiqlash kodi: yuborish, tekshirish, cheklovlar
-lib/kassa.ts          administrator va rahbar kassasi (naqd / karta), topshiruvlar
 lib/tasks.ts          rahbardan administratorga topshiriqlar
 lib/activity.ts       faoliyat jurnali (har kimga — o'ziniki)
 lib/courses.ts        kurslar ro'yxati, taqqoslash va kurs o'qituvchisi qoidalari (sof funksiyalar, testlangan)
@@ -295,6 +290,6 @@ lib/importer.ts       Sheets farqlaridan saytga o'quvchi va to'lov qo'shish
 lib/normalize.ts      ism / telefon / summa / oy / sana normallashtirish
 lib/sheets.ts         Sheets'dan yuklash (CSV yoki service account)
 lib/sync.ts           tekshiruvni bajarish, natijani saqlash, kunlik rejim
-lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Handover, Activity, Perf
+lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Activity, Perf
 proxy.ts              kirmagan foydalanuvchini /login ga, har bir rolni o'z bo'limlariga yo'naltiradi
 ```
