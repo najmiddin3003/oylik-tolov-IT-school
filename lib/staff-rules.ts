@@ -127,7 +127,11 @@ export function trimEmptyPayMonths<T extends { month: string; share: number; tak
   return rows.slice(0, end);
 }
 
-/** Bu oy rejasi (foizli oylik): o'quvchilar shu oy to'lashi kerak bo'lgan summa, amalda to'langani va rejadagi oylik. */
+/**
+ * Bu oy rejasi (foizli oylik) — oylik davri bo'yicha: oylik olingandan keyin tushgan har bir to'lov (qaysi oy uchunligidan
+ * qat'i nazar) keyingi oy oyligiga hisoblanadi. Shu oy oyligiga amalda qancha yig'ildi, shu oy uchun qancha to'lanmagan
+ * va hamma to'lasa oylik qancha bo'ladi.
+ */
 export type PayPlan = {
   /** Shu oy to'lashi kerak bo'lgan (faol, o'qishni boshlagan) o'quvchilar */
   students: number;
@@ -135,55 +139,48 @@ export type PayPlan = {
   paidCount: number;
   /** To'lamagan yoki qisman to'laganlar */
   debtors: number;
-  /** O'quvchilarning shu oy uchun oylik to'lovlari jami */
+  /** O'quvchilarning shu oy uchun oylik to'lovlari jami (ma'lumot uchun) */
   expected: number;
-  /**
-   * Shu oy uchun to'langan, lekin oldingi oy oyligiga hisoblangan (oylik davri bo'yicha: masalan, oktabr oyligi hali
-   * olinmagan paytda tushgan noyabr to'lovi) — bu oy oyligiga qayta qo'shilmaydi
-   */
-  earlier: number;
-  /** `earlier` qaysi oylar oyligiga hisoblangan ("YYYY-MM") */
-  earlierMonths: string[];
-  /** Amalda yig'ildi — shu oy oyligiga: shu oy uchun to'langan (oylik to'lovidan oshmagan qismi), `earlier` siz */
-  collected: number;
-  /** Hali to'lanmagan */
+  /** Shu oy uchun hali to'lanmagan */
   debt: number;
+  /** Amalda yig'ildi: shu oy oyligiga hisoblangan to'lovlar (oylik davri bo'yicha — pastdagi «tushum» bilan bir xil) */
+  collected: number;
   percent: number;
-  /** Rejadagi oylik — faqat qo'lga tegmagan pul: hamma to'lasa (collected + debt) × foiz */
+  /** Hozirgacha oylik: collected × foiz */
+  share: number;
+  /** Shu oy oyligi olingan — davr yopilgan, keyingi to'lovlar keyingi oy oyligiga */
+  closed: boolean;
+  /** Davr boshlangan kun: oldingi oy oyligi olingan kun ("YYYY-MM-DD"), noma'lum bo'lsa — null */
+  openedOn: string | null;
+  /** Rejadagi oylik: davr ochiq bo'lsa — hamma to'lasa (collected + debt) × foiz; yopilgan bo'lsa — yakuniy (share) */
   planShare: number;
 };
 
 /**
- * O'quvchilar ro'yxatidan (shu oy holati bilan) bu oy rejasi. `debt` — o'quvchining shu oy uchun qolgan qarzi,
- * `earlier` — uning shu oy uchun to'lovlaridan oldingi oy oyligiga hisoblangani.
- * expected = earlier + collected + debt.
+ * Bu oy rejasi: `rows` — o'quvchilar shu oy holati bilan (`debt` — shu oy uchun qolgan qarzi), `salary` — shu oy oyligi
+ * (oylik davri bo'yicha asos, yopilganmi, qachon boshlangan).
  */
-export function payPlanOf(rows: { monthlyFee: number; debt: number; earlier?: number }[], percent: number, earlierMonths: string[] = []): PayPlan {
-  let expected = 0;
-  let debt = 0;
-  let earlier = 0;
-  let debtors = 0;
-  for (const r of rows) {
-    const fee = r.monthlyFee;
-    const owe = Math.min(Math.max(r.debt, 0), fee);
-    const paid = fee - owe;
-    expected += fee;
-    debt += owe;
-    earlier += Math.min(Math.max(r.earlier ?? 0, 0), paid);
-    if (r.debt > 0) debtors++;
-  }
-  const collected = expected - debt - earlier;
+export function payPlanOf(
+  rows: { monthlyFee: number; debt: number }[],
+  percent: number,
+  salary: { base: number; closed: boolean; openedOn?: string | null },
+): PayPlan {
+  const expected = rows.reduce((s, r) => s + r.monthlyFee, 0);
+  const debt = rows.reduce((s, r) => s + Math.min(Math.max(r.debt, 0), r.monthlyFee), 0);
+  const debtors = rows.filter((r) => r.debt > 0).length;
+  const share = Math.round((salary.base * percent) / 100);
   return {
     students: rows.length,
     paidCount: rows.length - debtors,
     debtors,
     expected,
-    earlier,
-    earlierMonths: earlier ? earlierMonths : [],
-    collected,
     debt,
+    collected: salary.base,
     percent,
-    planShare: Math.round(((collected + debt) * percent) / 100),
+    share,
+    closed: salary.closed,
+    openedOn: salary.openedOn ?? null,
+    planShare: salary.closed ? share : Math.round(((salary.base + debt) * percent) / 100),
   };
 }
 

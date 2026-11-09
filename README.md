@@ -54,11 +54,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
     Xodim sahifasida (va «Profilim»da) oylik kartasining o‘zida **oy tanlagich** (‹ oy ›) va **«Oylar bo‘yicha»** jadvali:
     oxirgi 12 oy — tushum, hisoblangan oylik, olingan oylik/avans, qolgani va jami; oy bosilsa, o‘sha oy tafsiloti ochiladi.
-  - **Bu oy rejasi** (xodim sahifasi va «Profilim», foizli oylikda): o‘qituvchining o‘quvchilari shu oy qancha to‘lashi kerak
-    (oylik to‘lovlari jami), **hamma to‘lasa oylik qancha bo‘ladi** (jami × foiz), **amalda qancha yig‘ildi** (rejaning necha
-    foizi) va qancha yig‘ilmagan — to‘lamaganlar ro‘yxatiga havola bilan. Markaz tushumidan oladigan xodimda — barcha o‘quvchilar.
-    Shu oy uchun to‘lanib, oylik davri bo‘yicha **oldingi oy oyligiga hisoblangan pul** (masalan, oktabr oyligi olinmasdan tushgan
-    noyabr to‘lovi) alohida ko‘rsatiladi va bu oy oyligiga qayta qo‘shilmaydi — rejadagi oylik faqat qo‘lga tegmagan puldan.
+  - **Bu oy rejasi** (xodim sahifasi va «Profilim», foizli oylikda) — oylik davri bo‘yicha: **amalda yig‘ildi** — shu oy
+    oyligiga hisoblangan to‘lovlar, ya’ni oldingi oylik olingandan beri tushgan har bir to‘lov (qaysi oy uchunligidan qat’i
+    nazar); **hali to‘lanmagan** — o‘quvchilarning shu oy uchun qarzi (to‘lamaganlar ro‘yxatiga havola bilan); **rejadagi
+    oylik** — hamma to‘lasa (yig‘ilgan + to‘lanmagan) × foiz, oylik olingan oyda — yakuniy summa (keyingi to‘lovlar keyingi
+    oy oyligiga). Markaz tushumidan oladigan xodimda — barcha o‘quvchilar.
   - **Oylik davri** (foizli oylik, oktabr 2026 dan): oy **«Oylik» olindi deb yozilmaguncha yopilmaydi**. Masalan, oktabr
     oyligi hali olinmagan bo‘lsa, noyabrda tushgan to‘lovlar ham oktabr oyligiga qo‘shiladi. Xodim «Olingan avans/oylik»
     bo‘limida (yoki rahbar xodim sahifasida) «Oylik — Oktabr» deb yozgach, olingan sanadan keyin tushgan to‘lovlar noyabr

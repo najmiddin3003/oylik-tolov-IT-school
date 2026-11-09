@@ -47,8 +47,6 @@ export type SalaryCycles = {
   closedOn: (month: string) => string | null;
   /** Hozir tushgan to'lov qaysi oy oyligiga qo'shiladi (ochiq oy) */
   current: string;
-  /** Shu xodimning to'lovi qaysi oy oyligiga hisoblangan (`bases` bilan bir xil qoida) */
-  monthOf: (p: CyclePayment) => string;
 };
 
 /**
@@ -116,6 +114,5 @@ export function salaryCycles(payments: CyclePayment[], closes: CycleClose[], now
     bases,
     closedOn: (month) => (earned.includes(month) ? (closeOf(month)?.[0] ?? null) : null),
     current: target([dateToISO(now), now.getTime()]),
-    monthOf: (p) => target(paymentKey(p)),
   };
 }
