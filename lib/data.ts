@@ -21,8 +21,7 @@ import {
   type StudentLean,
   type StudentRow,
 } from "./ledger";
-import { cashierKassa, kassaState } from "./kassa";
-import { Handover, Payment, Salary, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
+import { Payment, Salary, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
 import { normalizeText } from "./normalize";
 import { daysLeftInMonth, monthEndReminderActive } from "./reminders";
@@ -187,8 +186,7 @@ export type NavCounts = {
   payments: number;
   sync?: SyncState;
   staff?: number;
-  /** Rahbar: qabul qilinishi kutilayotgan kassa topshiruvlari; administrator: ochiq topshiriqlar */
-  kassa?: number;
+  /** Administrator: ochiq topshiriqlar */
   tasks?: number;
 };
 
@@ -309,13 +307,12 @@ export const getNavCounts = cache(async (): Promise<NavCounts> => {
     const [payments, debtors] = await Promise.all([Payment.countDocuments({ ...LIVE, month, student: { $in: mine.map((s) => s._id) } }), unpaidCount(mine)]);
     return { role, students: mine.filter((s) => s.active ?? true).length, payments, debtors };
   }
-  const [students, payments, settings, last, staff, kassa, debtors] = await Promise.all([
+  const [students, payments, settings, last, staff, debtors] = await Promise.all([
     Student.countDocuments({ active: true }),
     Payment.countDocuments({ ...LIVE, month }),
     getSettings(),
     SyncRun.findOne({}).select("ok mismatches.resolved").sort({ startedAt: -1 }).lean(),
     Staff.countDocuments({ status: { $ne: "disabled" } }),
-    Handover.countDocuments({ status: "pending" }),
     unpaidCount(),
   ]);
   let sync: SyncState = "off";
@@ -323,7 +320,7 @@ export const getNavCounts = cache(async (): Promise<NavCounts> => {
     if (!last.ok) sync = "error";
     else sync = (last.mismatches ?? []).some((m) => !m.resolved) ? "warn" : "ok";
   }
-  return { role, students, payments, sync, staff, kassa, debtors };
+  return { role, students, payments, sync, staff, debtors };
 });
 
 // ---------- Oy bo'yicha umumiy holat (bosh sahifa va to'lovlar sahifasi) ----------
@@ -1274,34 +1271,6 @@ export async function getMyTasks(): Promise<TaskRow[]> {
   return tasksFor("admin");
 }
 
-/** Rahbar: eslatma bannerida — har oy uchun yuborilgan topshiriq holati. */
-export async function getTaskStatus(months: string[]): Promise<Record<string, TaskRow>> {
-  const s = await requireAuth();
-  if (s.role !== "owner") return {};
-  return latestTasksByMonth(months);
-}
-
-// ---------- Kassa ----------
-
-/** «Kassa» sahifasi: administrator — o'z kassasi; rahbar — barcha kassalar va qabul qilinishi kutilayotganlar. */
-export async function getKassaPageData() {
-  const s = await requireRole(["owner", "admin"]);
-  if (s.role === "admin") return { role: "admin" as const, ...(await cashierKassa(s.staffId)) };
-  return { role: "owner" as const, ...(await kassaState()) };
-}
-
-/** Administratorning kassasi (To'lovlar sahifasidagi ixcham karta uchun). */
-export async function getMyKassa() {
-  const s = await requireRole(["admin"]);
-  return cashierKassa(s.staffId);
-}
-
-/** Rahbar paneli: qabul qilinishi kutilayotgan topshiruvlar va kassa holati. */
-export async function getOwnerKassa() {
-  await requireOwner();
-  return kassaState();
-}
-
 // ---------- Olingan avans/oylik (xodimning o'zi) ----------
 
 /** «Olingan avans/oylik»: barcha olgan pullari oylar bo'yicha va har oy oyligi (o'qituvchi, administrator). */
@@ -1342,23 +1311,14 @@ export async function getMyActivity(opts: { group?: string; before?: string; lim
 
 // ---------- Qo'ng'iroqcha ----------
 
-export type BellHandover = { id: string; fromName: string; cash: number; card: number; createdAt: string };
-
-/** Qo'ng'iroqcha uchun: administratorga — ochiq topshiriqlar; rahbarga — qabul qilinishi kutilayotgan kassa topshiruvlari. */
-export const getBellExtras = cache(async (): Promise<{ tasks: TaskRow[]; handovers: BellHandover[] }> => {
+/**
+ * Qo'ng'iroqcha uchun: administratorga — ochiq topshiriqlar; rahbarga — oy oxiri eslatmalari bo'yicha
+ * administratorga yuborilgan topshiriqlar holati (oy -> oxirgi topshiriq).
+ */
+export const getBellExtras = cache(async (): Promise<{ tasks: TaskRow[]; sent: Record<string, TaskRow> }> => {
   const s = await requireAuth();
-  if (s.role === "admin") return { tasks: (await tasksFor("admin")).filter((t) => t.status === "open"), handovers: [] };
-  if (s.role !== "owner") return { tasks: [], handovers: [] };
-  await connectDB();
-  const docs = await Handover.find({ status: "pending" }).sort({ createdAt: -1 }).limit(10).lean();
-  return {
-    tasks: [],
-    handovers: docs.map((h) => ({
-      id: String(h._id),
-      fromName: h.fromName || "Administrator",
-      cash: h.cash ?? 0,
-      card: h.card ?? 0,
-      createdAt: (h.createdAt ?? new Date()).toISOString(),
-    })),
-  };
+  if (s.role === "admin") return { tasks: (await tasksFor("admin")).filter((t) => t.status === "open"), sent: {} };
+  if (s.role !== "owner") return { tasks: [], sent: {} };
+  const reminders = await getReminders();
+  return { tasks: [], sent: reminders.length ? await latestTasksByMonth(reminders.map((r) => r.month)) : {} };
 });

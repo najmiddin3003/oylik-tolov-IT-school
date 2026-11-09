@@ -83,9 +83,6 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
       source: "site",
       createdBy: role,
       createdByStaff: staffId,
-      // Pul kiritgan kishining kassasiga tushadi (administrator — rahbarga topshirguncha)
-      cashierRole: role,
-      cashierStaff: staffId,
     })),
   );
   const what =
@@ -98,7 +95,7 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
 }
 
 /**
- * To'lov summasini tahrirlash (rahbar va administrator). Qarz, reja, kassa va oyliklar summadan hisoblanadi —
+ * To'lov summasini tahrirlash (rahbar va administrator). Qarz, reja va oyliklar summadan hisoblanadi —
  * hammasi o'zi yangilanadi. Asl (birinchi kiritilgan) summa saqlanadi, to'lov «tahrirlangan» deb belgilanadi.
  */
 export async function updatePaymentAmount(_prev: FormState, formData: FormData): Promise<FormState> {

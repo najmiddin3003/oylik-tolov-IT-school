@@ -51,12 +51,6 @@ const paymentSchema = new Schema(
     createdBy: { type: String, enum: ["owner", "admin", "system"], default: "owner" },
     /** Kiritgan xodim (xodim profili bilan kirgan bo'lsa) */
     createdByStaff: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
-    /**
-     * Pul kimning kassasiga tushdi: administrator kiritsa — o'z kassasiga (rahbarga topshirguncha), rahbar kiritsa — rahbar kassasiga.
-     * Kassa yuritilishidan oldingi va Sheets'dan import qilingan to'lovlarda yo'q (kassada hisoblanmaydi).
-     */
-    cashierRole: { type: String, enum: ["owner", "admin", null], default: null },
-    cashierStaff: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
     /** Arxivlangan to'lov hech qayerda hisoblanmaydi; faqat rahbarning arxiv ro'yxatida ko'rinadi */
     archivedAt: { type: Date, default: null },
     archivedBy: { type: String, enum: ["owner", "admin", null], default: null },
@@ -70,7 +64,6 @@ const paymentSchema = new Schema(
 paymentSchema.index({ student: 1, month: 1 });
 paymentSchema.index({ archivedAt: 1, month: 1, paidAt: -1 });
 paymentSchema.index({ archivedAt: 1, paidAt: 1 });
-paymentSchema.index({ cashierRole: 1, cashierStaff: 1 });
 
 // ---------- Hisoblagich (tartib raqamlari uchun) ----------
 const counterSchema = new Schema({ _id: { type: String }, value: { type: Number, default: 0 } }, { versionKey: false });
@@ -359,26 +352,6 @@ const taskSchema = new Schema(
 taskSchema.index({ toRole: 1, status: 1, createdAt: -1 });
 taskSchema.index({ month: 1, status: 1 });
 
-// ---------- Kassa: administrator yig'gan pulni rahbarga topshirishi ----------
-const handoverSchema = new Schema(
-  {
-    fromStaff: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
-    fromName: { type: String, default: "" },
-    /** Naqd va karta (karta + o'tkazma) alohida */
-    cash: { type: Number, default: 0, min: 0 },
-    card: { type: Number, default: 0, min: 0 },
-    note: { type: String, trim: true, default: "", maxlength: 300 },
-    /** pending — rahbar hali qabul qilmagan (pul administrator kassasida turadi) */
-    status: { type: String, enum: ["pending", "accepted", "rejected"], default: "pending" },
-    decidedAt: { type: Date, default: null },
-    decidedBy: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
-    decidedByName: { type: String, default: "" },
-  },
-  { timestamps: true },
-);
-handoverSchema.index({ status: 1, createdAt: -1 });
-handoverSchema.index({ fromStaff: 1, createdAt: -1 });
-
 // ---------- Sayt tezligi o'lchovi (rahbarning «Tezlik» sahifasi; 30 kundan keyin o'zi o'chadi) ----------
 const perfSchema = new Schema(
   {
@@ -465,6 +438,5 @@ export const LoginAttempt: Model<InferSchemaType<typeof loginAttemptSchema>> =
 export const Staff: Model<InferSchemaType<typeof staffSchema>> = models.Staff || model("Staff", staffSchema);
 export const Otp: Model<InferSchemaType<typeof otpSchema>> = models.Otp || model("Otp", otpSchema);
 export const Task: Model<InferSchemaType<typeof taskSchema>> = models.Task || model("Task", taskSchema);
-export const Handover: Model<InferSchemaType<typeof handoverSchema>> = models.Handover || model("Handover", handoverSchema);
 export const Activity: Model<InferSchemaType<typeof activitySchema>> = models.Activity || model("Activity", activitySchema);
 export const Perf: Model<InferSchemaType<typeof perfSchema>> = models.Perf || model("Perf", perfSchema);

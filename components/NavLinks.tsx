@@ -33,8 +33,6 @@ export function SidebarNav({ counts, role }: { counts: NavCounts | null; role: R
           debtors: counts?.debtors,
           payments: counts?.payments,
           staff: counts?.staff,
-          // Kassa — faqat kutilayotgan topshiruv bo'lsa
-          kassa: counts?.kassa || undefined,
         };
         const count = byKey[item.key];
         const dot = item.key === "sync" && counts?.sync ? SYNC_DOT[counts.sync] : null;

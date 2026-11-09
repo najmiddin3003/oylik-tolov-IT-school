@@ -23,9 +23,8 @@ process.env.AUTH_SECRET ??= "test-secret-test-secret-test-secret-123";
 
 test("yangi bo'limlarga kirish huquqi", async () => {
   const { canAccess } = await import("../lib/session");
-  // Kassa — rahbar va administrator
-  assert.equal(canAccess("owner", "/kassa"), true);
-  assert.equal(canAccess("admin", "/kassa"), true);
+  // «Kassa» bo'limi olib tashlangan — administrator va o'qituvchiga yopiq
+  assert.equal(canAccess("admin", "/kassa"), false);
   assert.equal(canAccess("teacher", "/kassa"), false);
   // Olingan avans/oylik — o'qituvchi va administrator (rahbar hammasiga kiradi)
   assert.equal(canAccess("teacher", "/olinganlar"), true);
@@ -37,7 +36,7 @@ test("yangi bo'limlarga kirish huquqi", async () => {
   assert.equal(canAccess("admin", "/reja"), false);
   assert.equal(canAccess("teacher", "/reja"), false);
   // o'xshash nomli yo'llar ochilib qolmasin
-  assert.equal(canAccess("admin", "/kassa-boshqa"), false);
+  assert.equal(canAccess("admin", "/paymentsx"), false);
   assert.equal(canAccess("teacher", "/olinganlarx"), false);
 });
 
@@ -120,7 +119,7 @@ test("faoliyat jurnali: amal guruhi va qurilma nomi", () => {
   assert.equal(activityGroup("login"), "auth");
   assert.equal(activityGroup("auth.password"), "auth");
   assert.equal(activityGroup("payment.add"), "payment");
-  assert.equal(activityGroup("kassa.accept"), "kassa");
+  assert.equal(activityGroup("kassa.accept"), "payment", "eski Kassa yozuvlari — to'lovlar qatorida");
   assert.equal(activityGroup("export.hisobot"), "export");
   assert.equal(activityGroup("noma'lum.amal"), "settings");
   assert.equal(deviceLabel("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36"), "Chrome · Windows");

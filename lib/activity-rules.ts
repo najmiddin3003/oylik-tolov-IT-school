@@ -1,12 +1,11 @@
 // Faoliyat jurnali: amal turlari va ularning guruhlari (sof — brauzerda ham ishlatiladi).
 
-export type ActivityGroup = "auth" | "payment" | "student" | "staff" | "salary" | "kassa" | "task" | "settings" | "sync" | "export";
+export type ActivityGroup = "auth" | "payment" | "student" | "staff" | "salary" | "task" | "settings" | "sync" | "export";
 
 export const ACTIVITY_GROUPS: { key: ActivityGroup; label: string }[] = [
   { key: "auth", label: "Kirish va parol" },
   { key: "payment", label: "To‘lovlar" },
   { key: "student", label: "O‘quvchilar" },
-  { key: "kassa", label: "Kassa" },
   { key: "task", label: "Topshiriqlar" },
   { key: "salary", label: "Oylik va avans" },
   { key: "staff", label: "Xodimlar" },
@@ -19,6 +18,8 @@ export const ACTIVITY_GROUPS: { key: ActivityGroup; label: string }[] = [
 export function activityGroup(action: string): ActivityGroup {
   const head = action.split(".")[0];
   if (head === "login" || head === "logout" || head === "auth") return "auth";
+  // Eski «Kassa» bo'limi yozuvlari (bo'lim olib tashlangan) — pul amallari qatorida
+  if (head === "kassa") return "payment";
   return (ACTIVITY_GROUPS.some((g) => g.key === head) ? head : "settings") as ActivityGroup;
 }
 

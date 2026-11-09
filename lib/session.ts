@@ -71,8 +71,6 @@ export function canAccess(role: Role, pathname: string): boolean {
   if (under(pathname, "/qarzdorlar")) return true;
   // O'zi olgan avans/oylik — o'qituvchi va administrator
   if (under(pathname, "/olinganlar")) return true;
-  // Kassa — administrator (rahbar yuqorida)
-  if (role === "admin" && under(pathname, "/kassa")) return true;
   if (role === "teacher") {
     if (pathname === "/" || pathname === "/students" || pathname === "/api/export/oquvchilar") return true;
     // O'quvchi profili va o'z o'quvchisini tahrirlash (cheklangan maydonlar; yangi qo'shish — rahbarda)

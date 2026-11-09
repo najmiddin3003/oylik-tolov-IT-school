@@ -10,7 +10,6 @@ import {
   Settings2,
   UserPlus,
   UsersRound,
-  Coins,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -26,7 +25,6 @@ const GROUP_STYLE: Record<ActivityGroup, { icon: LucideIcon; tone: Tone }> = {
   student: { icon: UserPlus, tone: "violet" },
   staff: { icon: UsersRound, tone: "sky" },
   salary: { icon: HandCoins, tone: "orange" },
-  kassa: { icon: Coins, tone: "amber" },
   task: { icon: ClipboardList, tone: "brand" },
   settings: { icon: Settings2, tone: "amber" },
   sync: { icon: FileSpreadsheet, tone: "teal" },

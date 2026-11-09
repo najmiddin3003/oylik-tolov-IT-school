@@ -152,7 +152,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
               <div className="grid gap-3 lg:grid-cols-2">
                 <FeatureCheck
                   title="Google Sheets ogohlantiruvi (menga)"
-                  hint="«Sayt va Google Sheets o‘rtasida N ta farq bor» xabari sahifalar tepasida ko‘rinadi. Bu faqat sizning sozlamangiz."
+                  hint="«Sayt va Google Sheets o‘rtasida N ta farq bor» xabari qo‘ng‘iroqchada (bildirishnomalarda) ko‘rinadi. Bu faqat sizning sozlamangiz."
                   initial={d.syncAlert}
                   action={setMySyncAlert}
                 />
@@ -198,7 +198,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
                   icon={UserCog}
                   tone="sky"
                   title="Administrator (opa) paroli — eski, umumiy"
-                  subtitle="Bu parol bilan kirgan kishi faqat «To‘lovlar» va «Kassa»ni ko‘radi. Administrator xodim sifatida ro‘yxatdan o‘tgach — bu parol o‘chadi."
+                  subtitle="Bu parol bilan kirgan kishi faqat «To‘lovlar» va «Qarzdorlar»ni ko‘radi. Administrator xodim sifatida ro‘yxatdan o‘tgach — bu parol o‘chadi."
                   right={d.adminEnabled ? <Tag tone="emerald">o‘rnatilgan</Tag> : <Tag>o‘rnatilmagan</Tag>}
                 />
                 <AdminPasswordForm enabled={d.adminEnabled} />

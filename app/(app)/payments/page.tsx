@@ -18,7 +18,6 @@ import {
   Sparkles,
   Target,
   Trash2,
-  Coins,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -30,7 +29,6 @@ import { PaymentForm } from "@/components/PaymentForm";
 import { PaymentHistory } from "@/components/PaymentHistory";
 import { DatePicker, Select } from "@/components/pickers";
 import { QuickStudentButton } from "@/components/QuickStudent";
-import { ReminderBanner, SyncAlert } from "@/components/ShellParts";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { CompleteTaskButton } from "@/components/TaskButtons";
 import { Avatar, btn, Card, CountBadge, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Progress, Tag, type Tone } from "@/components/ui";
@@ -39,7 +37,6 @@ import {
   canPickPaymentDate,
   countArchivedPayments,
   getMonthOverview,
-  getMyKassa,
   getMyTasks,
   getStaffPay,
   listArchivedPayments,
@@ -52,7 +49,6 @@ import {
   type PaymentRow,
   type PayView,
 } from "@/lib/data";
-import { moneyTotal } from "@/lib/kassa";
 import type { PaymentMethod } from "@/lib/models";
 import { dayLabel } from "@/lib/reminders";
 import { currentMonth, formatDate, formatDateTime, formatMoney, formatNumber, isoToDate, isValidMonth, MONTH_NAMES, monthLabel, nowMs, todayISO } from "@/lib/time";
@@ -153,15 +149,7 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
         }
       />
 
-      {isOwner ? (
-        <Suspense fallback={null}>
-          <SyncAlert />
-        </Suspense>
-      ) : null}
       {admin?.tasks.length ? <TasksCard tasks={admin.tasks} lists={admin.taskLists} /> : null}
-      <Suspense fallback={null}>
-        <ReminderBanner />
-      </Suspense>
 
       <div className="mb-6 grid gap-4 md:grid-cols-3 xl:gap-5">
         <MoneyCard label={`${monthLabel(month)} rejasi`} value={totals.expected} icon={Target} tone="brand" hint={`${totals.students} ta o‘quvchining oylik to‘lovi`}>
@@ -213,8 +201,6 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
           }
         />
       </div>
-
-      {admin ? <KassaStrip kassa={admin.kassa} /> : null}
 
       <TodayLessons
         students={scheduled}
@@ -375,12 +361,12 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
   );
 }
 
-/** Administrator uchun qo'shimcha ma'lumotlar: topshiriqlar, kassa, o'quvchi qo'shish oynasi uchun ro'yxatlar. */
+/** Administrator uchun qo'shimcha ma'lumotlar: topshiriqlar, o'quvchi qo'shish oynasi uchun ro'yxatlar. */
 async function adminExtras() {
-  const [tasks, kassa, teachers, templates] = await Promise.all([getMyTasks(), getMyKassa(), listTeacherChoices(), listScheduleTemplates()]);
+  const [tasks, teachers, templates] = await Promise.all([getMyTasks(), listTeacherChoices(), listScheduleTemplates()]);
   const months = [...new Set(tasks.filter((t) => t.status === "open").map((t) => t.month))];
   const lists = await Promise.all(months.map((m) => listUnpaid(m)));
-  return { tasks, kassa: kassa.kassa, teachers, templates, taskLists: Object.fromEntries(months.map((m, i) => [m, lists[i]])) };
+  return { tasks, teachers, templates, taskLists: Object.fromEntries(months.map((m, i) => [m, lists[i]])) };
 }
 
 /** Rahbardan kelgan topshiriqlar (administrator). */
@@ -428,39 +414,6 @@ function TasksCard({ tasks, lists }: { tasks: Awaited<ReturnType<typeof getMyTas
         })}
       </ul>
     </Card>
-  );
-}
-
-/** Administrator: kassasidagi pul (naqd/karta) va rahbarga topshirish. */
-function KassaStrip({ kassa }: { kassa: Awaited<ReturnType<typeof getMyKassa>>["kassa"] }) {
-  return (
-    <Link
-      href="/kassa"
-      className="group mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-orange-200/70 bg-linear-to-r from-orange-50/80 to-amber-50/40 px-5 py-4 transition hover:shadow-pop sm:px-6"
-    >
-      <IconTile icon={Coins} tone="orange" variant="solid" />
-      <span className="min-w-[180px] flex-1">
-        <span className="block text-[15px] font-semibold text-ink-900">Mening kassam</span>
-        <span className="num mt-0.5 block text-[13px] text-ink-500">
-          Bugun: {formatMoney(moneyTotal(kassa.today))}
-          {moneyTotal(kassa.pending) ? ` · qabul kutilmoqda ${formatMoney(moneyTotal(kassa.pending))}` : ""}
-        </span>
-      </span>
-      <span className="num flex flex-wrap gap-2 text-sm">
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100">
-          <Banknote className="size-4" aria-hidden />
-          {formatMoney(kassa.balance.cash)}
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-3 py-1.5 font-semibold text-brand-700 ring-1 ring-inset ring-brand-100">
-          <CreditCard className="size-4" aria-hidden />
-          {formatMoney(kassa.balance.card)}
-        </span>
-      </span>
-      <span className="inline-flex items-center gap-1 text-sm font-semibold text-orange-700">
-        Rahbarga topshirish
-        <ArrowRight className="size-4 transition group-hover:translate-x-0.5" aria-hidden />
-      </span>
-    </Link>
   );
 }
 
