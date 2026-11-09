@@ -210,7 +210,13 @@ export function HeaderMonth({ fallbackMonth }: { fallbackMonth: string }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const router = useRouter();
-  const hidden = pathname.startsWith("/sync") || pathname.startsWith("/students/new") || /^\/students\/[^/]+\/edit/.test(pathname);
+  // Oy kerak bo'lmagan sahifalar va o'z oy tanlagichi bor sahifalar (xodim sahifasi, «Profilim» — oylik kartasida)
+  const hidden =
+    pathname.startsWith("/sync") ||
+    pathname.startsWith("/students/new") ||
+    /^\/students\/[^/]+\/edit/.test(pathname) ||
+    /^\/staff\/[^/]+/.test(pathname) ||
+    pathname === "/me";
   if (hidden) return null;
 
   const raw = params.get("month");
