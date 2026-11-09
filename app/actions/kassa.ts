@@ -1,8 +1,8 @@
 "use server";
 
 // Kassa: administrator yig'gan pulni rahbarga topshiradi; rahbar qabul qiladi (yoki rad etadi).
-import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
+import { dataChanged } from "@/lib/after-change";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
@@ -32,7 +32,7 @@ export async function sendHandover(_prev: FormState, fd: FormData): Promise<Form
   await connectDB();
   await Handover.create({ fromStaff: session.staffId, fromName: session.name ?? "Administrator", cash, card, note });
   await logActivity(session, "kassa.send", `Rahbarga topshirildi (qabul kutilmoqda): ${both(cash, card)}`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: `Rahbarga yuborildi: ${both(cash, card)}. Rahbar qabul qilgach, kassangizdan chiqadi.`, nonce: Date.now() };
 }
 
@@ -59,7 +59,7 @@ export async function decideHandover(id: string, decision: "accept" | "reject"):
     decision === "accept" ? "kassa.accept" : "kassa.reject",
     `${h.fromName || "Administrator"}dan ${decision === "accept" ? "qabul qilindi" : "rad etildi"}: ${both(h.cash ?? 0, h.card ?? 0)}`,
   );
-  refresh();
+  await dataChanged();
 }
 
 /**
@@ -89,5 +89,5 @@ export async function acceptCashierBalance(key: string): Promise<void> {
     decidedByName: session.name ?? "Rahbar",
   });
   await logActivity(session, "kassa.accept", `${c.name} kassasidan qo‘lda qabul qilindi: ${both(cash, card)}`);
-  refresh();
+  await dataChanged();
 }

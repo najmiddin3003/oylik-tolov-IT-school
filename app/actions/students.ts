@@ -1,8 +1,8 @@
 "use server";
 
-import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
+import { dataChanged } from "@/lib/after-change";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { courseTeacherResolver } from "@/lib/course-teacher";
 import { cleanCourseName, courseTeacher, courseTeachers, sameCourse, teacherCourses, teacherOnCourseChange } from "@/lib/courses";
@@ -165,7 +165,7 @@ export async function deleteStudent(id: string, redirectTo: string | null): Prom
   if (removed) await logActivity(session, "student.delete", `O‘chirildi: ${removed.fullName} (${payments.deletedCount} ta to‘lovi bilan)`);
   // Faqat o'quvchilar ro'yxatiga qaytariladi (boshqa manzilga yo'naltirib bo'lmaydi)
   if (redirectTo === "/students") redirect("/students");
-  refresh();
+  await dataChanged();
 }
 
 /** Tanlangan o'quvchilar ustida amal: faol/nofaol qilish yoki o'chirish (to'lovlari bilan). */
@@ -183,7 +183,7 @@ export async function bulkStudents(action: "activate" | "deactivate" | "delete",
   }
   const verb = action === "delete" ? "o‘chirildi (to‘lovlari bilan)" : action === "activate" ? "faol qilindi" : "nofaol qilindi";
   await logActivity(session, "student.bulk", `${valid.length} ta o‘quvchi ${verb}`);
-  refresh();
+  await dataChanged();
 }
 
 /** Tanlangan o'quvchilarga bir xil dars jadvali qo'yish (bo'sh jadval — tozalash). */
@@ -197,7 +197,7 @@ export async function setLessonsBulk(ids: string[], schedule: string): Promise<{
   await connectDB();
   const res = await Student.updateMany({ _id: { $in: valid } }, { $set: { lessons: parsed.lessons } }, { runValidators: true });
   await logActivity(session, "student.lessons", `${res.matchedCount} ta o‘quvchiga dars jadvali ${parsed.lessons.length ? "qo‘yildi" : "tozalandi"}`);
-  refresh();
+  await dataChanged();
   return { count: res.matchedCount };
 }
 
@@ -212,7 +212,7 @@ export async function setTeacherBulk(ids: string[], teacherId: string): Promise<
   const res = await Student.updateMany({ _id: { $in: valid } }, { $set: { teacher: teacherId || null } });
   const teacher = teacherId ? await Staff.findById(teacherId, { name: 1 }).lean() : null;
   await logActivity(session, "student.teacher", `${res.matchedCount} ta o‘quvchi ${teacher ? `${teacher.name}ga biriktirildi` : "o‘qituvchisiz qoldirildi"}`);
-  refresh();
+  await dataChanged();
   return { count: res.matchedCount };
 }
 
@@ -248,7 +248,7 @@ export async function setCourseBulk(ids: string[], course: string): Promise<{ er
     "student.course",
     `${ops.length} ta o‘quvchi ${group ? `«${group}» kursiga o‘tkazildi` : "kurssiz qoldirildi"}${assigned ? `, ${assigned} tasi ${teacherName || "kurs o‘qituvchisi"}ga biriktirildi` : ""}`,
   );
-  refresh();
+  await dataChanged();
   return { count: ops.length, assigned };
 }
 
@@ -310,7 +310,7 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
     seq: await nextStudentSeq(),
   });
   await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${group}), oylik ${formatMoney(monthlyFee!)}`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: `${fullName} qo‘shildi (${group}, oylik ${formatMoney(monthlyFee!)})`, nonce: Date.now() };
 }
 
@@ -374,6 +374,6 @@ export async function addStudentByTeacher(_prev: FormState, formData: FormData):
     seq: await nextStudentSeq(),
   });
   await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${course.name}), oylik ${formatMoney(monthlyFee)}`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: `${fullName} qo‘shildi (${course.name}, oylik ${formatMoney(monthlyFee)})`, nonce: Date.now() };
 }

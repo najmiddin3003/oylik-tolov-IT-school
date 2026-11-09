@@ -1,8 +1,8 @@
 "use server";
 
 // Xodimning o'zi uchun: olgan avans/oylikni yozish va shaxsiy sozlamalar.
-import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
+import { dataChanged } from "@/lib/after-change";
 import { requireAuth, requireRole } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
@@ -36,7 +36,7 @@ export async function addMySalary(_prev: FormState, fd: FormData): Promise<FormS
   await Salary.create({ staff: session.staffId, kind, amount: amount!, date: date!, month, note, createdByStaff: session.staffId, selfReported: true });
   const what = `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} (${monthLabel(month)} hisobidan)`;
   await logActivity(session, "salary.self_add", `Olingan pul yozildi: ${what}`);
-  refresh();
+  await dataChanged();
   // Foizli oylikda (o'qituvchi) «oylik» oyni yopadi — keyingi to'lovlar keyingi oyga
   const closes = kind === "oylik" && session.role === "teacher" && month >= SALARY_CYCLE_FROM;
   return { ok: true, message: `${what} yozildi${closes ? ` — ${monthLabel(month)} yopildi, bundan keyin tushgan to‘lovlar keyingi oy oyligiga` : ""}`, nonce: Date.now() };
@@ -51,7 +51,7 @@ export async function deleteMySalary(id: string): Promise<void> {
   if (removed) {
     await logActivity(session, "salary.self_delete", `O‘chirildi: ${removed.kind === "oylik" ? "oylik" : "avans"} ${formatMoney(removed.amount)} (${monthLabel(removed.month)})`);
   }
-  refresh();
+  await dataChanged();
 }
 
 /** Google Sheets ogohlantiruvini o'zim uchun yoqish/o'chirish. */
@@ -61,5 +61,5 @@ export async function setMySyncAlert(on: boolean): Promise<void> {
   if (session.staffId) await Staff.updateOne({ _id: session.staffId }, { $set: { "prefs.syncAlert": Boolean(on) } });
   else if (session.role === "owner") await updateSettings({ $set: { "legacyPrefs.syncAlert": Boolean(on) } });
   await logActivity(session, "settings.sync_alert", `Google Sheets ogohlantiruvi ${on ? "yoqildi" : "o‘chirildi"}`);
-  refresh();
+  await dataChanged();
 }
