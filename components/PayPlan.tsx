@@ -42,13 +42,7 @@ export function PayPlanPanel({
           label="Amalda yig‘ildi"
           value={formatMoney(plan.collected)}
           tone="emerald"
-          hint={
-            <>
-              {plan.openedOn ? `${formatDate(isoToDate(plan.openedOn))} dan beri tushgan` : `${name} oyligiga hisoblangan`}
-              <br />
-              oylik: {formatMoney(plan.share)}
-            </>
-          }
+          hint={plan.openedOn ? `${formatDate(isoToDate(plan.openedOn))} dan beri tushgan` : `${name} oyligiga hisoblangan`}
         />
         <PlanFigure
           label="Hali to‘lanmagan"
@@ -85,10 +79,6 @@ export function PayPlanPanel({
           <span className={cx("num w-12 text-right text-sm font-bold", pct >= 100 ? "text-emerald-600" : "text-brand-700")}>{pct}%</span>
         </div>
       )}
-      <p className="mt-2 text-xs leading-relaxed text-ink-500">
-        Oylik olingandan keyin tushgan har bir to‘lov (qaysi oy uchunligidan qat’i nazar) keyingi oy oyligiga hisoblanadi. O‘quvchilarning {name} uchun oylik
-        to‘lovlari jami: <span className="num whitespace-nowrap">{formatMoney(plan.expected)}</span>.
-      </p>
     </section>
   );
 }
