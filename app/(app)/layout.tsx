@@ -3,12 +3,14 @@ import { Suspense } from "react";
 import { ShieldCheck } from "lucide-react";
 import {
   HeaderBreadcrumb,
+  HeaderHistory,
   HeaderTools,
   HeaderToolsFallback,
   MobileNav,
   SidebarBody,
   SidebarSkeleton,
 } from "@/components/ShellParts";
+import { HistoryNavPlaceholder } from "@/components/HistoryNav";
 import { PerfWatcher } from "@/components/PerfWatcher";
 import { SidebarHotkeys, SidebarRailButton, SidebarResizer, SidebarToggleButton } from "@/components/Sidebar";
 import { BreadcrumbFallback } from "@/components/TopBar";
@@ -50,6 +52,12 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
               <BrandName className="hidden text-base sm:inline" />
             </Link>
             <SidebarToggleButton className="-ml-2" />
+            {/* Kirilgan sahifalar orasida «Orqaga / Oldinga» (telefonda joy tor — ko'rsatilmaydi) */}
+            <div className="hidden sm:block">
+              <Suspense fallback={<HistoryNavPlaceholder />}>
+                <HeaderHistory />
+              </Suspense>
+            </div>
             <div className="hidden min-w-0 lg:block">
               <Suspense fallback={<BreadcrumbFallback />}>
                 <HeaderBreadcrumb />

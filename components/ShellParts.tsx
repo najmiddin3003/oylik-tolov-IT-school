@@ -7,6 +7,7 @@ import { reminderTitle } from "@/lib/reminders";
 import type { Role } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { currentMonth, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
+import { HistoryNav } from "./HistoryNav";
 import { navFor, ROLE_INFO } from "./nav";
 import { BottomNav, SidebarNav } from "./NavLinks";
 import { NotificationBell, UnpaidButton } from "./Notifications";
@@ -112,6 +113,12 @@ export function HeaderToolsFallback() {
       <div className="skeleton size-9 rounded-full" aria-hidden />
     </>
   );
+}
+
+/** «Orqaga / Oldinga» tugmalari: tarix har xodimga alohida (bitta kompyuterdan bir necha kishi kirsa — aralashmaydi). */
+export async function HeaderHistory() {
+  const { role, staffId } = await pageGuard();
+  return <HistoryNav storageKey={`tt-history:${staffId ?? role}`} role={role} />;
 }
 
 /** Yuqoridagi yo'l ko'rsatkich (rolga xos bo'lim nomlari bilan). */
