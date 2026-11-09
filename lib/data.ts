@@ -43,7 +43,7 @@ import {
 import { getSettings, standardFee } from "./settings";
 import type { Role } from "./session";
 import { activeStaffRoles, getStaffById, listStaff, listTeachers, salaryHistoryOf, shareHistoryOf, teacherNames, toStaffView, type StaffLean, type StaffView } from "./staff";
-import { payHistoryMonths, trimEmptyPayMonths, type StaffStatus } from "./staff-rules";
+import { payHistoryMonths, payPlanOf, trimEmptyPayMonths, type PayPlan, type StaffStatus } from "./staff-rules";
 import { latestTasksByMonth, tasksFor, type TaskRow } from "./tasks";
 import { compareMonths, currentMonth, isoToDate, monthOfDate, nowMs, shiftMonth, todayISO } from "./time";
 
@@ -1133,6 +1133,21 @@ async function payHistory(doc: StaffLean, month: string): Promise<PayMonth[]> {
   return trimEmptyPayMonths(rows, month);
 }
 
+/**
+ * Bu oy rejasi (foizli oylik): o'qituvchining o'z o'quvchilari (markaz tushumidan oladiganda — barcha o'quvchilar) shu oy
+ * qancha to'lashi kerak, qanchasi to'landi va hamma to'lasa oylik qancha bo'ladi. Belgilangan oylikda — null.
+ */
+async function staffPlan(doc: StaffLean, pay: StaffPay, month: string): Promise<PayPlan | null> {
+  if (pay.kind !== "percent") return null;
+  const center = doc.shareBase === "center";
+  const { rows } = await getMonthOverview(month);
+  const id = String(doc._id);
+  const mine = center ? rows : rows.filter((r) => r.teacherId === id);
+  // Foiz 0 va o'z o'quvchisi yo'q (masalan, oylik olmaydigan rahbar) — reja ko'rsatilmaydi
+  if (!pay.percent && !mine.length) return null;
+  return payPlanOf(mine, pay.percent);
+}
+
 /** Bitta xodim (rahbar uchun): ma'lumotlari, shu oydagi oyligi va olgan oylik/avanslari. */
 export async function getStaffDetail(id: string, month: string) {
   await requireOwner();
@@ -1145,6 +1160,7 @@ export async function getStaffDetail(id: string, month: string) {
   return {
     staff: toStaffView(doc),
     pay,
+    plan: await staffPlan(doc, pay, month),
     salaries: salaries.get(id) ?? [],
     history,
     students: mine.length,
@@ -1165,6 +1181,7 @@ export async function getMyProfile(month: string) {
   return {
     staff: toStaffView(doc),
     pay,
+    plan: await staffPlan(doc, pay, month),
     salaries: salaries.get(v.staffId) ?? [],
     history,
     students: students.filter((st) => String(st.teacher ?? "") === v.staffId && st.active !== false).length,

@@ -26,6 +26,7 @@ import {
   payLabel,
   payHistoryMonths,
   payOf,
+  payPlanOf,
   staffInitials,
   staffPercent,
   staffSalary,
@@ -215,4 +216,26 @@ test("«Oylar bo'yicha» jadvali: oylik belgilanmagan eski oylar tushiriladi", (
   );
   assert.deepEqual(trimEmptyPayMonths([row("2026-11", 0), row("2026-10", 0)], "2026-11").map((r) => r.month), ["2026-11"], "hammasi bo'sh — faqat tanlangan oy");
   assert.deepEqual(trimEmptyPayMonths([], "2026-11"), []);
+});
+
+test("bu oy rejasi: hamma to'lasa qancha oylik, amalda qancha yig'ildi", () => {
+  const rows = [
+    { monthlyFee: 300000, debt: 0 }, // to'liq to'lagan
+    { monthlyFee: 300000, debt: 300000 }, // to'lamagan
+    { monthlyFee: 300000, debt: 100000 }, // qisman: 200 ming to'lagan
+    { monthlyFee: 250000, debt: 0 },
+  ];
+  const plan = payPlanOf(rows, 40);
+  assert.equal(plan.students, 4);
+  assert.equal(plan.expected, 1150000);
+  assert.equal(plan.planShare, 460000, "hamma to'lasa: 1 150 000 × 40%");
+  assert.equal(plan.debt, 400000);
+  assert.equal(plan.collected, 750000);
+  assert.equal(plan.paidCount, 2);
+  assert.equal(plan.debtors, 2);
+  // Bo'sh ro'yxat va 0% — hammasi nol
+  assert.deepEqual(payPlanOf([], 40), { students: 0, paidCount: 0, debtors: 0, expected: 0, collected: 0, debt: 0, percent: 40, planShare: 0 });
+  assert.equal(payPlanOf(rows, 0).planShare, 0);
+  // Qarz oylik to'lovdan oshmaydi va manfiy bo'lmaydi
+  assert.equal(payPlanOf([{ monthlyFee: 300000, debt: 500000 }, { monthlyFee: 300000, debt: -50000 }], 40).collected, 300000);
 });
