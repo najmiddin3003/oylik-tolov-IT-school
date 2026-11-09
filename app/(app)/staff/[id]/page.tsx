@@ -137,8 +137,8 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
                 fixed
                   ? "Belgilangan oylik — har oy bir xil summa. Olingan oylik va avanslar ayiriladi."
                   : staff.shareBase === "center"
-                    ? "Butun markaz tushumidan foiz. Oy «Oylik» berildi deb yozilguncha yopilmaydi — shungacha tushgan to‘lovlar shu oyga qo‘shiladi. Olingan oylik va avanslar ayiriladi."
-                    : "O‘z o‘quvchilari to‘lagan pullardan foiz (o‘tgan oylar qarzi uchun to‘langani ham). Oy «Oylik» berildi deb yozilguncha yopilmaydi — shungacha tushgan to‘lovlar shu oyga qo‘shiladi. Olingan oylik va avanslar ayiriladi."
+                    ? "Butun markaz tushumidan foiz. Olingan oylik va avanslar ayiriladi."
+                    : "O‘z o‘quvchilari to‘lagan pullardan foiz. Olingan oylik va avanslar ayiriladi."
               }
             />
             {d.plan ? (
@@ -155,10 +155,12 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
               thisMonth={currentMonth()}
               who="owner"
               href={pay.cycle ? `/staff/${staff.id}?${new URLSearchParams({ month: pay.cycle.current })}` : undefined}
+              quiet
               className="mb-6"
             />
-            <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
-              {fixed ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilari tushumi"} value={formatMoney(pay.base)} />}
+            {/* Tushum reja blokida («Amalda yig'ildi») — bu yerda takrorlanmaydi */}
+            <div className={cx("mb-6 grid gap-3", fixed || d.plan ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
+              {fixed || d.plan ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilari tushumi"} value={formatMoney(pay.base)} />}
               <Figure label={payLabel(pay)} value={formatMoney(pay.share)} tone="brand" />
               <Figure label="Olindi (oylik/avans)" value={`− ${formatMoney(pay.taken)}`} tone="amber" />
               <Figure label="Qoldi" value={formatMoney(pay.left)} tone={pay.left < 0 ? "rose" : "emerald"} strong />
@@ -169,14 +171,13 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
               action={addSalary.bind(null, staff.id)}
               openMonth={pay.cycle?.current ?? null}
             />
-            <div className="mt-6 overflow-hidden rounded-2xl border border-line">
-              <p className="flex items-center justify-between gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-sm font-semibold text-ink-700">
-                {monthLabel(month)} uchun olinganlar
-                <span className="num text-ink-500">{d.salaries.length} ta</span>
-              </p>
-              {d.salaries.length === 0 ? (
-                <p className="px-4 py-5 text-sm text-ink-400">Bu oy uchun hali oylik yoki avans yozilmagan.</p>
-              ) : (
+            {/* Olinganlar ro'yxati — yozuv bo'lsa (bo'lmasa «Olindi: 0» yetarli) */}
+            {d.salaries.length ? (
+              <div className="mt-6 overflow-hidden rounded-2xl border border-line">
+                <p className="flex items-center justify-between gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-sm font-semibold text-ink-700">
+                  {monthLabel(month)} uchun olinganlar
+                  <span className="num text-ink-500">{d.salaries.length} ta</span>
+                </p>
                 <ul className="divide-y divide-line-soft">
                   {d.salaries.map((x) => (
                     <li key={x.id} className="group flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3">
@@ -202,8 +203,8 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
                     </li>
                   ))}
                 </ul>
-              )}
-            </div>
+              </div>
+            ) : null}
           </Card>
 
           <PayMonths

@@ -23,6 +23,7 @@ export function SalaryCycleNote({
   thisMonth,
   who,
   href,
+  quiet = false,
   className,
 }: {
   cycle: PayCycle;
@@ -33,6 +34,8 @@ export function SalaryCycleNote({
   who: Who;
   /** Ochiq oy sahifasiga havola (ko'rilayotgan oy undan keyin bo'lsa) */
   href?: string;
+  /** Faqat e'tibor kerak bo'lganda (yopilgan, oldingi oy ochiq, keyingi oy): joriy ochiq oy uchun umumiy izoh ko'rsatilmaydi */
+  quiet?: boolean;
   className?: string;
 }) {
   if (!cycle) return null;
@@ -65,6 +68,7 @@ export function SalaryCycleNote({
         </div>
       );
     }
+    if (quiet) return null;
     return (
       <div className={cx(box, "border-line bg-slate-50/70 text-ink-600", className)}>
         <Info className={cx(icon, "text-ink-400")} aria-hidden />

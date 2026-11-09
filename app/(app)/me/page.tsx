@@ -93,7 +93,7 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
                 subtitle={
                   fixed
                     ? `${pay.share ? "Belgilangan oylik — har oy bir xil summa." : "Oylik hali belgilanmagan — rahbar «Xodimlar» bo‘limida belgilaydi."} Olingan oylik va avanslar ayiriladi.`
-                    : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz to‘lagan pullardan (o‘tgan oylar qarzi uchun to‘langani ham)"} ${pay.percent}%. Oy «Oylik» olindi deb yozilguncha yopilmaydi — shungacha tushgan to‘lovlar shu oyga qo‘shiladi. Olingan oylik va avanslar ayiriladi.`
+                    : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz to‘lagan pullardan"} ${pay.percent}%. Olingan oylik va avanslar ayiriladi.`
                 }
               />
               {me.plan ? (
@@ -110,22 +110,23 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
                 thisMonth={currentMonth()}
                 who={isOwner ? "owner" : "self"}
                 href={pay.cycle ? `/me?${new URLSearchParams({ month: pay.cycle.current })}` : undefined}
+                quiet
                 className="mb-6"
               />
-              <div className={cx("mb-6 grid gap-3", fixed ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
-                {fixed ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilarim tushumi"} value={formatMoney(pay.base)} />}
+              {/* Tushum reja blokida («Amalda yig'ildi») — bu yerda takrorlanmaydi */}
+              <div className={cx("mb-6 grid gap-3", fixed || me.plan ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
+                {fixed || me.plan ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilarim tushumi"} value={formatMoney(pay.base)} />}
                 <Figure label={payLabel(pay)} value={formatMoney(pay.share)} tone="brand" />
                 <Figure label="Olindi (oylik/avans)" value={`− ${formatMoney(pay.taken)}`} tone="amber" />
                 <Figure label="Qoldi" value={formatMoney(pay.left)} tone={pay.left < 0 ? "rose" : "emerald"} strong />
               </div>
-              <div className="overflow-hidden rounded-2xl border border-line">
-                <p className="flex items-center justify-between gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-sm font-semibold text-ink-700">
-                  {monthLabel(month)} uchun olganlarim
-                  <span className="num text-ink-500">{me.salaries.length} ta</span>
-                </p>
-                {me.salaries.length === 0 ? (
-                  <p className="px-4 py-5 text-sm text-ink-400">Bu oy uchun hali oylik yoki avans yozilmagan.</p>
-                ) : (
+              {/* Olganlarim ro'yxati — yozuv bo'lsa (bo'lmasa «Olindi: 0» yetarli) */}
+              {me.salaries.length ? (
+                <div className="overflow-hidden rounded-2xl border border-line">
+                  <p className="flex items-center justify-between gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-sm font-semibold text-ink-700">
+                    {monthLabel(month)} uchun olganlarim
+                    <span className="num text-ink-500">{me.salaries.length} ta</span>
+                  </p>
                   <ul className="divide-y divide-line-soft">
                     {me.salaries.map((x) => (
                       <li key={x.id} className="group flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3">
@@ -142,8 +143,8 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
                       </li>
                     ))}
                   </ul>
-                )}
-              </div>
+                </div>
+              ) : null}
               {isOwner ? null : (
                 <Link href="/olinganlar" className={cx(btn.soft, "mt-4 h-10")}>
                   <HandCoins className="size-4" aria-hidden />
