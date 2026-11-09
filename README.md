@@ -202,6 +202,24 @@ noyabr (100 ming). Yangi o'quvchining boshlanish sanasi — Sheets'dagi birinchi
 
 Bir vaqtda ikki tekshiruv ketmasligi uchun bazada qulf bor; oxirgi 60 ta natija saqlanadi.
 
+## Tezlik: serverni uyg'oq ushlab turish
+
+Foydalanuvchi kam bo'lsa, Vercel serveri uxlab qoladi va keyingi birinchi ochilish ~1,5 soniya ko'proq kutadi
+(«Tezlik» sahifasi → «Server uyg'onishi»). Buning oldini olish uchun tashqi bepul xizmat ish vaqtida serverni chaqirib turadi:
+
+1. [cron-job.org](https://cron-job.org) da ro'yxatdan o'ting → «Create cronjob».
+2. URL: `https://<sayt>/api/ping` (masalan, `https://oylik-tolov-it-school.vercel.app/api/ping`).
+3. Jadval: har 5 daqiqada, soat 07:00–21:00, vaqt mintaqasi `Asia/Tashkent`. Saqlang.
+
+`/api/ping` kirishni talab qilmaydi va hech qanday ma'lumot qaytarmaydi (`{"ok":true}`), faqat server va bazaga ulanishni
+tirik tutadi. Vercel'ning bepul rejasida cron kuniga bir marta ishlagani uchun tashqi xizmat kerak.
+Vercel loyihasida **Settings → Functions → Fluid Compute** yoqilgan bo'lishi ham server uyg'onishini kamaytiradi.
+
+Ochilgan sahifa brauzerda **30 soniya** saqlanadi (`next.config.ts` → `staleTimes`): shu vaqt ichida unga qaytilsa —
+serverni kutmasdan darhol. Har bir o'zgarishdan keyin (server action oxirida `dataChanged()`, `lib/after-change.ts`)
+brauzer keshi tozalanadi — o'zingiz kiritgan o'zgarish boshqa sahifalarda ham darhol ko'rinadi; boshqa xodim kiritgani
+ko'pi bilan 30 soniyada.
+
 ## SMS (Eskiz) ni ulash
 
 1. [my.eskiz.uz](https://my.eskiz.uz) da ro'yxatdan o'ting, balans to'ldiring.

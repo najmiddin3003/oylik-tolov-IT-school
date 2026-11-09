@@ -31,6 +31,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // /api/cron o'z kaliti (CRON_SECRET) bilan himoyalangan
-  matcher: ["/((?!api/cron|_next/static|_next/image|favicon.ico|icon.svg).*)"],
+  // /api/cron o'z kaliti (CRON_SECRET) bilan himoyalangan; /api/ping — ochiq (serverni uyg'oq ushlab turish, ma'lumot bermaydi)
+  matcher: ["/((?!api/cron|api/ping|_next/static|_next/image|favicon.ico|icon.svg).*)"],
 };

@@ -1,7 +1,7 @@
 "use server";
 
-import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
+import { dataChanged } from "@/lib/after-change";
 import { requireOwner } from "@/lib/auth";
 import { mismatchKey } from "@/lib/compare";
 import { connectDB } from "@/lib/db";
@@ -35,7 +35,7 @@ export async function saveSheetSettings(_prev: FormState, formData: FormData): P
   }
   await updateSettings({ $set: { sheetUrl, columns, courseFilter, autoImport } });
   await logActivity(session, "sync.settings", `Google Sheets sozlamalari saqlandi${courseFilter ? ` (kurslar: ${courseFilter})` : " (barcha kurslar)"}`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: "Sozlamalar saqlandi" };
 }
 
@@ -43,7 +43,7 @@ export async function runSyncNow(): Promise<FormState> {
   const session = await requireOwner({ fresh: true });
   await connectDB();
   const res = await runSync("manual");
-  refresh();
+  await dataChanged();
   if (!res) return { error: "Hozir boshqa tekshiruv ketmoqda, birozdan keyin urinib ko'ring" };
   await logActivity(
     session,
@@ -67,7 +67,7 @@ export async function importMismatch(runId: string, mismatchId: string): Promise
   if (!isId(runId) || !isId(mismatchId)) return;
   const res = await importFromRun(runId, [mismatchId]);
   if (res?.resolved) await logActivity(session, "sync.import", "Sheets’dagi yozuv saytga qo‘shildi");
-  refresh();
+  await dataChanged();
 }
 
 /**
@@ -91,7 +91,7 @@ export async function linkMismatch(runId: string, mismatchId: string, studentId:
         : `Sheets’dagi «${m.studentName}» saytdagi «${res.linkedTo}» o‘quvchisiga bog‘landi (to‘lovi saytda allaqachon bor — qayta yozilmadi)`,
     );
   }
-  refresh();
+  await dataChanged();
 }
 
 /** Barcha qo'shsa bo'ladigan farqlarni saytga qo'shadi va qayta tekshiradi. */
@@ -103,7 +103,7 @@ export async function importAllMismatches(runId: string): Promise<void> {
     await logActivity(session, "sync.import", `Sheets’dan ${res.resolved} ta yozuv saytga qo‘shildi`);
     await runSync("manual");
   }
-  refresh();
+  await dataChanged();
 }
 
 /** Farqni "hal qilindi" deb belgilash (masalan, Sheets'ni qo'lda to'g'rilagandan keyin). */
@@ -117,7 +117,7 @@ export async function resolveMismatch(runId: string, mismatchId: string): Promis
   mismatch.resolved = true;
   await run.save();
   await logActivity(session, "sync.resolve", `Farq hal qilindi deb belgilandi: ${mismatch.studentName}`);
-  refresh();
+  await dataChanged();
 }
 
 const KIND_TEXT: Record<MismatchKind, string> = {
@@ -161,7 +161,7 @@ export async function ignoreMismatch(runId: string, mismatchId: string): Promise
   m.resolved = true;
   await run.save();
   await logActivity(session, "sync.ignore", `E’tiborsiz qoldirildi: ${m.studentName} — ${KIND_TEXT[m.kind as MismatchKind]}, ${monthLabel(m.month)}`);
-  refresh();
+  await dataChanged();
 }
 
 /** E'tiborsiz qoldirishni bekor qilish: farq oxirgi tekshiruvda bo'lsa — darhol, aks holda keyingi tekshiruvda yana ko'rinadi. */
@@ -185,5 +185,5 @@ export async function unignoreMismatch(ignoreId: string): Promise<void> {
     if (changed) await last.save();
   }
   await logActivity(session, "sync.unignore", `E’tiborsiz qoldirish bekor qilindi: ${doc.studentName} — ${KIND_TEXT[doc.kind as MismatchKind]}, ${monthLabel(doc.month)}`);
-  refresh();
+  await dataChanged();
 }

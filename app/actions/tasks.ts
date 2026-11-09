@@ -1,8 +1,8 @@
 "use server";
 
 // Rahbardan administratorga topshiriq: «To'lovlarni yig'ing — N ta o'quvchi to'lov qilmabdi».
-import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
+import { dataChanged } from "@/lib/after-change";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
@@ -30,7 +30,7 @@ export async function sendCollectTask(month: string): Promise<TaskResult> {
     await Task.create({ toRole: "admin", kind: "collect", month, count: debtors.length, total, fromStaff: session.staffId, fromName });
   }
   await logActivity(session, "task.send", `Administratorga topshiriq: ${monthLabel(month)} — ${debtors.length} ta o‘quvchi, ${formatMoney(total)}`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: updated.matchedCount ? "Topshiriq yangilandi" : "Topshiriq yuborildi" };
 }
 
@@ -46,6 +46,6 @@ export async function completeTask(id: string): Promise<TaskResult> {
   ).lean();
   if (!task) return { error: "Topshiriq allaqachon bajarilgan" };
   await logActivity(session, "task.done", `Topshiriq bajarildi: ${monthLabel(task.month)} to‘lovlari`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: "Bajarildi deb belgilandi" };
 }

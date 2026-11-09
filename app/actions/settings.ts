@@ -1,8 +1,8 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
+import { dataChanged } from "@/lib/after-change";
 import { isOwnerPassword, passwordVersion, requireOwner } from "@/lib/auth";
 import { assignCourseStudents } from "@/lib/course-teacher";
 import { cleanCourseName, courseKey, coursesForStorage, courseTeacher, sameCourse, type Course } from "@/lib/courses";
@@ -35,7 +35,7 @@ export async function saveCenterName(_prev: FormState, fd: FormData): Promise<Fo
   if (centerName.length < 2) return { fieldErrors: { centerName: "Nomni kiriting" } };
   await updateSettings({ $set: { centerName } });
   await logActivity(session, "settings.center", `Markaz nomi: «${centerName}»`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: "Saqlandi" };
 }
 
@@ -113,7 +113,7 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
   });
   const target = onlyCourse ? `«${onlyCourse}» kursiga` : onlyFee !== null ? `hozir ${formatMoney(onlyFee)} to‘layotganlarga` : "barcha o‘quvchilarga";
   await logActivity(session, "settings.fee", `Oylik narx ${monthLabel(from)} dan ${formatMoney(fee!)} — ${target} (${ops.length} ta o‘quvchi)`);
-  refresh();
+  await dataChanged();
   return {
     ok: true,
     message: ops.length
@@ -158,7 +158,7 @@ export async function changeOwnerPassword(_prev: FormState, fd: FormData): Promi
     maxAge: SESSION_DAYS * 24 * 3600,
   });
   await logActivity(session, "auth.password", "Rahbarning umumiy paroli almashtirildi");
-  refresh();
+  await dataChanged();
   return { ok: true, message: "Parolingiz almashtirildi. Boshqa qurilmalarda qayta kirish kerak bo‘ladi.", nonce: Date.now() };
 }
 
@@ -174,7 +174,7 @@ export async function setAdminPassword(_prev: FormState, fd: FormData): Promise<
   const had = Boolean(settings.adminPasswordHash);
   await updateSettings({ $set: { adminPasswordHash: await hashPassword(next) } });
   await logActivity(session, "settings.admin_password", had ? "Administratorning umumiy paroli almashtirildi" : "Administrator uchun umumiy parol o‘rnatildi");
-  refresh();
+  await dataChanged();
   return {
     ok: true,
     message: had
@@ -188,7 +188,7 @@ export async function disableAdmin(): Promise<void> {
   const session = await requireOwner({ fresh: true });
   await updateSettings({ $set: { adminPasswordHash: null } });
   await logActivity(session, "settings.admin_password", "Administratorning umumiy paroli o‘chirildi");
-  refresh();
+  await dataChanged();
 }
 
 // ---------- SMS ----------
@@ -221,7 +221,7 @@ export async function saveSmsSettings(_prev: FormState, fd: FormData): Promise<F
     },
   });
   await logActivity(session, "settings.sms", "SMS sozlamalari saqlandi (raqam, matnlar, boshlanish sanasi)");
-  refresh();
+  await dataChanged();
   return { ok: true, message: "SMS sozlamalari saqlandi", nonce: Date.now() };
 }
 
@@ -229,7 +229,7 @@ export async function sendTestSmsAction(): Promise<FormState> {
   const session = await requireOwner({ fresh: true });
   const res = await sendTestSms();
   await logActivity(session, "settings.sms_test", res.status === "sent" ? `Sinov SMS yuborildi: «${res.text}»` : `Sinov SMS yuborilmadi: ${res.message}`);
-  refresh();
+  await dataChanged();
   if (res.status === "sent") return { ok: true, message: `Sinov SMS yuborildi: «${res.text}»` };
   return { error: res.message };
 }
@@ -252,7 +252,7 @@ export async function setFeature(key: FeatureKey, on: boolean): Promise<{ ok: bo
   if (!f) return { ok: false };
   await updateSettings({ $set: { [f.field]: Boolean(on) } });
   await logActivity(session, "settings.feature", `${f.label}: ${on ? "yoqildi" : "o‘chirildi"}`);
-  refresh();
+  await dataChanged();
   return { ok: true };
 }
 
@@ -343,6 +343,6 @@ export async function saveCourses(_prev: FormState, fd: FormData): Promise<FormS
     return extra.length ? `${c.name} (${extra.join(", ")})` : c.name;
   };
   await logActivity(session, "settings.courses", `Kurslar: ${courses.map(describe).join(", ")}${notes.length ? ` · ${notes.join(" · ")}` : ""}`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: notes.length ? `Saqlandi. ${notes.join(". ")}.` : "Saqlandi", nonce: Date.now() };
 }

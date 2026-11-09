@@ -1,9 +1,9 @@
 "use server";
 
 // Xodimlarni boshqarish (faqat rahbar): qo'shish, tahrirlash, oylik foizi, kirishni o'chirish/tiklash, oylik va avanslar.
-import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
+import { dataChanged } from "@/lib/after-change";
 import { requireOwner } from "@/lib/auth";
 import { addCourseTeacher, clearCourseTeacher } from "@/lib/course-teacher";
 import { sameCourse } from "@/lib/courses";
@@ -86,7 +86,7 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
     "staff.add",
     `Xodim qo‘shildi: ${name} (${ROLE_LABEL[role as Role]}, ${formatUzPhone(phone!)}${percent ? `, ${percent}%` : ""}${salary ? `, oylik ${formatMoney(salary)}` : ""})${courseNote ? ` · ${courseNote}` : ""}`,
   );
-  refresh();
+  await dataChanged();
   return {
     ok: true,
     message: `${name} (${ROLE_LABEL[role as Role]}) qo‘shildi.${courseNote ? ` ${courseNote}.` : ""} Endi u kirish sahifasida ${formatUzPhone(phone!)} raqamini kiritadi — birinchi marta SMS kod keladi va o‘zi parol qo‘yadi.`,
@@ -119,7 +119,7 @@ export async function updateStaff(id: string, _prev: FormState, fd: FormData): P
   // Dars bermay qolsa — kurslardagi «kurs o'qituvchisi» belgisi olib tashlanadi (o'quvchilari o'zgarmaydi)
   if (!isTeaching({ role: role as Role, teaches })) await clearCourseTeacher(id);
   await logActivity(session, "staff.edit", `Xodim ma’lumotlari: ${name} (${ROLE_LABEL[role as Role]}${teaches ? ", dars ham beradi" : ""})`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: "Saqlandi", nonce: Date.now() };
 }
 
@@ -139,7 +139,7 @@ export async function setStaffPercent(id: string, _prev: FormState, fd: FormData
   if (!staff) return { error: "Xodim topilmadi" };
   await Staff.updateOne({ _id: id }, { $set: { shareHistory: applyPercentFrom(shareHistoryOf(staff), from, percent!) } });
   await logActivity(session, "staff.percent", `${staff.name}: oylik foizi ${monthLabel(from)} dan ${percent}%`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: `${monthLabel(from)} oyidan boshlab ${percent}%`, nonce: Date.now() };
 }
 
@@ -160,7 +160,7 @@ export async function setStaffSalary(id: string, _prev: FormState, fd: FormData)
   if (!staff) return { error: "Xodim topilmadi" };
   await Staff.updateOne({ _id: id }, { $set: { salaryHistory: applyAmountFrom(salaryHistoryOf(staff), from, amount!) } });
   await logActivity(session, "staff.salary", `${staff.name}: oylik ${monthLabel(from)} dan ${formatMoney(amount!)}`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: `${monthLabel(from)} oyidan boshlab ${formatMoney(amount!)}`, nonce: Date.now() };
 }
 
@@ -180,7 +180,7 @@ export async function setStaffAccess(id: string, action: "disable" | "enable" | 
   if (action === "reset") await Staff.updateOne({ _id: id }, { $set: { status: "invited", passwordHash: null } });
   const verb = action === "disable" ? "kirishi o‘chirildi" : action === "enable" ? "kirishi yoqildi" : "paroli bekor qilindi";
   await logActivity(session, "staff.access", `${staff.name}: ${verb}`);
-  refresh();
+  await dataChanged();
 }
 
 /** Hali ro'yxatdan o'tmagan (adashib qo'shilgan) xodimni o'chirish. O'quvchilari biriktirilmagan holatga o'tadi. */
@@ -216,7 +216,7 @@ export async function assignLegacyPay(_prev: FormState, fd: FormData): Promise<F
   }
   await updateSettings({ $set: { legacyPayStaff: id } });
   await logActivity(session, "staff.legacy", `Avvalgi oylik hisobi ${staff.name}ga o‘tkazildi (${moved.modifiedCount} ta yozuv)`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: `${staff.name}ga ${moved.modifiedCount} ta oylik/avans yozuvi va ulush foizi o‘tkazildi`, nonce: Date.now() };
 }
 
@@ -245,7 +245,7 @@ export async function addSalary(staffId: string, _prev: FormState, fd: FormData)
   if (!staff) return { error: "Xodim topilmadi" };
   await Salary.create({ staff: staffId, kind, amount: amount!, date: date!, month, note, createdByStaff: session.staffId });
   await logActivity(session, "salary.add", `${staff.name}ga ${kind === "oylik" ? "oylik" : "avans"} ${formatMoney(amount!)} (${monthLabel(month)} hisobidan)`);
-  refresh();
+  await dataChanged();
   // Foizli oylikda «oylik» oyni yopadi — keyingi to'lovlar keyingi oyga
   const closes = kind === "oylik" && payKindOf(staff.role) === "percent" && month >= SALARY_CYCLE_FROM;
   return {
@@ -264,5 +264,5 @@ export async function deleteSalary(id: string): Promise<void> {
     const staff = removed.staff ? await getStaffById(String(removed.staff)) : null;
     await logActivity(session, "salary.delete", `O‘chirildi: ${staff?.name ?? "xodim"} — ${removed.kind === "oylik" ? "oylik" : "avans"} ${formatMoney(removed.amount)} (${monthLabel(removed.month)})`);
   }
-  refresh();
+  await dataChanged();
 }

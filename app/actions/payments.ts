@@ -1,8 +1,8 @@
 "use server";
 
 import mongoose from "mongoose";
-import { refresh } from "next/cache";
 import { logActivity } from "@/lib/activity";
+import { dataChanged } from "@/lib/after-change";
 import { allocateAmount, type Allocation } from "@/lib/allocate";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { isId } from "@/lib/ids";
@@ -93,7 +93,7 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
       ? `${monthLabel(parts[0].month)} uchun ${formatMoney(parts[0].amount)}`
       : parts.map((p) => `${monthLabel(p.month)} — ${formatMoney(p.amount)}`).join(", ");
   await logActivity(session, "payment.add", `${student.fullName}: ${what} (${METHOD_LABEL[method]}${paidIso !== today ? `, to‘langan sana ${paidIso}` : ""})`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: `${student.fullName}: ${what} saqlandi`, nonce: Date.now() };
 }
 
@@ -126,7 +126,7 @@ export async function updatePaymentAmount(_prev: FormState, formData: FormData):
   const name = p.student?.fullName ?? "o‘chirilgan o‘quvchi";
   const change = `${formatMoney(p.amount)} → ${formatMoney(amount)}`;
   await logActivity(session, "payment.edit", `Summa tahrirlandi: ${name}, ${monthLabel(p.month)} uchun ${change}`);
-  refresh();
+  await dataChanged();
   return { ok: true, message: `${name}: ${monthLabel(p.month)} uchun summa ${change}`, nonce: Date.now() };
 }
 
@@ -137,7 +137,7 @@ export async function archivePayment(id: string): Promise<void> {
   await connectDB();
   const res = await Payment.updateOne({ _id: id, ...LIVE }, { $set: { archivedAt: new Date(), archivedBy: session.role } });
   if (res.modifiedCount) await logActivity(session, "payment.archive", `${session.role === "owner" ? "Arxivga o‘tkazildi" : "O‘chirildi"}: ${await describePayment(id)}`);
-  refresh();
+  await dataChanged();
 }
 
 /** Arxivdan qaytarish (faqat rahbar). */
@@ -147,7 +147,7 @@ export async function restorePayment(id: string): Promise<void> {
   await connectDB();
   const res = await Payment.updateOne({ _id: id, archivedAt: { $ne: null } }, { $set: { archivedAt: null, archivedBy: null } });
   if (res.modifiedCount) await logActivity(session, "payment.restore", `Arxivdan qaytarildi: ${await describePayment(id)}`);
-  refresh();
+  await dataChanged();
 }
 
 /** Arxivdagi to'lovni butunlay o'chirish (faqat rahbar, qaytarib bo'lmaydi). */
@@ -158,5 +158,5 @@ export async function purgePayment(id: string): Promise<void> {
   const what = await describePayment(id);
   const res = await Payment.deleteOne({ _id: id, archivedAt: { $ne: null } });
   if (res.deletedCount) await logActivity(session, "payment.purge", `Butunlay o‘chirildi: ${what}`);
-  refresh();
+  await dataChanged();
 }
