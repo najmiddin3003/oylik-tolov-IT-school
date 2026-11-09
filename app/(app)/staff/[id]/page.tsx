@@ -5,6 +5,7 @@ import { Suspense, type ReactNode } from "react";
 import { BadgePercent, CircleSlash, Crown, HandCoins, KeyRound, PiggyBank, RotateCcw, Trash2, UserCheck, UserCog, Wallet } from "lucide-react";
 import { addSalary, deleteSalary, deleteStaff, setStaffAccess, setStaffPercent, setStaffSalary, updateStaff } from "@/app/actions/staff";
 import { PayMonths } from "@/components/PayMonths";
+import { PayPlanPanel } from "@/components/PayPlan";
 import { SalaryCycleNote } from "@/components/SalaryCycleNote";
 import { FixedPayForm, PercentForm, SalaryForm } from "@/components/SettingsForms";
 import { StaffEditForm } from "@/components/StaffForms";
@@ -140,6 +141,14 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
                     : "O‘z o‘quvchilari to‘lagan pullardan foiz (o‘tgan oylar qarzi uchun to‘langani ham). Oy «Oylik» berildi deb yozilguncha yopilmaydi — shungacha tushgan to‘lovlar shu oyga qo‘shiladi. Olingan oylik va avanslar ayiriladi."
               }
             />
+            {d.plan ? (
+              <PayPlanPanel
+                plan={d.plan}
+                month={month}
+                center={staff.shareBase === "center"}
+                debtHref={`/students?${new URLSearchParams({ ...(staff.shareBase === "center" ? {} : { teacher: staff.id }), tab: "debt", month })}`}
+              />
+            ) : null}
             <SalaryCycleNote
               cycle={pay.cycle}
               month={month}

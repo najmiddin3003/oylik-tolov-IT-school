@@ -54,6 +54,9 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
     Xodim sahifasida (va «Profilim»da) oylik kartasining o‘zida **oy tanlagich** (‹ oy ›) va **«Oylar bo‘yicha»** jadvali:
     oxirgi 12 oy — tushum, hisoblangan oylik, olingan oylik/avans, qolgani va jami; oy bosilsa, o‘sha oy tafsiloti ochiladi.
+  - **Bu oy rejasi** (xodim sahifasi va «Profilim», foizli oylikda): o‘qituvchining o‘quvchilari shu oy qancha to‘lashi kerak
+    (oylik to‘lovlari jami), **hamma to‘lasa oylik qancha bo‘ladi** (jami × foiz), **amalda qancha yig‘ildi** (rejaning necha
+    foizi) va qancha yig‘ilmagan — to‘lamaganlar ro‘yxatiga havola bilan. Markaz tushumidan oladigan xodimda — barcha o‘quvchilar.
   - **Oylik davri** (foizli oylik, oktabr 2026 dan): oy **«Oylik» olindi deb yozilmaguncha yopilmaydi**. Masalan, oktabr
     oyligi hali olinmagan bo‘lsa, noyabrda tushgan to‘lovlar ham oktabr oyligiga qo‘shiladi. Xodim «Olingan avans/oylik»
     bo‘limida (yoki rahbar xodim sahifasida) «Oylik — Oktabr» deb yozgach, olingan sanadan keyin tushgan to‘lovlar noyabr

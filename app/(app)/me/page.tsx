@@ -5,6 +5,7 @@ import { ArrowRight, Crown, HandCoins, History, KeyRound, PiggyBank, Wallet } fr
 import { changeMyPassword } from "@/app/actions/auth";
 import { ActivityList } from "@/components/ActivityList";
 import { PayMonths } from "@/components/PayMonths";
+import { PayPlanPanel } from "@/components/PayPlan";
 import { SalaryCycleNote } from "@/components/SalaryCycleNote";
 import { OwnerPasswordForm } from "@/components/SettingsForms";
 import { HeaderMonth } from "@/components/TopBar";
@@ -95,6 +96,14 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
                     : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz to‘lagan pullardan (o‘tgan oylar qarzi uchun to‘langani ham)"} ${pay.percent}%. Oy «Oylik» olindi deb yozilguncha yopilmaydi — shungacha tushgan to‘lovlar shu oyga qo‘shiladi. Olingan oylik va avanslar ayiriladi.`
                 }
               />
+              {me.plan ? (
+                <PayPlanPanel
+                  plan={me.plan}
+                  month={month}
+                  center={staff.shareBase === "center"}
+                  debtHref={`/students?${new URLSearchParams({ ...(staff.shareBase === "center" ? {} : { teacher: staff.id }), tab: "debt", month })}`}
+                />
+              ) : null}
               <SalaryCycleNote
                 cycle={pay.cycle}
                 month={month}

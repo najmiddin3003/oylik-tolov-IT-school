@@ -127,6 +127,42 @@ export function trimEmptyPayMonths<T extends { month: string; share: number; tak
   return rows.slice(0, end);
 }
 
+/** Bu oy rejasi (foizli oylik): o'quvchilar shu oy to'lashi kerak bo'lgan summa, amalda to'langani va rejadagi oylik. */
+export type PayPlan = {
+  /** Shu oy to'lashi kerak bo'lgan (faol, o'qishni boshlagan) o'quvchilar */
+  students: number;
+  /** To'liq to'laganlar */
+  paidCount: number;
+  /** To'lamagan yoki qisman to'laganlar */
+  debtors: number;
+  /** O'quvchilarning shu oy uchun oylik to'lovlari jami — hamma to'lasa yig'iladigan summa */
+  expected: number;
+  /** Amalda yig'ildi: shu oy uchun to'langan (har o'quvchida oylik to'lovidan oshmagan qismi) */
+  collected: number;
+  /** Hali to'lanmagan */
+  debt: number;
+  percent: number;
+  /** Rejadagi oylik: hamma to'lasa (expected × foiz) */
+  planShare: number;
+};
+
+/** O'quvchilar ro'yxatidan (shu oy holati bilan) bu oy rejasi. `debt` — o'quvchining shu oy uchun qolgan qarzi. */
+export function payPlanOf(rows: { monthlyFee: number; debt: number }[], percent: number): PayPlan {
+  const expected = rows.reduce((s, r) => s + r.monthlyFee, 0);
+  const debt = rows.reduce((s, r) => s + Math.min(Math.max(r.debt, 0), r.monthlyFee), 0);
+  const debtors = rows.filter((r) => r.debt > 0).length;
+  return {
+    students: rows.length,
+    paidCount: rows.length - debtors,
+    debtors,
+    expected,
+    collected: expected - debt,
+    debt,
+    percent,
+    planShare: Math.round((expected * percent) / 100),
+  };
+}
+
 /** Oylik yozuvi: foizda — "Oylik (40%)", belgilangan oylikda — "Oylik". */
 export function payLabel(pay: { kind: PayKind; percent: number }): string {
   return pay.kind === "fixed" ? "Oylik" : `Oylik (${pay.percent}%)`;
