@@ -132,6 +132,10 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   rahbarda — xodimlar oyligi, o‘qituvchida — faqat o‘z o‘quvchilari va o‘z oyligi).
 - **Yon menyu** — chetidan surib kengligini o‘zgartirish, ixcham (faqat ikonkalar) rejim yoki to‘liq yopish (`Ctrl+B`); holat eslab qolinadi.
   Ekran past bo‘lsa ham to‘liq ko‘rinadi: menyu o‘zi aylanadi, foydalanuvchi bloki doim pastda.
+- **Orqaga / Oldinga** — yuqori panelda (menyu tugmasi yonida) kirilgan sahifalar orasida yurish tugmalari. Tarix brauzerda
+  (`localStorage`, har xodimga alohida) saqlanadi — sahifa yangilansa yoki brauzer yopilib ochilsa ham qoladi. Brauzerdagidek:
+  yangi sahifaga o‘tilsa «oldinga» qismi o‘chadi; bitta sahifa ichida oy yoki filtr o‘zgarsa yangi qadam qo‘shilmaydi
+  (sahifaning oxirgi holati eslab qolinadi); brauzerning o‘z tugmalari bilan ham mos. Telefonda joy tor — ko‘rsatilmaydi.
 - **Ko‘rinish** — yorug‘ / qorong‘i mavzu (yuqori paneldagi tugma yoki profil menyusi; tanlov brauzerda saqlanadi), modal oynalar
   silliq ochiladi, telefon va summa yozilganda raqamlar avtomatik ajratiladi («90 123 45 67», «1 250 000»).
 
