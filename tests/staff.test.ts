@@ -234,8 +234,41 @@ test("bu oy rejasi: hamma to'lasa qancha oylik, amalda qancha yig'ildi", () => {
   assert.equal(plan.paidCount, 2);
   assert.equal(plan.debtors, 2);
   // Bo'sh ro'yxat va 0% — hammasi nol
-  assert.deepEqual(payPlanOf([], 40), { students: 0, paidCount: 0, debtors: 0, expected: 0, collected: 0, debt: 0, percent: 40, planShare: 0 });
+  assert.deepEqual(payPlanOf([], 40), {
+    students: 0,
+    paidCount: 0,
+    debtors: 0,
+    expected: 0,
+    earlier: 0,
+    earlierMonths: [],
+    collected: 0,
+    debt: 0,
+    percent: 40,
+    planShare: 0,
+  });
   assert.equal(payPlanOf(rows, 0).planShare, 0);
   // Qarz oylik to'lovdan oshmaydi va manfiy bo'lmaydi
   assert.equal(payPlanOf([{ monthlyFee: 300000, debt: 500000 }, { monthlyFee: 300000, debt: -50000 }], 40).collected, 300000);
+});
+
+test("bu oy rejasi: oldingi oy oyligida olingan pul qayta hisoblanmaydi", () => {
+  // Noyabr: 3 o'quvchi × 300 ming. 1-chisi noyabr uchun oktabr oyligi olinmasdan to'lagan (oktabr oyligiga hisoblangan),
+  // 2-chisi oktabr oyligi olingach to'lagan, 3-chisi qisman: 100 ming oktabr oyligida, 100 ming — to'lamagan
+  const rows = [
+    { monthlyFee: 300000, debt: 0, earlier: 300000 },
+    { monthlyFee: 300000, debt: 0, earlier: 0 },
+    { monthlyFee: 300000, debt: 100000, earlier: 100000 },
+  ];
+  const plan = payPlanOf(rows, 40, ["2026-10"]);
+  assert.equal(plan.expected, 900000);
+  assert.equal(plan.earlier, 400000, "oktabr oyligida olingan");
+  assert.equal(plan.collected, 400000, "noyabr oyligiga: 300 + 100");
+  assert.equal(plan.debt, 100000);
+  assert.equal(plan.expected, plan.earlier + plan.collected + plan.debt);
+  assert.equal(plan.planShare, 200000, "faqat qo'lga tegmagan pul: (400 + 100) × 40%");
+  assert.deepEqual(plan.earlierMonths, ["2026-10"]);
+  // Oldingi oyga hisoblangan summa to'langanidan oshmaydi (ortiqcha to'lov — oylik to'lovi bilan cheklanadi)
+  assert.equal(payPlanOf([{ monthlyFee: 300000, debt: 0, earlier: 700000 }], 40).earlier, 300000);
+  // Oldingi oyga hech narsa yo'q — oylar ro'yxati ham bo'sh
+  assert.deepEqual(payPlanOf([{ monthlyFee: 300000, debt: 0 }], 40, ["2026-10"]).earlierMonths, []);
 });
