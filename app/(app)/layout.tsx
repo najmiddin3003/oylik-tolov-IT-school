@@ -73,12 +73,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
 
         <main className="mx-auto max-w-[1440px] px-4 pb-28 pt-8 sm:px-6 lg:px-8 lg:pb-10">
           {children}
-          <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-400">
-            <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="size-3.5" aria-hidden />
-              Ma’lumotlar xavfsiz bazada saqlanadi va har kuni Google Sheets bilan solishtiriladi.
-            </span>
-            <span>To‘lov nazorati / O‘quv markaz</span>
+          <footer className="mt-10 flex items-center gap-1.5 text-xs text-ink-400">
+            <ShieldCheck className="size-3.5" aria-hidden />
+            Ma’lumotlar xavfsiz bazada saqlanadi va har kuni Google Sheets bilan solishtiriladi.
           </footer>
         </main>
       </div>

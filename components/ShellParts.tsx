@@ -1,6 +1,6 @@
 // Ilova qobig'ining server qismlari (sessiya va ma'lumot o'qiydi — Suspense ichida ishlatiladi).
 import Link from "next/link";
-import { ArrowRight, BellRing, Building2, ChartColumnIncreasing, TriangleAlert } from "lucide-react";
+import { ArrowRight, BellRing, Building2, TriangleAlert } from "lucide-react";
 import { pageGuard } from "@/lib/auth";
 import { getBellExtras, getNavCounts, getReminders, getSyncAlert, getTaskStatus } from "@/lib/data";
 import { reminderTitle } from "@/lib/reminders";
@@ -8,69 +8,35 @@ import type { Role } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { currentMonth, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
 import { HistoryNav } from "./HistoryNav";
-import { navFor, ROLE_INFO } from "./nav";
+import { navFor } from "./nav";
 import { BottomNav, SidebarNav } from "./NavLinks";
 import { NotificationBell, UnpaidButton } from "./Notifications";
 import { SendTaskButton } from "./TaskButtons";
-import { ThemeToggle } from "./ThemeToggle";
 import { Breadcrumb, HeaderMonth, HeaderSearch } from "./TopBar";
 import { cx, IconTile, Skeleton } from "./ui";
-import { UserAvatar, UserMenu } from "./UserMenu";
+import { UserMenu } from "./UserMenu";
 
-/** Yon menyu tarkibi: o'rtasi (markaz, bo'limlar) aylanadi, foydalanuvchi bloki doim pastda ko'rinadi. */
+/** Yon menyu tarkibi: markaz va bo'limlar (ekran past bo'lsa aylanadi). Akkaunt — yuqori panelda (bitta joyda). */
 export async function SidebarBody() {
-  const { role, name } = await pageGuard();
+  const { role } = await pageGuard();
   const [counts, settings] = await Promise.all([getNavCounts(), getSettings()]);
-  const info = ROLE_INFO[role];
-  const isOwner = role === "owner";
   return (
-    <>
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pb-5 sb-rail:px-3">
-        <div className="group mt-2 flex items-center gap-3 rounded-2xl border border-line px-3 py-3 sb-rail:hidden">
-          <IconTile icon={Building2} tone="slate" size="sm" />
-          <span className="min-w-0 leading-tight">
-            <span className="block truncate whitespace-nowrap text-[15px] font-semibold text-ink-900">{settings.centerName}</span>
-            <span className="mt-0.5 block whitespace-nowrap text-xs text-ink-400">
-              {isOwner ? "Rahbar boshqaruvi" : role === "teacher" ? "O‘qituvchi maydoni" : "To‘lovlar va kassa"}
-            </span>
-          </span>
-        </div>
-
-        <p className="mb-2.5 mt-6 whitespace-nowrap px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-400 sb-rail:hidden">Ish maydoni</p>
-        <nav className="flex flex-col gap-1 sb-rail:mt-4 sb-rail:items-stretch" aria-label="Asosiy menyu">
-          <SidebarNav counts={counts} role={role} />
-        </nav>
-
-        {isOwner ? (
-          // Ekran past bo'lsa — joy tejash uchun yashiriladi
-          <div className="group relative mt-6 overflow-hidden rounded-2xl border border-brand-100/70 bg-[linear-gradient(160deg,#f5f6ff_0%,#eceeff_100%)] p-4 sb-rail:hidden dark:bg-[linear-gradient(160deg,#1b2046_0%,#151935_100%)] [@media(max-height:860px)]:hidden">
-            <span className="pointer-events-none absolute -right-10 -top-10 size-32 rounded-full border-[14px] border-white/60 dark:border-white/5" aria-hidden />
-            <IconTile icon={ChartColumnIncreasing} tone="brand" variant="solid" size="sm" />
-            <p className="relative mt-4 text-[15px] font-semibold text-ink-900">
-              Har bir to‘lov muhim<span className="text-brand-600">.</span>
-            </p>
-            <p className="relative mt-1.5 text-[13px] leading-relaxed text-ink-500">O‘quvchilar va to‘lovlar — bitta tartibli maydonda.</p>
-            <Link href="/sync" className="relative mt-3 inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] font-semibold text-brand-600 hover:text-brand-800">
-              Sheets bilan solishtirish
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-3 border-t border-line bg-surface px-5 py-3.5 sb-rail:flex-col sb-rail:gap-2 sb-rail:px-3">
-        <span title={`${name ?? info.name} · ${info.hint}`}>
-          <UserAvatar role={role} name={name} />
-        </span>
-        <span className="min-w-0 flex-1 leading-tight sb-rail:hidden">
-          <span className="block truncate whitespace-nowrap text-sm font-semibold text-ink-900">{name ?? info.name}</span>
-          <span className={cx("mt-0.5 block truncate whitespace-nowrap text-xs", isOwner ? "font-semibold text-amber-700" : "text-ink-400")}>
-            {name ? info.name : info.hint}
+    <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pb-5 sb-rail:px-3">
+      <div className="group mt-2 flex items-center gap-3 rounded-2xl border border-line px-3 py-3 sb-rail:hidden">
+        <IconTile icon={Building2} tone="slate" size="sm" />
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate whitespace-nowrap text-[15px] font-semibold text-ink-900">{settings.centerName}</span>
+          <span className="mt-0.5 block whitespace-nowrap text-xs text-ink-400">
+            {role === "owner" ? "Rahbar boshqaruvi" : role === "teacher" ? "O‘qituvchi maydoni" : "To‘lovlar va kassa"}
           </span>
         </span>
-        <UserMenu role={role} name={name} placement="sidebar" />
       </div>
-    </>
+
+      <p className="mb-2.5 mt-6 whitespace-nowrap px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-400 sb-rail:hidden">Ish maydoni</p>
+      <nav className="flex flex-col gap-1 sb-rail:mt-4 sb-rail:items-stretch" aria-label="Asosiy menyu">
+        <SidebarNav counts={counts} role={role} />
+      </nav>
+    </div>
   );
 }
 
@@ -98,9 +64,8 @@ export async function HeaderTools() {
       {canSearch ? <HeaderSearch /> : null}
       <HeaderMonth fallbackMonth={currentMonth()} />
       <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden />
-      <ThemeToggle />
       <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} handovers={extras.handovers} />
-      <UserMenu role={role} name={name} placement="header" />
+      <UserMenu role={role} name={name} />
     </>
   );
 }
