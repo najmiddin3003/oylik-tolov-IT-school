@@ -13,12 +13,14 @@ import {
   type AttendanceStatus,
   type AttendanceStudent,
   type AttendanceSummary,
+  addDays,
+  followUpDue,
 } from "./attendance-rules";
-import { loadStudents, type StudentLean } from "./ledger";
+import { loadStudents, monthRows, type StudentLean } from "./ledger";
 import { Attendance } from "./models";
 import { normalizeLessons, toMinutes, weekdayOfIso, type Clock } from "./schedule";
 import { teacherNames } from "./staff";
-import { dateToISO } from "./time";
+import { currentMonth, dateToISO } from "./time";
 
 export type AttendanceMarkView = { status: AttendanceStatus; note: string; by: string; at: string };
 
@@ -122,3 +124,56 @@ export async function pendingAttendance(who: AttendanceViewer, clock: Pick<Clock
     .map((g) => ({ key: g.key, start: g.start, end: g.end, course: g.course, teacherName: g.teacherName, missing: g.summary.missing, total: g.summary.total }));
 }
 
+
+export type FollowUp = {
+  /** Davomat yozuvi ID si */
+  id: string;
+  studentId: string;
+  name: string;
+  group: string;
+  /** Kelmagan kuni va dars vaqti, o'sha kungi izoh */
+  date: string;
+  start: string;
+  note: string;
+  /** Joriy oy to'lov holati */
+  pay: { status: "paid" | "partial" | "unpaid"; debt: number; fee: number } | null;
+};
+
+/**
+ * «Kelmadi» belgilangan, sababi hali o'rganilmagan o'quvchilar — keyingi dars vaqti boshlanganlari (oxirgi 60 kun).
+ * O'qituvchiga — faqat o'z o'quvchilari.
+ */
+export const pendingFollowUps = cache(async (teacherId: string | null, iso: string, minutes: number): Promise<FollowUp[]> => {
+  const clock = { iso, minutes };
+  await connectDB();
+  const all = await loadStudents();
+  const visible = teacherId ? all.filter((s) => String(s.teacher ?? "") === teacherId) : all;
+  const byId = new Map(visible.map((s) => [String(s._id), s]));
+  const docs = await Attendance.find(
+    { status: "absent", followUpAt: null, date: { $gte: addDays(clock.iso, -60), $lt: clock.iso }, student: { $in: visible.map((s) => s._id) } },
+    { student: 1, date: 1, start: 1, group: 1, note: 1 },
+  )
+    .sort({ date: -1 })
+    .limit(200)
+    .lean();
+  const due = docs.filter((d) => {
+    const s = byId.get(String(d.student));
+    return s && s.active !== false && followUpDue(d.date, normalizeLessons(s.lessons ?? []), clock);
+  });
+  if (!due.length) return [];
+  const rows = new Map((await monthRows(currentMonth(), visible)).map((r) => [r.id, r]));
+  return due.map((d) => {
+    const s = byId.get(String(d.student))!;
+    const r = rows.get(String(s._id));
+    return {
+      id: String(d._id),
+      studentId: String(s._id),
+      name: s.fullName,
+      group: d.group || s.group || "",
+      date: d.date,
+      start: d.start ?? "",
+      note: d.note ?? "",
+      pay: r ? { status: r.status, debt: r.debt, fee: r.monthlyFee } : null,
+    };
+  });
+});

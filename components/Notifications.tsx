@@ -3,14 +3,14 @@
 // Oy oxiri eslatmalari: to'lamaganlar ro'yxati oynasi va yuqoridagi qo'ng'iroqcha.
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, BellRing, CalendarClock, ClipboardCheck, ClipboardList, FileSpreadsheet, Phone, Plus, X } from "lucide-react";
-import type { PendingAttendance } from "@/lib/attendance";
+import { Bell, BellRing, CalendarClock, ClipboardCheck, ClipboardList, MessageCircleQuestion, FileSpreadsheet, Phone, Plus, X } from "lucide-react";
+import type { FollowUp, PendingAttendance } from "@/lib/attendance";
 import type { Reminder, UnpaidStudent } from "@/lib/data";
 import { reminderTitle } from "@/lib/reminders";
 import { minutesUntil, nextLesson, nextLessonLabel, scheduleLabel, tashkentClock } from "@/lib/schedule";
 import type { Role } from "@/lib/session";
 import type { TaskRow } from "@/lib/tasks";
-import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
+import { formatDate, formatMoney, formatNumber, monthLabel } from "@/lib/time";
 import { LiveDot } from "./Lessons";
 import { Avatar, btn, cx, IconTile } from "./ui";
 import { useDialog } from "./Modal";
@@ -183,6 +183,7 @@ export function NotificationBell({
   tasks = [],
   sent = {},
   attendance = [],
+  followUps = [],
 }: {
   reminders: Reminder[];
   sync: SyncAlertData;
@@ -192,11 +193,13 @@ export function NotificationBell({
   sent?: Record<string, TaskRow>;
   /** Bugun davomati qilinmagan guruhlar */
   attendance?: PendingAttendance[];
+  /** O'tgan darsga kelmagan, sababi hali o'rganilmagan o'quvchilar */
+  followUps?: FollowUp[];
 }) {
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<Reminder | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const count = reminders.length + (sync ? 1 : 0) + tasks.length + attendance.length;
+  const count = reminders.length + (sync ? 1 : 0) + tasks.length + attendance.length + followUps.length;
 
   useEffect(() => {
     if (!open) return;
@@ -245,6 +248,19 @@ export function NotificationBell({
             <p className="px-3 pb-4 pt-2 text-sm text-ink-500">Yangi xabar yo‘q. Hammasi joyida ✓</p>
           ) : (
             <ul className="grid max-h-[min(480px,calc(100dvh-8rem))] gap-1 overflow-y-auto overscroll-contain">
+              {followUps.map((f) => (
+                <li key={f.id}>
+                  <Link href="/davomat#sabab" onClick={() => setOpen(false)} className="group flex items-start gap-3 rounded-xl px-3 py-2.5 transition hover:bg-rose-50/70">
+                    <IconTile icon={MessageCircleQuestion} tone="rose" size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-ink-900">Sababini o‘rganing: {f.name}</span>
+                      <span className="num mt-0.5 block text-[13px] text-ink-500">
+                        {formatDate(f.date)} darsiga kelmagan{f.group ? ` · ${f.group}` : ""}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
               {attendance.map((a) => (
                 <li key={a.key}>
                   <Link href="/davomat" onClick={() => setOpen(false)} className="group flex items-start gap-3 rounded-xl px-3 py-2.5 transition hover:bg-teal-50/70">

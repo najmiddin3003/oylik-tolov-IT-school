@@ -23,7 +23,7 @@ import {
 } from "./ledger";
 import { Attendance, Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { suggestedArchiveMonth } from "./sheet-archive";
-import { attendanceDay, pendingAttendance, type PendingAttendance } from "./attendance";
+import { attendanceDay, pendingAttendance, pendingFollowUps, type FollowUp, type PendingAttendance } from "./attendance";
 import { isAttendanceStatus, type AttendanceStatus } from "./attendance-rules";
 import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
 import { normalizeText } from "./normalize";
@@ -1436,14 +1436,19 @@ export async function getMyActivity(opts: { group?: string; before?: string; lim
  * administratorga yuborilgan topshiriqlar holati (oy -> oxirgi topshiriq).
  */
 export const getBellExtras = cache(
-  async (): Promise<{ tasks: TaskRow[]; sent: Record<string, TaskRow>; attendance: PendingAttendance[] }> => {
+  async (): Promise<{ tasks: TaskRow[]; sent: Record<string, TaskRow>; attendance: PendingAttendance[]; followUps: FollowUp[] }> => {
     const v = await viewer();
-    // Hammaga: bugun davomati qilinmagan guruhlar (o'qituvchiga — o'ziniki)
-    const attendance = await pendingAttendance({ teacherId: v.teacherId }, tashkentClock(nowMs()));
-    if (v.role === "admin") return { tasks: (await tasksFor("admin")).filter((t) => t.status === "open"), sent: {}, attendance };
-    if (v.role !== "owner") return { tasks: [], sent: {}, attendance };
+    // Hammaga: bugun davomati qilinmagan guruhlar va sababi o'rganilishi kerak bo'lgan kelmaganlar (o'qituvchiga — o'ziniki)
+    const clock = tashkentClock(nowMs());
+    const [attendance, followUps] = await Promise.all([
+      pendingAttendance({ teacherId: v.teacherId }, clock),
+      pendingFollowUps(v.teacherId, clock.iso, clock.minutes),
+    ]);
+    const base = { attendance, followUps };
+    if (v.role === "admin") return { tasks: (await tasksFor("admin")).filter((t) => t.status === "open"), sent: {}, ...base };
+    if (v.role !== "owner") return { tasks: [], sent: {}, ...base };
     const reminders = await getReminders();
-    return { tasks: [], sent: reminders.length ? await latestTasksByMonth(reminders.map((r) => r.month)) : {}, attendance };
+    return { tasks: [], sent: reminders.length ? await latestTasksByMonth(reminders.map((r) => r.month)) : {}, ...base };
   },
 );
 
@@ -1465,8 +1470,13 @@ export async function getStudentAttendance(studentId: string, limit = 60): Promi
 /** «Davomat» sahifasi: shu kun guruhlari va belgilangan holatlar (o'qituvchiga — faqat o'z guruhlari). */
 export async function getAttendancePage(date: string) {
   const v = await viewer();
-  const [groups, students] = await Promise.all([attendanceDay({ teacherId: v.teacherId }, date), visibleStudents(v)]);
+  const clock = tashkentClock(nowMs());
+  const [groups, students, followUps] = await Promise.all([
+    attendanceDay({ teacherId: v.teacherId }, date),
+    visibleStudents(v),
+    pendingFollowUps(v.teacherId, clock.iso, clock.minutes),
+  ]);
   // Faol, lekin dars vaqti kiritilmagan o'quvchilar — davomatda ko'rinmaydi
   const unscheduled = students.filter((s) => s.active !== false && !(s.lessons ?? []).length).length;
-  return { role: v.role, groups, unscheduled };
+  return { role: v.role, groups, unscheduled, followUps };
 }

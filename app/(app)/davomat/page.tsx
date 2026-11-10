@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { CalendarX2, ChevronLeft, ChevronRight, CircleCheck, Clock, GraduationCap, Info, Users } from "lucide-react";
+import { CalendarX2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, GraduationCap, Info, MessageCircleQuestion, Users } from "lucide-react";
 import { AttendanceForm, GroupDetails } from "@/components/AttendanceForm";
 import { FilterForm } from "@/components/FilterForm";
-import { DatePicker } from "@/components/pickers";
-import { btn, Card, cx, EmptyState, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { FollowUpList } from "@/components/FollowUps";
+import { DatePicker, Select } from "@/components/pickers";
+import { btn, Card, CardHeader, cx, EmptyState, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { courseKey } from "@/lib/courses";
+import type { Role } from "@/lib/session";
 import { attendanceOpen, ATTENDANCE_LABEL } from "@/lib/attendance-rules";
 import { roleGuard } from "@/lib/auth";
 import { getAttendancePage } from "@/lib/data";
@@ -32,6 +35,7 @@ function shiftDay(iso: string, delta: number): string {
 async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davomat">["searchParams"] }) {
   const { role } = await roleGuard(["owner", "admin", "teacher"]);
   const sp = await searchParams;
+  const kurs = typeof sp.kurs === "string" ? sp.kurs.slice(0, 80) : "";
   const serverNow = nowMs();
   const clock = tashkentClock(serverNow);
   const today = clock.iso;
@@ -39,7 +43,11 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
   // Kelgusi kun davomati yo'q — bugungacha
   const date = isoToDate(raw) && raw <= today ? raw : today;
   const isToday = date === today;
-  const { groups, unscheduled } = await getAttendancePage(date);
+  const { groups: allGroups, unscheduled, followUps } = await getAttendancePage(date);
+  // Kurs filtri: ro'yxatda faqat ko'rinadigan guruhlar kurslari (o'qituvchiga — faqat o'ziniki)
+  const courseOptions = [...new Map(allGroups.map((g) => [courseKey(g.course), g.course || "Kursi yo‘q"])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const selected = courseOptions.some(([k]) => k === kurs) ? kurs : "";
+  const groups = selected ? allGroups.filter((g) => courseKey(g.course) === selected) : allGroups;
   const showTeacher = role !== "teacher";
 
   const totals = groups.reduce(
@@ -52,7 +60,10 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
     }),
     { students: 0, present: 0, absent: 0, excused: 0, pending: 0 },
   );
-  const href = (d: string) => (d === today ? "/davomat" : `/davomat?sana=${d}`);
+  const href = (d: string) => {
+    const q = new URLSearchParams({ ...(d === today ? {} : { sana: d }), ...(selected ? { kurs: selected } : {}) }).toString();
+    return q ? `/davomat?${q}` : "/davomat";
+  };
 
   return (
     <>
@@ -65,6 +76,17 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
             <Link href={href(shiftDay(date, -1))} className={cx(btn.outline, "px-3")} aria-label="Oldingi kun" scroll={false}>
               <ChevronLeft className="size-4" aria-hidden />
             </Link>
+            {courseOptions.length > 1 ? (
+              <Select
+                name="kurs"
+                defaultValue={selected}
+                autoSubmit
+                searchable={false}
+                aria-label="Kurs"
+                wrapperClassName="w-full sm:w-56"
+                options={[{ value: "", label: "Barcha kurslar" }, ...courseOptions.map(([value, label]) => ({ value, label }))]}
+              />
+            ) : null}
             <DatePicker name="sana" defaultValue={date} autoSubmit max={today} aria-label="Sana" wrapperClassName="w-60" />
             {isToday ? (
               <span className={cx(btn.outline, "pointer-events-none px-3 opacity-40")} aria-hidden>
@@ -76,7 +98,7 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
               </Link>
             )}
             {!isToday ? (
-              <Link href="/davomat" className={btn.outline} scroll={false}>
+              <Link href={href(today)} className={btn.outline} scroll={false}>
                 Bugun
               </Link>
             ) : null}
@@ -111,6 +133,24 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
         </p>
       ) : null}
 
+      {followUps.length ? (
+        <Card id="sabab" className="mb-5 scroll-mt-24 border-rose-200/80">
+          <CardHeader
+            title={
+              <span className="inline-flex items-center gap-2">
+                <MessageCircleQuestion className="size-5 text-rose-600" aria-hidden />
+                Sababini o‘rganing
+              </span>
+            }
+            count={followUps.length}
+            subtitle="O‘tgan darsga kelmagan o‘quvchilar — keyingi darsi boshlandi. Gaplashib, izoh yozing."
+          />
+          <div className="border-t border-line-soft">
+            <FollowUpList items={followUps} role={role} />
+          </div>
+        </Card>
+      ) : null}
+
       {groups.length === 0 ? (
         <Card>
           <EmptyState title={isToday ? "Bugun dars yo‘q" : "Bu kuni dars bo‘lmagan"} icon={CalendarX2}>
@@ -120,7 +160,7 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
       ) : (
         <div className="grid gap-5">
           {groups.map((g) => (
-            <GroupCard key={g.key} g={g} date={date} open={attendanceOpen(date, g.start, clock)} showTeacher={showTeacher} serverNow={serverNow} />
+            <GroupCard key={g.key} g={g} date={date} open={attendanceOpen(date, g.start, clock)} showTeacher={showTeacher} serverNow={serverNow} role={role} />
           ))}
         </div>
       )}
@@ -128,7 +168,21 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
   );
 }
 
-function GroupCard({ g, date, open, showTeacher, serverNow }: { g: AttendanceDayGroup; date: string; open: boolean; showTeacher: boolean; serverNow: number }) {
+function GroupCard({
+  g,
+  date,
+  open,
+  showTeacher,
+  serverNow,
+  role,
+}: {
+  g: AttendanceDayGroup;
+  date: string;
+  open: boolean;
+  showTeacher: boolean;
+  serverNow: number;
+  role: Role;
+}) {
   const s = g.summary;
   const done = s.missing === 0;
   const last = Object.values(g.marks).sort((a, b) => b.at.localeCompare(a.at))[0];
@@ -144,6 +198,7 @@ function GroupCard({ g, date, open, showTeacher, serverNow }: { g: AttendanceDay
           students={g.students.map((x) => ({ id: x.id, name: x.name, seq: x.seq }))}
           initial={Object.fromEntries(Object.entries(g.marks).map(([id, m]) => [id, { status: m.status, note: m.note }]))}
           serverNow={serverNow}
+          role={role}
         />
       </GroupDetails>
       {done ? <AbsentNotes g={g} /> : null}
@@ -201,8 +256,8 @@ function GroupSummary({
         {s.present ? <Tag tone="emerald">{ATTENDANCE_LABEL.present}: {s.present}</Tag> : null}
         {s.absent ? <Tag tone="rose">{ATTENDANCE_LABEL.absent}: {s.absent}</Tag> : null}
         {s.excused ? <Tag tone="amber">{ATTENDANCE_LABEL.excused}: {s.excused}</Tag> : null}
-        <span className="ml-1 text-xs text-ink-400 transition group-open/d:rotate-180" aria-hidden>
-          ▾
+        <span className="ml-1 inline-flex size-9 items-center justify-center rounded-full bg-slate-100 text-ink-600 transition group-open/d:rotate-180" aria-hidden>
+          <ChevronDown className="size-5" strokeWidth={2.2} />
         </span>
       </span>
     </summary>

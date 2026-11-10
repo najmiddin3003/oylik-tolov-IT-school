@@ -7,6 +7,7 @@ import { currentMonth } from "@/lib/time";
 import { HistoryNav } from "./HistoryNav";
 import { navFor } from "./nav";
 import { BottomNav, SidebarNav } from "./NavLinks";
+import { FollowUpModal } from "./FollowUps";
 import { NotificationBell } from "./Notifications";
 import { Breadcrumb, HeaderMonth, HeaderSearch } from "./TopBar";
 import { IconTile, Skeleton } from "./ui";
@@ -52,7 +53,7 @@ export function SidebarSkeleton() {
 
 /** Yuqori panelning o'ng qismi: qidiruv (rahbar, o'qituvchi), oy tanlagich, mavzu, bildirishnomalar, foydalanuvchi. */
 export async function HeaderTools() {
-  const { role, name } = await pageGuard();
+  const { role, name, staffId } = await pageGuard();
   const [reminders, sync, extras] = await Promise.all([getReminders(), getSyncAlert(), getBellExtras()]);
   const canSearch = role === "owner" || role === "teacher";
   return (
@@ -60,7 +61,9 @@ export async function HeaderTools() {
       {canSearch ? <HeaderSearch /> : null}
       <HeaderMonth fallbackMonth={currentMonth()} />
       <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden />
-      <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} sent={extras.sent} attendance={extras.attendance} />
+      <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} sent={extras.sent} attendance={extras.attendance} followUps={extras.followUps} />
+      {/* Kelmagan o'quvchilar — keyingi darsi boshlanganda bir marta oynada */}
+      <FollowUpModal items={extras.followUps} role={role} storageKey={`tt-followup:${staffId ?? role}`} />
       <UserMenu role={role} name={name} />
     </>
   );
