@@ -99,3 +99,25 @@ export async function saveAttendance(_prev: FormState, fd: FormData): Promise<Fo
   await dataChanged();
   return { ok: true, message: `Davomat saqlandi: ${counts}`, nonce: Date.now() };
 }
+
+/** «Kelmadi» belgilangan o'quvchi bilan gaplashildi: sababi (izoh majburiy) yoziladi, eslatma yopiladi. */
+export async function resolveFollowUp(_prev: FormState, fd: FormData): Promise<FormState> {
+  const session = await requireRole(["owner", "admin", "teacher"], { fresh: true });
+  const id = String(fd.get("id") ?? "");
+  const note = String(fd.get("note") ?? "").trim().slice(0, 500);
+  if (!isId(id)) return { error: "Yozuv topilmadi — sahifani yangilang" };
+  if (!note) return { fieldErrors: { note: "Nima gaplashildi — izoh yozing" } };
+  await connectDB();
+  const a = await Attendance.findOne({ _id: id, status: "absent" }, { student: 1, date: 1, followUpAt: 1 })
+    .populate<{ student: { _id: mongoose.Types.ObjectId; fullName: string; teacher?: mongoose.Types.ObjectId | null } | null }>("student", "fullName teacher")
+    .lean();
+  if (!a?.student) return { error: "Yozuv topilmadi — sahifani yangilang" };
+  if (session.role === "teacher" && String(a.student.teacher ?? "") !== session.staffId) return { error: "Faqat o‘z o‘quvchilaringiz uchun" };
+  await Attendance.updateOne(
+    { _id: id },
+    { $set: { followUpAt: new Date(), followUpNote: note, followUpByName: session.name ?? "", followUpByStaff: session.staffId } },
+  );
+  await logActivity(session, "attendance.followup", `Gaplashildi: ${a.student.fullName} (${formatDate(a.date)} kelmagan) — ${note}`);
+  await dataChanged();
+  return { ok: true, message: "Saqlandi", nonce: Date.now() };
+}

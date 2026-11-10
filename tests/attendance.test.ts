@@ -76,3 +76,18 @@ test("davomat: holat tanlanishi shart, «Kelmadi» va «Sababli» da izoh majbur
   const marks: Record<string, "present" | "absent" | "excused"> = { a: "present", b: "absent", c: "present" };
   assert.deepEqual(attendanceSummary(["a", "b", "c", "d"], (id) => marks[id]), { present: 2, absent: 1, excused: 0, total: 4, missing: 1 });
 });
+
+test("davomat: kelmagan o'quvchi sababi keyingi dars boshlanishi bilan so'raladi", async () => {
+  const { followUpDue, nextLessonAfter } = await import("../lib/attendance-rules");
+  // Juft kunlar (Se, Pa, Sh) 17:00 — 10.11 (seshanba) kelmadi → keyingi dars 12.11 (payshanba) 17:00
+  const juft = [2, 4, 6].map((day) => ({ day, start: "17:00", end: "19:00" }));
+  assert.deepEqual(nextLessonAfter(juft, "2026-11-10"), { date: "2026-11-12", start: "17:00" });
+  assert.equal(followUpDue("2026-11-10", juft, { iso: "2026-11-11", minutes: 20 * 60 }), false);
+  assert.equal(followUpDue("2026-11-10", juft, { iso: "2026-11-12", minutes: 16 * 60 + 59 }), false);
+  assert.equal(followUpDue("2026-11-10", juft, { iso: "2026-11-12", minutes: 17 * 60 }), true);
+  assert.equal(followUpDue("2026-11-10", juft, { iso: "2026-11-13", minutes: 0 }), true);
+  // Jadvalsiz — keyingi kundan
+  assert.equal(nextLessonAfter([], "2026-11-10"), null);
+  assert.equal(followUpDue("2026-11-10", [], { iso: "2026-11-11", minutes: 0 }), true);
+  assert.equal(followUpDue("2026-11-10", [], { iso: "2026-11-10", minutes: 23 * 60 }), false);
+});

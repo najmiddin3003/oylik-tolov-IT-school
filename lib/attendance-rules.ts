@@ -111,3 +111,33 @@ export function attendanceSummary(ids: string[], statusOf: (id: string) => Atten
   }
   return out;
 }
+
+// ---------- Kelmaganlar: keyingi darsda sababini o'rganish ----------
+
+/** Sanaga kun qo'shish: "2026-11-10" + 2 -> "2026-11-12" */
+export function addDays(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** `after` kunidan keyingi birinchi dars kuni va vaqti (2 hafta ichida); jadval yo'q — null. */
+export function nextLessonAfter(lessons: Lesson[], after: string): { date: string; start: string } | null {
+  for (let i = 1; i <= 14; i++) {
+    const date = addDays(after, i);
+    const [y, m, d] = date.split("-").map(Number);
+    const weekday = ((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7) + 1;
+    const l = lessonOn(lessons, weekday);
+    if (l) return { date, start: l.start };
+  }
+  return null;
+}
+
+/**
+ * «Kelmadi» belgilangan o'quvchi sababini qachondan so'rash: keyingi dars kuni, guruh vaqti boshlanishi bilan.
+ * Jadvali bo'lmasa — keyingi kun boshidan. Vaqti kelganmi.
+ */
+export function followUpDue(absentDate: string, lessons: Lesson[], clock: Pick<Clock, "iso" | "minutes">): boolean {
+  const next = nextLessonAfter(lessons, absentDate) ?? { date: addDays(absentDate, 1), start: "00:00" };
+  if (clock.iso !== next.date) return clock.iso > next.date;
+  return clock.minutes >= toMinutes(next.start);
+}

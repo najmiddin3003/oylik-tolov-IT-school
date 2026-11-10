@@ -2,6 +2,7 @@
 
 // Bitta guruh davomati: har bir o'quvchi — Keldi / Kelmadi / Sababli. «Kelmadi» va «Sababli» uchun izoh majburiy.
 // Davomat dars boshlanganidan 30 daqiqa o'tib ochiladi (bugun); o'tgan kunlar uchun — istalgan vaqtda.
+import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { CheckCheck, Lock } from "lucide-react";
 import { saveAttendance } from "@/app/actions/attendance";
@@ -16,6 +17,8 @@ import {
   type AttendanceStatus,
 } from "@/lib/attendance-rules";
 import { tashkentClock } from "@/lib/schedule";
+import type { Role } from "@/lib/session";
+import { studentHref } from "./FollowUps";
 import { Avatar, btn, cx, inputCls, studentCode } from "./ui";
 import { useActionForm } from "./useActionForm";
 import { useNow } from "./useNow";
@@ -50,6 +53,7 @@ export function AttendanceForm({
   students,
   initial,
   serverNow,
+  role,
 }: {
   date: string;
   start: string;
@@ -59,6 +63,7 @@ export function AttendanceForm({
   students: { id: string; name: string; seq: number | null }[];
   initial: Record<string, { status: AttendanceStatus; note: string }>;
   serverNow: number;
+  role: Role;
 }) {
   const now = useNow(serverNow);
   const open = attendanceOpen(date, start, tashkentClock(now));
@@ -139,7 +144,9 @@ export function AttendanceForm({
                   <div className="flex min-w-[180px] flex-1 items-center gap-3">
                     <Avatar name={s.name} />
                     <span className="min-w-0">
-                      <span className="block truncate text-[15px] font-medium text-ink-900">{s.name}</span>
+                      <Link href={studentHref(role, s.id) ?? "#"} className="block truncate text-[15px] font-medium text-ink-900 hover:text-brand-600 hover:underline">
+                        {s.name}
+                      </Link>
                       {s.seq ? <span className="num block text-xs text-ink-400">{studentCode(s.seq)}</span> : null}
                     </span>
                   </div>

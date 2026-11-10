@@ -325,9 +325,15 @@ const attendanceSchema = new Schema(
     markedByRole: { type: String, enum: ["owner", "admin", "teacher"], required: true },
     markedByStaff: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
     markedByName: { type: String, default: "" },
+    /** «Kelmadi»: keyingi darsda sababi o'rganildi (gaplashildi) — qachon, kim va izoh */
+    followUpAt: { type: Date, default: null },
+    followUpNote: { type: String, trim: true, default: "", maxlength: 500 },
+    followUpByName: { type: String, default: "" },
+    followUpByStaff: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
   },
   { timestamps: true },
 );
+attendanceSchema.index({ status: 1, followUpAt: 1, date: -1 });
 attendanceSchema.index({ student: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ date: 1, teacher: 1 });
 
