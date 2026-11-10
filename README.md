@@ -115,6 +115,12 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   cron va avtomatik) ko‘rsatilmaydi, ogohlantirish va hisoblagichlarga kirmaydi, saytga avtomatik qo‘shilmaydi. Masalan, Sheets’ni
   boshqa odam yuritsa va xatoni tuzatib bo‘lmasa. Farq o‘zining «kaliti» bo‘yicha taniladi (o‘quvchi, oy, summalar, Sheets
   qatorining sanasi); shu yozuv o‘zgarsa — farq yana chiqadi. «E’tiborsiz qoldirilganlar» bo‘limida ro‘yxat va «Qaytarish».
+- **Davomat** (/davomat; rahbar, administrator va o‘qituvchi — o‘qituvchiga faqat o‘z guruhlari) — o‘quvchilar dars jadvali
+  bo‘yicha guruhlanadi (bir xil dars vaqti, kurs va o‘qituvchi). Har bir o‘quvchi: **Keldi / Kelmadi / Sababli**; «Kelmadi» va
+  «Sababli» uchun **izoh majburiy** (izohsiz saqlanmaydi — brauzerda ham, serverda ham tekshiriladi). Bugungi guruh davomati
+  dars boshlanganidan **30 daqiqa o‘tib** ochiladi; o‘tgan kunlar (qilinmay qolgan) — istalgan vaqtda, saqlangani tahrirlanadi.
+  Ochilgan, lekin qilinmagan guruhlar — menyuda son va qo‘ng‘iroqchada «Davomat qilinmagan». O‘quvchi profilida — davomat tarixi
+  (izohlari bilan). Har bir saqlash faoliyat tarixiga yoziladi.
 - **Jadvallar arxivi** — oylik olingach (o‘qituvchi yoki foizli rahbarga shu oy uchun «Oylik» yozilganda) shu oy Google
   Sheets jadvali bazaga to‘liq saqlanadi va havola sozlamalardan bo‘shatiladi: yangi oy jadvali qo‘yilguncha «Google Sheets»
   sahifasi «arxiv holatida» turadi, tekshiruv va ogohlantirish to‘xtaydi. Saqlanadi: asl havola, jadval va varaq nomi,
@@ -303,7 +309,8 @@ lib/normalize.ts      ism / telefon / summa / oy / sana normallashtirish
 lib/sheets.ts         Sheets'dan yuklash (CSV yoki service account), arxiv uchun to'liq nusxa (HTML ko'rinish, .xlsx)
 lib/sheet-archive.ts  jadvallar arxivi: oylik olingach arxivlash, qatorlar kuzatuvi (qoidalar — sheet-archive-rules.ts)
 lib/zip.ts            Google HTML eksportini (zip) ochish
+lib/attendance.ts     davomat: kun guruhlari, qilinmaganlar (qoidalar — attendance-rules.ts)
 lib/sync.ts           tekshiruvni bajarish, natijani saqlash, kunlik rejim
-lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Activity, Perf, SheetArchive, SheetRow
+lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Activity, Perf, SheetArchive, SheetRow, Attendance
 proxy.ts              kirmagan foydalanuvchini /login ga, har bir rolni o'z bo'limlariga yo'naltiradi
 ```

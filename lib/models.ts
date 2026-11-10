@@ -308,6 +308,29 @@ const sheetRowSchema = new Schema(
 );
 sheetRowSchema.index({ source: 1, key: 1 }, { unique: true });
 
+// ---------- Davomat: har bir o'quvchi har dars kuni — keldi / kelmadi / sababli ----------
+const attendanceSchema = new Schema(
+  {
+    student: { type: Schema.Types.ObjectId, ref: "Student", required: true },
+    /** Dars kuni (Toshkent) "YYYY-MM-DD" */
+    date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
+    /** Dars vaqti va guruh (belgilangan paytdagi holat — jadval keyin o'zgarsa ham tarix to'g'ri qoladi) */
+    start: { type: String, default: "" },
+    end: { type: String, default: "" },
+    group: { type: String, default: "" },
+    teacher: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
+    status: { type: String, enum: ["present", "absent", "excused"], required: true },
+    /** «Kelmadi» va «Sababli» uchun izoh (majburiy) */
+    note: { type: String, trim: true, default: "", maxlength: 300 },
+    markedByRole: { type: String, enum: ["owner", "admin", "teacher"], required: true },
+    markedByStaff: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
+    markedByName: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+attendanceSchema.index({ student: 1, date: 1 }, { unique: true });
+attendanceSchema.index({ date: 1, teacher: 1 });
+
 // ---------- Oylik va avanslar (tushum ulushidan ayiriladi) ----------
 const salarySchema = new Schema(
   {
@@ -499,6 +522,8 @@ export const SyncIgnore: Model<InferSchemaType<typeof syncIgnoreSchema>> =
 export const SheetArchive: Model<InferSchemaType<typeof sheetArchiveSchema>> =
   models.SheetArchive || model("SheetArchive", sheetArchiveSchema);
 export const SheetRow: Model<InferSchemaType<typeof sheetRowSchema>> = models.SheetRow || model("SheetRow", sheetRowSchema);
+export const Attendance: Model<InferSchemaType<typeof attendanceSchema>> =
+  models.Attendance || model("Attendance", attendanceSchema);
 export const Salary: Model<InferSchemaType<typeof salarySchema>> =
   models.Salary || model("Salary", salarySchema);
 export const SmsLog: Model<InferSchemaType<typeof smsLogSchema>> =

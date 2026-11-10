@@ -33,6 +33,8 @@ export function SidebarNav({ counts, role }: { counts: NavCounts | null; role: R
           debtors: counts?.debtors,
           payments: counts?.payments,
           staff: counts?.staff,
+          // Davomat — faqat qilinmagan guruh bo'lsa
+          attendance: counts?.attendance || undefined,
         };
         const count = byKey[item.key];
         const dot = item.key === "sync" && counts?.sync ? SYNC_DOT[counts.sync] : null;

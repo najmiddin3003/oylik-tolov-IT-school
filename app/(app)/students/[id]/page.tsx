@@ -29,7 +29,8 @@ import {
   th,
 } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
-import { canPickPaymentDate, getStudent, getStudentPayments } from "@/lib/data";
+import { canPickPaymentDate, getStudent, getStudentAttendance, getStudentPayments, type StudentAttendanceRow } from "@/lib/data";
+import { ATTENDANCE_LABEL } from "@/lib/attendance-rules";
 import type { PaymentMethod } from "@/lib/models";
 import { scheduleLabel } from "@/lib/schedule";
 import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, nowMs, todayISO } from "@/lib/time";
@@ -63,7 +64,11 @@ async function StudentView({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const student = await getStudent(id);
   if (!student) notFound();
-  const [{ payments, months, totalDebt, totalPaid }, pickDate] = await Promise.all([getStudentPayments(student), canPickPaymentDate(role)]);
+  const [{ payments, months, totalDebt, totalPaid }, pickDate, attendance] = await Promise.all([
+    getStudentPayments(student),
+    canPickPaymentDate(role),
+    getStudentAttendance(student.id),
+  ]);
 
   const now = currentMonth();
   // To'lov formasi uchun standart oy: URL dagi oy, bo'lmasa eng eski qarzdor oy, bo'lmasa joriy oy
@@ -312,6 +317,8 @@ async function StudentView({
               {student.note ? <Info label="Izoh" value={<span className="whitespace-pre-wrap">{student.note}</span>} /> : null}
             </dl>
           </Card>
+
+          <AttendanceCard rows={attendance} />
         </div>
       </div>
     </>
@@ -332,5 +339,42 @@ function Info({ label, value }: { label: string; value: ReactNode }) {
       <dt className="text-ink-400">{label}</dt>
       <dd className="min-w-0 text-ink-900">{value}</dd>
     </div>
+  );
+}
+
+const ATT_TONE = { present: "emerald", absent: "rose", excused: "amber" } as const;
+
+/** Davomat tarixi: oxirgi darslar (kelmagan / sababli — izohi bilan). */
+function AttendanceCard({ rows }: { rows: StudentAttendanceRow[] }) {
+  const count = (s: StudentAttendanceRow["status"]) => rows.filter((r) => r.status === s).length;
+  return (
+    <Card>
+      <CardHeader title="Davomat" count={rows.length || undefined} subtitle={rows.length ? `Oxirgi ${rows.length} ta dars` : undefined} />
+      {rows.length ? (
+        <>
+          <p className="num flex flex-wrap gap-1.5 px-6 pb-3">
+            <Tag tone="emerald">Keldi: {count("present")}</Tag>
+            <Tag tone="rose">Kelmadi: {count("absent")}</Tag>
+            <Tag tone="amber">Sababli: {count("excused")}</Tag>
+          </p>
+          <ul className="max-h-96 divide-y divide-line-soft overflow-y-auto border-t border-line-soft">
+            {rows.map((r) => (
+              <li key={r.date} className="px-6 py-2.5 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="num text-ink-700">
+                    {formatDate(r.date)}
+                    {r.start ? <span className="text-ink-400"> · {r.start}</span> : null}
+                  </span>
+                  <Tag tone={ATT_TONE[r.status]}>{ATTENDANCE_LABEL[r.status]}</Tag>
+                </div>
+                {r.note ? <p className="mt-0.5 text-[13px] text-ink-500">{r.note}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="border-t border-line-soft px-6 py-5 text-sm text-ink-400">Hali davomat qilinmagan.</p>
+      )}
+    </Card>
   );
 }

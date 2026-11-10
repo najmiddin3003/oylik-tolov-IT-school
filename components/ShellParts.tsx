@@ -60,7 +60,7 @@ export async function HeaderTools() {
       {canSearch ? <HeaderSearch /> : null}
       <HeaderMonth fallbackMonth={currentMonth()} />
       <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden />
-      <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} sent={extras.sent} />
+      <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} sent={extras.sent} attendance={extras.attendance} />
       <UserMenu role={role} name={name} />
     </>
   );

@@ -67,8 +67,8 @@ export function canAccess(role: Role, pathname: string): boolean {
   // Hamma xodim: o'z profili, faoliyat tarixi va tezlik o'lchovini yuborish (brauzer)
   if (ME(pathname) || under(pathname, "/faoliyat") || pathname === "/api/perf") return true;
   if (under(pathname, "/payments") || pathname === "/api/export/tolovlar") return true;
-  // Qarzdorlar — hamma rol (o'qituvchiga faqat o'z o'quvchilari)
-  if (under(pathname, "/qarzdorlar")) return true;
+  // Qarzdorlar va davomat — hamma rol (o'qituvchiga faqat o'z o'quvchilari)
+  if (under(pathname, "/qarzdorlar") || under(pathname, "/davomat")) return true;
   // O'zi olgan avans/oylik — o'qituvchi va administrator
   if (under(pathname, "/olinganlar")) return true;
   if (role === "teacher") {
