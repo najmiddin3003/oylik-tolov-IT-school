@@ -2,29 +2,17 @@
 import { compareRecords, mismatchKey, parseSheet, type MismatchResult, type SheetWindow } from "./compare";
 import { hasPaymentInMonth, importFromRun } from "./importer";
 import { LIVE } from "./ledger";
-import { Payment, Setting, Student, SyncIgnore, SyncRun } from "./models";
+import { Payment, Student, SyncIgnore, SyncRun } from "./models";
+import { archiveIfDueLocked, trackSheetRows } from "./sheet-archive";
 import { getSettings } from "./settings";
-import { fetchSheetRows, SheetError } from "./sheets";
+import { fetchSheetRows, SheetError, sheetSourceKey } from "./sheets";
+import { acquireSyncLock, releaseSyncLock } from "./sync-lock";
 import { dateToISO, isoToDate, lastScheduledTime, todayISO } from "./time";
 
 export type SyncTrigger = "auto" | "cron" | "manual";
 
-const LOCK_MS = 5 * 60_000;
 const KEEP_RUNS = 60;
 const DAY_MS = 24 * 3600_000;
-
-async function acquireLock(): Promise<boolean> {
-  const now = new Date();
-  const res = await Setting.updateOne(
-    { _id: "main", $or: [{ syncLockedUntil: null }, { syncLockedUntil: { $lt: now } }] },
-    { $set: { syncLockedUntil: new Date(now.getTime() + LOCK_MS) } },
-  );
-  return res.modifiedCount === 1;
-}
-
-async function releaseLock() {
-  await Setting.updateOne({ _id: "main" }, { $set: { syncLockedUntil: null } });
-}
 
 /** Jadval qamragan davrdagi saytdagi to'lovlar. */
 async function loadSitePayments(window: SheetWindow | null) {
@@ -59,6 +47,8 @@ export type SyncOutcome = {
   ignored: number;
   /** Sheets'dan avtomatik qo'shilgan to'lov qatorlari */
   imported: number;
+  /** Tekshiruv o'rniga jadval arxivlandi (shu oy oyligi olingan) — havola bo'shatildi: oy "YYYY-MM" */
+  archived?: string;
 };
 
 /**
@@ -67,10 +57,20 @@ export type SyncOutcome = {
  */
 export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null> {
   const settings = await getSettings({ fresh: true });
-  if (!(await acquireLock())) return null;
+  // Havola yo'q (jadval arxivlangan, yangi oy jadvali hali qo'yilmagan) — tekshiruv yozilmaydi, ogohlantirish chiqmaydi
+  if (!settings.sheetUrl) return { id: "", ok: false, error: "Google Sheets havolasi kiritilmagan", mismatches: 0, ignored: 0, imported: 0 };
+  if (!(await acquireSyncLock())) return null;
 
   const startedAt = new Date();
   try {
+    // Shu jadval oyining oyligi olingan bo'lsa — jadval arxivlanadi va havola bo'shatiladi (tekshiruv o'rniga)
+    try {
+      const archived = await archiveIfDueLocked({ trigger: "auto" });
+      if (archived) return { id: "", ok: true, error: "", mismatches: 0, ignored: 0, imported: 0, archived: archived.month };
+    } catch (err) {
+      console.error("[sync] arxivlash:", err);
+    }
+
     let result: {
       ok: boolean;
       error: string;
@@ -107,6 +107,13 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
     try {
       if (!settings.sheetUrl) throw new SheetError("Google Sheets havolasi kiritilmagan");
       const rows = await fetchSheetRows(settings.sheetUrl);
+      // Qatorlar kuzatuvi: qaysi qator qachon paydo bo'ldi / yo'qoldi (arxivda ko'rsatiladi)
+      try {
+        const source = sheetSourceKey(settings.sheetUrl);
+        if (source) await trackSheetRows(source, rows, startedAt);
+      } catch (err) {
+        console.error("[sync] qatorlar kuzatuvi:", err);
+      }
       const today = todayISO();
       const parsed = parseSheet(rows, settings.columns, {
         fallbackYear: Number(today.slice(0, 4)),
@@ -215,7 +222,7 @@ export async function runSync(trigger: SyncTrigger): Promise<SyncOutcome | null>
 
     return { id: String(run._id), ok: result.ok, error: result.error, mismatches: result.mismatches.length - ignored - resolved, imported, ignored };
   } finally {
-    await releaseLock();
+    await releaseSyncLock();
   }
 }
 

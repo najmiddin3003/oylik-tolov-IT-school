@@ -1,12 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Check, RefreshCw } from "lucide-react";
-import { linkMismatch, runSyncNow, saveSheetSettings } from "@/app/actions/sync";
+import { Archive, Check, RefreshCw } from "lucide-react";
+import { archiveSheetAction, linkMismatch, runSyncNow, saveSheetSettings } from "@/app/actions/sync";
 import type { FormState } from "@/app/actions/types";
 import type { ColumnNames } from "@/lib/compare";
 import type { StudentPick } from "@/lib/data";
-import { Select } from "./pickers";
+import { MonthPicker, Select } from "./pickers";
 import { ConfirmAction } from "./SubmitButton";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
@@ -250,5 +250,55 @@ export function LinkStudentPicker({
         ) : null}
       </div>
     </details>
+  );
+}
+
+/**
+ * Joriy jadvalni hozir arxivlash: tanlangan oy uchun to'liq nusxa bazaga yoziladi. «Havolani bo'shatish» — yangi oy
+ * jadvali qo'yilguncha tekshiruv to'xtaydi (oylik olingach jadval odatda shunday arxivlanadi).
+ */
+export function ArchiveSheetForm({ month, max }: { month: string; max: string }) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(archiveSheetAction, {});
+  const [clear, setClear] = useState(true);
+  const fe = state.fieldErrors ?? {};
+  return (
+    <form onSubmit={onSubmit} className="grid gap-4">
+      <div>
+        <label className={labelCls}>Qaysi oy jadvali</label>
+        <MonthPicker name="month" defaultValue={month} max={max} invalid={!!fe.month} aria-label="Qaysi oy jadvali" />
+        {fe.month ? <p className="mt-1.5 text-xs text-rose-600">{fe.month}</p> : null}
+      </div>
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3.5 transition hover:bg-slate-50/60">
+        <input
+          type="checkbox"
+          name="clear"
+          checked={clear}
+          onChange={(e) => setClear(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 rounded accent-brand-600"
+        />
+        <span>
+          <span className="block text-sm font-semibold text-ink-900">Havolani bo‘shatish</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-ink-500">
+            Yangi oy jadvali qo‘yilguncha tekshiruv to‘xtaydi. Belgilanmasa — nusxa saqlanadi, tekshiruv shu jadval bilan davom etadi.
+          </span>
+        </span>
+      </label>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="submit" disabled={pending} className={btn.primary}>
+          <Archive className={cx("size-[18px]", pending && "animate-pulse")} strokeWidth={2} aria-hidden />
+          {pending ? "Saqlanmoqda…" : "Arxivga saqlash"}
+        </button>
+      </div>
+      {state.error ? (
+        <p className="text-sm text-rose-600" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+      {state.ok && state.message ? (
+        <p className="text-sm text-emerald-700" role="status">
+          ✓ {state.message}
+        </p>
+      ) : null}
+    </form>
   );
 }

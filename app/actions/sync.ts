@@ -7,11 +7,12 @@ import { mismatchKey } from "@/lib/compare";
 import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
 import { importFromRun } from "@/lib/importer";
-import { SyncIgnore, SyncRun, type MismatchKind } from "@/lib/models";
+import { SheetArchive, SyncIgnore, SyncRun, type MismatchKind } from "@/lib/models";
 import { getSettings, updateSettings } from "@/lib/settings";
+import { archiveSheetNow } from "@/lib/sheet-archive";
 import { parseSheetUrl } from "@/lib/sheets";
 import { runSync } from "@/lib/sync";
-import { monthLabel } from "@/lib/time";
+import { formatMoney, isValidMonth, monthLabel } from "@/lib/time";
 import type { FormState } from "./types";
 
 const COLUMN_FIELDS = ["name", "phone", "month", "amount", "date", "cash", "card", "fee", "course"] as const;
@@ -33,7 +34,9 @@ export async function saveSheetSettings(_prev: FormState, formData: FormData): P
     const v = String(formData.get(`col_${f}`) ?? "").trim().slice(0, 60);
     if (v) columns[f] = v;
   }
-  await updateSettings({ $set: { sheetUrl, columns, courseFilter, autoImport } });
+  // Yangi havola qo'yilsa — arxiv holati tugaydi; bo'sh saqlansa — avvalgi holat qoladi
+  const sheetArchived = sheetUrl ? false : current.sheetArchived;
+  await updateSettings({ $set: { sheetUrl, sheetArchived, columns, courseFilter, autoImport } });
   await logActivity(session, "sync.settings", `Google Sheets sozlamalari saqlandi${courseFilter ? ` (kurslar: ${courseFilter})` : " (barcha kurslar)"}`);
   await dataChanged();
   return { ok: true, message: "Sozlamalar saqlandi" };
@@ -45,6 +48,13 @@ export async function runSyncNow(): Promise<FormState> {
   const res = await runSync("manual");
   await dataChanged();
   if (!res) return { error: "Hozir boshqa tekshiruv ketmoqda, birozdan keyin urinib ko'ring" };
+  if (res.archived) {
+    await logActivity(session, "sync.archive", `${monthLabel(res.archived)} oyligi olingan — Google Sheets jadvali arxivlandi, havola bo‘shatildi`);
+    return {
+      ok: true,
+      message: `${monthLabel(res.archived)} oyligi olingan: jadval arxivga saqlandi va havola bo‘shatildi. Yangi oy jadvali chiqqach, havolasini sozlamalarga qo‘ying.`,
+    };
+  }
   await logActivity(
     session,
     "sync.run",
@@ -185,5 +195,43 @@ export async function unignoreMismatch(ignoreId: string): Promise<void> {
     if (changed) await last.save();
   }
   await logActivity(session, "sync.unignore", `E’tiborsiz qoldirish bekor qilindi: ${doc.studentName} — ${KIND_TEXT[doc.kind as MismatchKind]}, ${monthLabel(doc.month)}`);
+  await dataChanged();
+}
+
+/**
+ * Joriy jadvalni hozir arxivlash (rahbar): tanlangan oy uchun to'liq nusxa (qiymatlar, ko'rinish, asl .xlsx) bazaga yoziladi.
+ * «Havolani bo'shatish» belgilansa — yangi oy jadvali qo'yilguncha tekshiruv to'xtaydi.
+ */
+export async function archiveSheetAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const session = await requireOwner({ fresh: true });
+  const month = String(fd.get("month") ?? "");
+  const clear = fd.get("clear") === "on";
+  if (!isValidMonth(month)) return { fieldErrors: { month: "Qaysi oy jadvali — tanlang" } };
+  const res = await archiveSheetNow({ month, clear, byName: session.name ?? "Rahbar" });
+  if ("error" in res) return { error: res.error };
+  await logActivity(
+    session,
+    "sync.archive",
+    `Google Sheets jadvali arxivlandi: ${monthLabel(month)} (${res.records} ta to‘lov qatori, ${formatMoney(res.total)})${clear ? ", havola bo‘shatildi" : ""}`,
+  );
+  await dataChanged();
+  return {
+    ok: true,
+    message: `${monthLabel(month)} jadvali arxivga saqlandi: ${res.records} ta to‘lov qatori, jami ${formatMoney(res.total)}${clear ? ". Havola bo‘shatildi" : ""}${
+      res.warnings.length ? `. Eslatma: ${res.warnings.join("; ")}` : ""
+    }`,
+    nonce: Date.now(),
+  };
+}
+
+/** Arxivdagi jadval havolasini yana joriy qilish (masalan, havola adashib bo'shatilgan bo'lsa). */
+export async function restoreArchivedUrl(id: string): Promise<void> {
+  const session = await requireOwner({ fresh: true });
+  if (!isId(id)) return;
+  await connectDB();
+  const a = await SheetArchive.findById(id, { url: 1, month: 1 }).lean();
+  if (!a?.url) return;
+  await updateSettings({ $set: { sheetUrl: a.url, sheetArchived: false } });
+  await logActivity(session, "sync.settings", `Arxivdagi ${monthLabel(a.month)} jadvali havolasi yana joriy qilindi`);
   await dataChanged();
 }

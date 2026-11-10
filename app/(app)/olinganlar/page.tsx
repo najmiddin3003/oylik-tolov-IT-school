@@ -12,6 +12,8 @@ import { payLabel } from "@/lib/staff-rules";
 import { currentMonth, formatDate, formatMoney, formatNumber, isoToDate, monthLabel, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Olingan avans/oylik" };
+// «Oylik» yozilgach Google Sheets jadvali javobdan keyin arxivlanadi (bir necha soniya)
+export const maxDuration = 60;
 
 export default function MySalariesPage() {
   return (

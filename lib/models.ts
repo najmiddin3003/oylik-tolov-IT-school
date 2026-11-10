@@ -74,6 +74,8 @@ const settingSchema = new Schema(
   {
     _id: { type: String, default: "main" },
     sheetUrl: { type: String, default: "" },
+    /** Jadval arxivlangan va havola bo'shatilgan (yangi oy jadvali kutilmoqda) — .env dagi SHEET_URL ham ishlatilmaydi */
+    sheetArchived: { type: Boolean, default: false },
     columns: {
       name: String,
       phone: String,
@@ -240,6 +242,71 @@ const syncIgnoreSchema = new Schema(
   },
   { timestamps: true },
 );
+
+// ---------- Google Sheets arxivi: oylik olingach jadvalning to'liq nusxasi (havola o'chsa ham isbot bo'lib qoladi) ----------
+const sheetArchiveSchema = new Schema(
+  {
+    /** Qaysi oy jadvali ("YYYY-MM") */
+    month: { type: String, required: true, match: /^\d{4}-(0[1-9]|1[0-2])$/ },
+    /** Asl havola va jadval kaliti (lib/sheets.ts → sheetSourceKey) */
+    url: { type: String, required: true },
+    sourceKey: { type: String, required: true },
+    /** Jadval nomi («Chortoq tumani oktabr») va solishtirilgan varaq («O'quvchilar») */
+    title: { type: String, default: "" },
+    tab: { type: String, default: "" },
+    capturedAt: { type: Date, required: true },
+    /** salary — «oylik» yozilganda; auto — tekshiruvda (oylik olingan oy jadvali); manual — rahbar tugmasi */
+    trigger: { type: String, enum: ["salary", "auto", "manual"], required: true },
+    capturedByName: { type: String, default: "" },
+    /** Asosiy varaq qiymatlari (Sheets'dagidek, oxiridagi bo'sh qatorlarsiz) */
+    rows: { type: [[String]], default: [] },
+    rowCount: { type: Number, default: 0 },
+    /** Har bir qator sayt tomonidan Sheets'da birinchi ko'rilgan vaqt (rows bilan bir xil tartibda; bo'sh qator — null) */
+    rowSeen: { type: [Date], default: [] },
+    /** Ilgari ko'rilgan, lekin arxivlash paytida jadvalda yo'q qatorlar (o'chirilgan yoki o'zgartirilgan) */
+    removedRows: {
+      type: [{ row: Number, cells: [String], firstSeenAt: Date, lastSeenAt: Date, _id: false }],
+      default: [],
+    },
+    /** Qisqa xulosa: to'lov qatorlari, jami summa, sana oralig'i, kurslar bo'yicha */
+    summary: {
+      records: { type: Number, default: 0 },
+      total: { type: Number, default: 0 },
+      dateFrom: { type: String, default: "" },
+      dateTo: { type: String, default: "" },
+      courses: { type: [{ course: String, rows: Number, total: Number, _id: false }], default: [] },
+    },
+    /** Google'ning o'zi chizgan ko'rinish: uslublar va barcha varaqlar (HTML, tozalangan) */
+    css: { type: String, default: "" },
+    tabs: { type: [{ name: String, html: String, main: Boolean, _id: false }], default: [] },
+    /** Asl fayl (.xlsx) — yuklab olish uchun */
+    xlsx: { type: Buffer, default: null },
+    warnings: { type: [String], default: [] },
+    /** Arxivlangach havola sozlamalardan bo'shatildimi */
+    cleared: { type: Boolean, default: false },
+  },
+  { timestamps: true },
+);
+sheetArchiveSchema.index({ month: -1, capturedAt: -1 });
+sheetArchiveSchema.index({ sourceKey: 1, trigger: 1 });
+
+// ---------- Sheets qatorlari kuzatuvi: har bir qator sayt tomonidan birinchi va oxirgi marta ko'rilgan vaqt ----------
+// Google jadvalga qachon yozilganini bermaydi — sayt har tekshiruvda (kuniga kamida bir marta) jadvalni o'qib, yangi
+// paydo bo'lgan va yo'qolgan (o'chirilgan / o'zgartirilgan) qatorlarni shu yerda belgilab boradi.
+const sheetRowSchema = new Schema(
+  {
+    source: { type: String, required: true },
+    /** Qator mazmuni kaliti (lib/sheet-archive-rules.ts → rowKeys) */
+    key: { type: String, required: true },
+    /** Oxirgi ko'rilgandagi qator raqami (1 dan) va katakchalari */
+    row: { type: Number, default: 0 },
+    cells: { type: [String], default: [] },
+    firstSeenAt: { type: Date, required: true },
+    lastSeenAt: { type: Date, required: true },
+  },
+  { versionKey: false },
+);
+sheetRowSchema.index({ source: 1, key: 1 }, { unique: true });
 
 // ---------- Oylik va avanslar (tushum ulushidan ayiriladi) ----------
 const salarySchema = new Schema(
@@ -429,6 +496,9 @@ export const SyncRun: Model<InferSchemaType<typeof syncRunSchema>> =
   models.SyncRun || model("SyncRun", syncRunSchema);
 export const SyncIgnore: Model<InferSchemaType<typeof syncIgnoreSchema>> =
   models.SyncIgnore || model("SyncIgnore", syncIgnoreSchema);
+export const SheetArchive: Model<InferSchemaType<typeof sheetArchiveSchema>> =
+  models.SheetArchive || model("SheetArchive", sheetArchiveSchema);
+export const SheetRow: Model<InferSchemaType<typeof sheetRowSchema>> = models.SheetRow || model("SheetRow", sheetRowSchema);
 export const Salary: Model<InferSchemaType<typeof salarySchema>> =
   models.Salary || model("Salary", salarySchema);
 export const SmsLog: Model<InferSchemaType<typeof smsLogSchema>> =

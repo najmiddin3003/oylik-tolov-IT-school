@@ -101,6 +101,7 @@ export function pageTitle(pathname: string, role?: Role): { section: string; sec
   if (/^\/students\/[^/]+/.test(pathname)) return { section: "O‘quvchilar", sectionHref: "/students", page: "Profil" };
   if (/^\/staff\/[^/]+/.test(pathname)) return { section: "Xodimlar", sectionHref: "/staff", page: "Xodim" };
   if (pathname.startsWith("/faoliyat")) return { section: "Faoliyat tarixi", sectionHref: "/faoliyat" };
+  if (pathname.startsWith("/sync/arxiv/")) return { section: "Google Sheets", sectionHref: "/sync", page: "Arxiv" };
   const items = role ? navFor(role) : NAV;
   const item = items.find((n) => isActivePath(pathname, n.href));
   return { section: item?.label ?? "Bosh sahifa", sectionHref: item?.href ?? "/" };

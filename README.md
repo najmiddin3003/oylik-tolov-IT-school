@@ -115,6 +115,18 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   cron va avtomatik) ko‘rsatilmaydi, ogohlantirish va hisoblagichlarga kirmaydi, saytga avtomatik qo‘shilmaydi. Masalan, Sheets’ni
   boshqa odam yuritsa va xatoni tuzatib bo‘lmasa. Farq o‘zining «kaliti» bo‘yicha taniladi (o‘quvchi, oy, summalar, Sheets
   qatorining sanasi); shu yozuv o‘zgarsa — farq yana chiqadi. «E’tiborsiz qoldirilganlar» bo‘limida ro‘yxat va «Qaytarish».
+- **Jadvallar arxivi** — oylik olingach (o‘qituvchi yoki foizli rahbarga shu oy uchun «Oylik» yozilganda) shu oy Google
+  Sheets jadvali bazaga to‘liq saqlanadi va havola sozlamalardan bo‘shatiladi: yangi oy jadvali qo‘yilguncha «Google Sheets»
+  sahifasi «arxiv holatida» turadi, tekshiruv va ogohlantirish to‘xtaydi. Saqlanadi: asl havola, jadval va varaq nomi,
+  barcha qiymatlar, Google’ning o‘zi chizgan ko‘rinishi (barcha varaqlar — ranglar, shriftlar, kengliklar bilan) va asl .xlsx fayl.
+  Jadval keyin o‘chirilsa yoki o‘zgartirilsa ham, arxivda (/sync/arxiv/…) Sheets’dagidek ko‘rinadi; .xlsx va CSV yuklab olinadi.
+  Qaysi oy: jadval nomidagi oy («Chortoq tumani oktabr»), nomda oy bo‘lmasa — oyligi olingan oxirgi oy; nomida boshqa oy yozilgan
+  jadval (masalan, yangi oy jadvali allaqachon qo‘yilgan) arxivlanmaydi. Oylik kech yozilgan bo‘lsa — keyingi tekshiruvda (cron
+  yoki «Hozir tekshirish») arxivlanadi. Qo‘lda: «Jadvalni arxivlash» (oy va «havolani bo‘shatish» tanlanadi); adashib bo‘shatilgan
+  havola arxivdan «Havolani qaytarish» bilan tiklanadi.
+  - **Qatorlar kuzatuvi** — Google jadvalga qachon yozilganini bermaydi, shuning uchun sayt har tekshiruvda (kuniga kamida bir marta)
+    har bir qatorni birinchi va oxirgi marta qachon ko‘rganini yozib boradi: arxivda har qator yonida «Saytda birinchi ko‘rilgan»
+    vaqt, alohida — ilgari ko‘rilgan, keyin o‘chirilgan yoki o‘zgartirilgan qatorlar (eski holati va ko‘rilgan vaqtlari).
 - **Dars jadvali** — har o‘quvchining dars kunlari va vaqti: «Toq kunlar» (Du·Ch·Ju), «Juft kunlar» (Se·Pa·Sh), «Har kuni»
   yoki o‘zingiz tanlagan kunlar; boshlanish — tugash vaqti (tugashi avtomatik +2 soat, o‘zgartirsa bo‘ladi), kerak bo‘lsa
   har kunga alohida vaqt. O‘quvchi formasida yoki «O‘quvchilar» ro‘yxatida bir nechtasini belgilab «Dars vaqti» tugmasi bilan
@@ -288,8 +300,10 @@ lib/compare.ts        Sheets qatorlarini o'qish va solishtirish (sof funksiyalar
 lib/allocate.ts       to'lovni oylarga taqsimlash
 lib/importer.ts       Sheets farqlaridan saytga o'quvchi va to'lov qo'shish
 lib/normalize.ts      ism / telefon / summa / oy / sana normallashtirish
-lib/sheets.ts         Sheets'dan yuklash (CSV yoki service account)
+lib/sheets.ts         Sheets'dan yuklash (CSV yoki service account), arxiv uchun to'liq nusxa (HTML ko'rinish, .xlsx)
+lib/sheet-archive.ts  jadvallar arxivi: oylik olingach arxivlash, qatorlar kuzatuvi (qoidalar — sheet-archive-rules.ts)
+lib/zip.ts            Google HTML eksportini (zip) ochish
 lib/sync.ts           tekshiruvni bajarish, natijani saqlash, kunlik rejim
-lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Activity, Perf
+lib/models.ts         MongoDB modellari: Student, Payment, Setting, SyncRun, Salary, SmsLog, Staff, Otp, Task, Activity, Perf, SheetArchive, SheetRow
 proxy.ts              kirmagan foydalanuvchini /login ga, har bir rolni o'z bo'limlariga yo'naltiradi
 ```
