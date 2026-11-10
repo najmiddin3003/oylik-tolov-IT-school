@@ -121,6 +121,10 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   dars boshlanganidan **30 daqiqa o‘tib** ochiladi; o‘tgan kunlar (qilinmay qolgan) — istalgan vaqtda, saqlangani tahrirlanadi.
   Ochilgan, lekin qilinmagan guruhlar — menyuda son va qo‘ng‘iroqchada «Davomat qilinmagan». O‘quvchi profilida — davomat tarixi
   (izohlari bilan). Har bir saqlash faoliyat tarixiga yoziladi.
+  Kurs bo‘yicha filtr (o‘qituvchiga — faqat o‘z kurslari); o‘quvchi ismi bosilsa — profiliga.
+  - **Kelmaganlar sababi** — «Kelmadi» belgilangan o‘quvchi keyingi darsi boshlanishi bilan saytga kirilganda oynada bir marta
+    chiqadi (ismi, kursi, qachon kelmagani, izoh, joriy oy to‘lov holati); «Gaplashildi» — izoh majburiy. Gaplashilguncha
+    «Davomat» sahifasida «Sababini o‘rganing» ro‘yxatida va qo‘ng‘iroqchada turadi.
 - **Jadvallar arxivi** — oylik olingach (o‘qituvchi yoki foizli rahbarga shu oy uchun «Oylik» yozilganda) shu oy Google
   Sheets jadvali bazaga to‘liq saqlanadi va havola sozlamalardan bo‘shatiladi: yangi oy jadvali qo‘yilguncha «Google Sheets»
   sahifasi «arxiv holatida» turadi, tekshiruv va ogohlantirish to‘xtaydi. Saqlanadi: asl havola, jadval va varaq nomi,
