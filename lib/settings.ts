@@ -21,6 +21,8 @@ export type Features = {
 
 export type AppSettings = {
   sheetUrl: string;
+  /** Jadval arxivlangan, havola bo'sh — yangi oy jadvali kutilmoqda */
+  sheetArchived: boolean;
   columns: ColumnNames;
   courseFilter: string;
   /** Sheets'da bor, saytda yo'q to'lovlar tekshiruvda o'zi saytga qo'shiladi */
@@ -51,6 +53,7 @@ const g = globalThis as unknown as { __settingsCache?: { at: number; value: AppS
 
 type Doc = Record<string, unknown> & {
   sheetUrl?: string;
+  sheetArchived?: boolean;
   columns?: Partial<Record<keyof ColumnNames, string | null>>;
   courseFilter?: string;
   autoImport?: boolean;
@@ -75,7 +78,9 @@ function toAppSettings(doc: Doc | null): AppSettings {
     if (saved[k]) columns[k] = saved[k]!;
   }
   return {
-    sheetUrl: doc?.sheetUrl || process.env.SHEET_URL || "",
+    // Arxivlangach havola ataylab bo'sh — .env dagi SHEET_URL ga qaytilmaydi
+    sheetUrl: doc?.sheetUrl || (doc?.sheetArchived ? "" : process.env.SHEET_URL || ""),
+    sheetArchived: Boolean(doc?.sheetArchived) && !doc?.sheetUrl,
     columns,
     // Eski hujjatlarda maydon yo'q bo'lsa — standart; ataylab bo'sh qoldirilgan bo'lsa — filtrsiz
     courseFilter: typeof doc?.courseFilter === "string" ? doc.courseFilter : DEFAULT_COURSE_FILTER,

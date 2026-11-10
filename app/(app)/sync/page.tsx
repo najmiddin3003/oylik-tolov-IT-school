@@ -1,20 +1,45 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { BookOpen, CalendarClock, CircleCheck, Download, Eye, EyeOff, FileSpreadsheet, Info, TriangleAlert, Undo2 } from "lucide-react";
-import { ignoreMismatch, importAllMismatches, importMismatch, linkMismatch, resolveMismatch, unignoreMismatch } from "@/app/actions/sync";
+import {
+  Archive,
+  ArrowRight,
+  BookOpen,
+  CalendarClock,
+  CircleCheck,
+  Download,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
+  Info,
+  Link2,
+  TriangleAlert,
+  Undo2,
+} from "lucide-react";
+import {
+  ignoreMismatch,
+  importAllMismatches,
+  importMismatch,
+  linkMismatch,
+  resolveMismatch,
+  restoreArchivedUrl,
+  unignoreMismatch,
+} from "@/app/actions/sync";
 import { ConfirmAction } from "@/components/SubmitButton";
-import { LinkStudentPicker, RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
+import { ArchiveSheetForm, LinkStudentPicker, RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
 import { Avatar, btn, Card, CardHeader, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
 import { courseLabel } from "@/lib/compare";
 import { sameCourse } from "@/lib/courses";
-import { getSyncPageData, type MismatchRow, type StudentPick, type SyncIgnoreRow, type SyncRunView } from "@/lib/data";
+import { getSyncPageData, type MismatchRow, type SheetArchiveRow, type StudentPick, type SyncIgnoreRow, type SyncRunView } from "@/lib/data";
 import type { MismatchKind } from "@/lib/models";
 import { syncHour } from "@/lib/sync";
-import { formatDate, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
+import { currentMonth, formatDate, formatDateTime, formatMoney, monthLabel } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Google Sheets" };
+// Arxivlash (jadvalni .xlsx va HTML ko'rinishida yuklab olish) bir necha soniya olishi mumkin
+export const maxDuration = 60;
 
 const KIND: Record<MismatchKind, { label: string; tone: "rose" | "amber" | "brand" | "slate"; help: string }> = {
   missing_on_site: { label: "Saytda yo‘q", tone: "rose", help: "Sheets’da to‘lov bor, saytda kiritilmagan" },
@@ -41,8 +66,10 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
   await ownerGuard();
   const sp = await searchParams;
   const course = typeof sp.kurs === "string" ? sp.kurs.slice(0, 80) : "";
-  const { settings, runs, ignores, students, paidByMonth } = await getSyncPageData();
+  const { settings, runs, ignores, students, paidByMonth, archives, archiveMonth } = await getSyncPageData();
   const last = runs[0];
+  // Havola bo'sh, arxiv bor — oxirgi tekshiruv natijasi eski (arxivlangan) jadval bo'yicha, ko'rsatilmaydi
+  const archiveState = !settings.sheetUrl && archives.length > 0;
   const hour = String(syncHour()).padStart(2, "0");
 
   return (
@@ -56,14 +83,16 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
         actions={<RunSyncButton disabled={!settings.sheetUrl} />}
       />
 
-      {!settings.sheetUrl ? (
+      {archiveState ? (
+        <ArchiveStateBanner latest={archives[0]} />
+      ) : !settings.sheetUrl ? (
         <div className="mb-6 flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50/70 px-5 py-4 text-sm text-brand-800">
           <Info className="size-[18px] shrink-0" aria-hidden />
           Boshlash uchun pastdagi sozlamalarga Google Sheets havolasini kiriting va saqlang.
         </div>
       ) : null}
 
-      {last ? (
+      {archiveState ? null : last ? (
         <LastRun run={last} course={course} students={students} paidByMonth={paidByMonth} />
       ) : settings.sheetUrl ? (
         <Card className="mb-6">
@@ -73,7 +102,9 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
         </Card>
       ) : null}
 
-      {ignores.length ? <IgnoredList ignores={ignores} /> : null}
+      {ignores.length && !archiveState ? <IgnoredList ignores={ignores} /> : null}
+
+      {archives.length ? <ArchiveList archives={archives} canRestore={!settings.sheetUrl} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Card id="sozlamalar" className="scroll-mt-24 p-6">
@@ -87,7 +118,20 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
           />
         </Card>
 
-        <Card className="self-start">
+        <div className="grid gap-6 self-start">
+        {settings.sheetUrl ? (
+          <Card className="p-6">
+            <h2 className="flex items-center gap-2 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">
+              <Archive className="size-[18px] text-ink-400" aria-hidden />
+              Jadvalni arxivlash
+            </h2>
+            <p className="mb-5 mt-1.5 text-[13px] leading-relaxed text-ink-500">
+              Oylik olingach («Oylik» yozilganda) jadval o‘zi arxivlanadi va havola bo‘shatiladi. Hozir saqlash uchun oyni tanlang.
+            </p>
+            <ArchiveSheetForm month={archiveMonth} max={currentMonth()} />
+          </Card>
+        ) : null}
+        <Card>
           <CardHeader title="Oxirgi tekshiruvlar" count={runs.length} />
           {runs.length ? (
             <ul className="divide-y divide-line-soft border-t border-line-soft">
@@ -110,8 +154,102 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
             <p className="border-t border-line-soft px-6 py-5 text-sm text-ink-400">Hali tekshiruv bo‘lmagan.</p>
           )}
         </Card>
+        </div>
       </div>
     </>
+  );
+}
+
+const ARCHIVE_TRIGGER: Record<SheetArchiveRow["trigger"], string> = {
+  salary: "oylik olinganda",
+  auto: "oylik olingan — tekshiruvda",
+  manual: "qo‘lda",
+};
+
+/** Arxiv holati: havola bo'sh, oxirgi jadval arxivda — yangi oy jadvali kutilmoqda. */
+function ArchiveStateBanner({ latest }: { latest: SheetArchiveRow }) {
+  return (
+    <div className="mb-6 flex flex-wrap items-start gap-x-4 gap-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-5 py-4" role="status">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-ink-500 ring-1 ring-inset ring-line">
+        <Archive className="size-5" aria-hidden />
+      </span>
+      <div className="min-w-[220px] flex-1 text-sm leading-relaxed">
+        <p className="font-semibold text-ink-900">Arxiv holati: joriy jadval yo‘q</p>
+        <p className="mt-0.5 text-ink-600">
+          {monthLabel(latest.month)} jadvali ({latest.title || latest.tab || "Google Sheets"}) {formatDateTime(latest.capturedAt)} da arxivga saqlangan
+          {latest.cleared ? " va havolasi bo‘shatilgan" : ""}. Tekshiruv to‘xtatilgan. Yangi oy jadvali chiqqach, havolasini pastdagi sozlamalarga qo‘ying.
+        </p>
+      </div>
+      <Link href={`/sync/arxiv/${latest.id}`} className={cx(btn.outline, "shrink-0")}>
+        Jadvalni ko‘rish
+        <ArrowRight className="size-4" aria-hidden />
+      </Link>
+    </div>
+  );
+}
+
+/** Arxivdagi jadvallar: har oy jadvali havolasi va to'liq nusxasi (havola o'chsa ham shu yerda qoladi). */
+function ArchiveList({ archives, canRestore }: { archives: SheetArchiveRow[]; canRestore: boolean }) {
+  return (
+    <Card className="mb-6">
+      <CardHeader title="Jadvallar arxivi" count={archives.length} subtitle="Har oy jadvalining havolasi va to‘liq nusxasi — jadval o‘chirilsa yoki o‘zgartirilsa ham shu yerda qoladi" />
+      <ul className="divide-y divide-line-soft border-t border-line-soft">
+        {archives.map((a) => (
+          <li key={a.id} className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4">
+            <div className="flex min-w-[240px] flex-1 items-start gap-3.5">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100">
+                <FileSpreadsheet className="size-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-center gap-2">
+                  <Link href={`/sync/arxiv/${a.id}`} className="text-[15px] font-semibold text-ink-900 hover:text-brand-600">
+                    {monthLabel(a.month)}
+                  </Link>
+                  <span className="text-sm text-ink-500">{[a.title, a.tab].filter(Boolean).join(" · ")}</span>
+                </p>
+                <p className="num mt-0.5 text-[13px] text-ink-500">
+                  {a.records} ta to‘lov · {formatMoney(a.total)}
+                  {a.dateFrom ? ` · ${formatDate(a.dateFrom)} – ${formatDate(a.dateTo)}` : ""}
+                  {a.removed ? ` · ${a.removed} ta o‘chirilgan/o‘zgargan qator` : ""}
+                </p>
+                <p className="num mt-0.5 text-xs text-ink-400">
+                  Saqlangan: {formatDateTime(a.capturedAt)} · {ARCHIVE_TRIGGER[a.trigger]}
+                  {a.capturedByName ? ` · ${a.capturedByName}` : ""}
+                </p>
+                <a
+                  href={a.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs text-brand-700 hover:underline"
+                  title={a.url}
+                >
+                  <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+                  <span className="truncate">{a.url}</span>
+                </a>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/sync/arxiv/${a.id}`} className={cx(btn.sm, "text-brand-700")}>
+                <Eye className="size-4" aria-hidden />
+                Ko‘rish
+              </Link>
+              {canRestore ? (
+                <ConfirmAction
+                  action={restoreArchivedUrl.bind(null, a.id)}
+                  confirmText={`${monthLabel(a.month)} jadvali havolasi yana joriy qilinsinmi? Tekshiruv shu jadval bilan davom etadi (arxiv o‘zgarmaydi).`}
+                  className={btn.sm}
+                  pendingText="…"
+                  title="Havolani yana joriy qilish"
+                >
+                  <Link2 className="size-4" aria-hidden />
+                  Havolani qaytarish
+                </ConfirmAction>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

@@ -2,6 +2,7 @@
 
 // Xodimlarni boshqarish (faqat rahbar): qo'shish, tahrirlash, oylik foizi, kirishni o'chirish/tiklash, oylik va avanslar.
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { logActivity } from "@/lib/activity";
 import { dataChanged } from "@/lib/after-change";
 import { requireOwner } from "@/lib/auth";
@@ -16,6 +17,7 @@ import { SALARY_CYCLE_FROM } from "@/lib/salary-cycle";
 import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 import { ROLES, type Role } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
+import { scheduleSheetArchive } from "@/lib/sheet-archive-after";
 import { getStaffById, salaryHistoryOf, shareHistoryOf } from "@/lib/staff";
 import { defaultShareBase, isTeaching, parsePercent, payKindOf, ROLE_LABEL } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
@@ -246,11 +248,14 @@ export async function addSalary(staffId: string, _prev: FormState, fd: FormData)
   await Salary.create({ staff: staffId, kind, amount: amount!, date: date!, month, note, createdByStaff: session.staffId });
   await logActivity(session, "salary.add", `${staff.name}ga ${kind === "oylik" ? "oylik" : "avans"} ${formatMoney(amount!)} (${monthLabel(month)} hisobidan)`);
   await dataChanged();
-  // Foizli oylikda «oylik» oyni yopadi — keyingi to'lovlar keyingi oyga
+  // Foizli oylikda «oylik» oyni yopadi — keyingi to'lovlar keyingi oyga; shu oy Google Sheets jadvali arxivlanadi
   const closes = kind === "oylik" && payKindOf(staff.role) === "percent" && month >= SALARY_CYCLE_FROM;
+  const archives = closes && (await scheduleSheetArchive(after, session));
   return {
     ok: true,
-    message: `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} — ${monthLabel(month)} hisobidan ayirildi${closes ? `; ${monthLabel(month)} yopildi, bundan keyin tushgan to‘lovlar keyingi oy oyligiga` : ""}`,
+    message: `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} — ${monthLabel(month)} hisobidan ayirildi${closes ? `; ${monthLabel(month)} yopildi, bundan keyin tushgan to‘lovlar keyingi oy oyligiga` : ""}${
+      archives ? `. ${monthLabel(month)} Google Sheets jadvali arxivga saqlanadi («Google Sheets» bo‘limi)` : ""
+    }`,
     nonce: Date.now(),
   };
 }

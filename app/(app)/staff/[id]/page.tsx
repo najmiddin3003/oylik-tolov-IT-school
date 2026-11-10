@@ -19,6 +19,8 @@ import { payKindOf, payLabel, ROLE_HINT, ROLE_LABEL, STATUS_LABEL, staffInitials
 import { currentMonth, formatDate, formatDateTime, formatMoney, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Xodim" };
+// «Oylik» yozilgach Google Sheets jadvali javobdan keyin arxivlanadi (bir necha soniya)
+export const maxDuration = 60;
 
 export default function StaffMemberPage({ params, searchParams }: PageProps<"/staff/[id]">) {
   return (

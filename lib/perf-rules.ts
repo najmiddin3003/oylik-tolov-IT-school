@@ -18,6 +18,7 @@ export const PERF_ROUTES: Record<string, string> = {
   "/reja": "Reja va yangiliklar",
   "/settings": "Sozlamalar",
   "/sync": "Google Sheets",
+  "/sync/arxiv/[id]": "Sheets arxivi",
   "/tezlik": "Tezlik",
 };
 

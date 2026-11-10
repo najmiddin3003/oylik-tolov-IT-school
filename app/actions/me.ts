@@ -1,6 +1,7 @@
 "use server";
 
 // Xodimning o'zi uchun: olgan avans/oylikni yozish va shaxsiy sozlamalar.
+import { after } from "next/server";
 import { logActivity } from "@/lib/activity";
 import { dataChanged } from "@/lib/after-change";
 import { requireAuth, requireRole } from "@/lib/auth";
@@ -10,6 +11,7 @@ import { Salary, Staff } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { SALARY_CYCLE_FROM } from "@/lib/salary-cycle";
 import { updateSettings } from "@/lib/settings";
+import { scheduleSheetArchive } from "@/lib/sheet-archive-after";
 import { formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 import type { FormState } from "./types";
 
@@ -39,6 +41,8 @@ export async function addMySalary(_prev: FormState, fd: FormData): Promise<FormS
   await dataChanged();
   // Foizli oylikda (o'qituvchi) «oylik» oyni yopadi — keyingi to'lovlar keyingi oyga
   const closes = kind === "oylik" && session.role === "teacher" && month >= SALARY_CYCLE_FROM;
+  // Oylik olindi — shu oy Google Sheets jadvali arxivlanadi (javobdan keyin, saqlashni sekinlashtirmasdan)
+  if (closes) await scheduleSheetArchive(after, session);
   return { ok: true, message: `${what} yozildi${closes ? ` — ${monthLabel(month)} yopildi, bundan keyin tushgan to‘lovlar keyingi oy oyligiga` : ""}`, nonce: Date.now() };
 }
 

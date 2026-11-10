@@ -21,7 +21,8 @@ import {
   type StudentLean,
   type StudentRow,
 } from "./ledger";
-import { Payment, Salary, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
+import { Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
+import { suggestedArchiveMonth } from "./sheet-archive";
 import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
 import { normalizeText } from "./normalize";
 import { daysLeftInMonth, monthEndReminderActive } from "./reminders";
@@ -984,13 +985,114 @@ function findRuns(limit: number) {
   return SyncRun.find({}).sort({ startedAt: -1 }).limit(limit).lean();
 }
 
+/** Arxivdagi jadval (ro'yxat uchun — og'ir maydonlarsiz). */
+export type SheetArchiveRow = {
+  id: string;
+  month: string;
+  url: string;
+  title: string;
+  tab: string;
+  capturedAt: string;
+  trigger: "salary" | "auto" | "manual";
+  capturedByName: string;
+  rowCount: number;
+  records: number;
+  total: number;
+  dateFrom: string;
+  dateTo: string;
+  removed: number;
+  cleared: boolean;
+  warnings: string[];
+};
+
+const ARCHIVE_LIST_FIELDS = {
+  month: 1,
+  url: 1,
+  title: 1,
+  tab: 1,
+  capturedAt: 1,
+  trigger: 1,
+  capturedByName: 1,
+  rowCount: 1,
+  summary: 1,
+  cleared: 1,
+  warnings: 1,
+  removedCount: { $size: { $ifNull: ["$removedRows", []] } },
+} as const;
+
+type ArchiveListDoc = {
+  _id: unknown;
+  month: string;
+  url: string;
+  title?: string | null;
+  tab?: string | null;
+  capturedAt: Date;
+  trigger: string;
+  capturedByName?: string | null;
+  rowCount?: number | null;
+  summary?: { records?: number | null; total?: number | null; dateFrom?: string | null; dateTo?: string | null } | null;
+  cleared?: boolean | null;
+  warnings?: string[] | null;
+  removedCount?: number;
+};
+
+function toArchiveRow(d: ArchiveListDoc): SheetArchiveRow {
+  return {
+    id: String(d._id),
+    month: d.month,
+    url: d.url,
+    title: d.title ?? "",
+    tab: d.tab ?? "",
+    capturedAt: d.capturedAt.toISOString(),
+    trigger: d.trigger === "salary" || d.trigger === "auto" ? d.trigger : "manual",
+    capturedByName: d.capturedByName ?? "",
+    rowCount: d.rowCount ?? 0,
+    records: d.summary?.records ?? 0,
+    total: d.summary?.total ?? 0,
+    dateFrom: d.summary?.dateFrom ?? "",
+    dateTo: d.summary?.dateTo ?? "",
+    removed: d.removedCount ?? 0,
+    cleared: Boolean(d.cleared),
+    warnings: d.warnings ?? [],
+  };
+}
+
+/** Arxivdagi jadval to'liq (ko'rish sahifasi): qiymatlar, kuzatuv, varaqlar ko'rinishi. Asl .xlsx — alohida yuklab olinadi. */
+export async function getSheetArchive(id: string) {
+  await requireOwner();
+  if (!mongoose.isValidObjectId(id)) return null;
+  await connectDB();
+  const [doc, hasXlsx] = await Promise.all([
+    SheetArchive.findById(id, { xlsx: 0 }).lean(),
+    SheetArchive.exists({ _id: id, xlsx: { $ne: null } }),
+  ]);
+  if (!doc) return null;
+  return {
+    ...toArchiveRow({ ...doc, removedCount: doc.removedRows?.length ?? 0 }),
+    rows: (doc.rows ?? []) as unknown as string[][],
+    rowSeen: ((doc.rowSeen ?? []) as unknown as (Date | null)[]).map((d) => (d ? new Date(d).toISOString() : null)),
+    removedRows: (doc.removedRows ?? []).map((r) => ({
+      row: r.row ?? 0,
+      cells: r.cells ?? [],
+      firstSeenAt: r.firstSeenAt ? r.firstSeenAt.toISOString() : "",
+      lastSeenAt: r.lastSeenAt ? r.lastSeenAt.toISOString() : "",
+    })),
+    courses: (doc.summary?.courses ?? []).map((c) => ({ course: c.course ?? "", rows: c.rows ?? 0, total: c.total ?? 0 })),
+    css: doc.css ?? "",
+    tabs: (doc.tabs ?? []).map((t) => ({ name: t.name ?? "", html: t.html ?? "", main: Boolean(t.main) })),
+    hasXlsx: Boolean(hasXlsx),
+  };
+}
+
 export async function getSyncPageData() {
   await requireOwner();
   await connectDB();
-  const [settings, runs, ignoreDocs] = await Promise.all([
+  const [settings, runs, ignoreDocs, archiveDocs, archiveMonth] = await Promise.all([
     getSettings({ fresh: true }),
     findRuns(10),
     SyncIgnore.find({}).sort({ createdAt: -1 }).limit(500).lean(),
+    SheetArchive.aggregate<ArchiveListDoc>([{ $sort: { month: -1, capturedAt: -1 } }, { $limit: 200 }, { $project: ARCHIVE_LIST_FIELDS }]),
+    suggestedArchiveMonth(),
   ]);
   const views = runs.map(toRunView);
   const lastIgnored = new Set(
@@ -1044,6 +1146,7 @@ export async function getSyncPageData() {
   return {
     settings: {
       sheetUrl: settings.sheetUrl,
+      sheetArchived: settings.sheetArchived,
       columns: settings.columns,
       courseFilter: settings.courseFilter,
       autoImport: settings.autoImport,
@@ -1056,6 +1159,10 @@ export async function getSyncPageData() {
     students,
     /** Oy -> shu oyda saytda to'lovi bor o'quvchilar */
     paidByMonth,
+    /** Arxivdagi jadvallar (eng yangi oy tepada) */
+    archives: archiveDocs.map(toArchiveRow),
+    /** Arxivlash formasi uchun taklif qilinadigan oy */
+    archiveMonth,
   };
 }
 
@@ -1064,6 +1171,8 @@ export const getSyncAlert = cache(async (): Promise<{ unresolved: number; error:
   const session = await requireAuth();
   if (session.role !== "owner") return null;
   if (!(await syncAlertOn(session))) return null;
+  // Havola yo'q (jadval arxivlangan) — oxirgi tekshiruv eski jadval bo'yicha, ogohlantirish kerak emas
+  if (!(await getSettings()).sheetUrl) return null;
   await connectDB();
   const last = await SyncRun.findOne({})
     .select("ok error startedAt mismatches.resolved")
