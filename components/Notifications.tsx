@@ -3,7 +3,8 @@
 // Oy oxiri eslatmalari: to'lamaganlar ro'yxati oynasi va yuqoridagi qo'ng'iroqcha.
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bell, BellRing, CalendarClock, ClipboardList, FileSpreadsheet, Phone, Plus, X } from "lucide-react";
+import { Bell, BellRing, CalendarClock, ClipboardCheck, ClipboardList, FileSpreadsheet, Phone, Plus, X } from "lucide-react";
+import type { PendingAttendance } from "@/lib/attendance";
 import type { Reminder, UnpaidStudent } from "@/lib/data";
 import { reminderTitle } from "@/lib/reminders";
 import { minutesUntil, nextLesson, nextLessonLabel, scheduleLabel, tashkentClock } from "@/lib/schedule";
@@ -181,6 +182,7 @@ export function NotificationBell({
   role,
   tasks = [],
   sent = {},
+  attendance = [],
 }: {
   reminders: Reminder[];
   sync: SyncAlertData;
@@ -188,11 +190,13 @@ export function NotificationBell({
   tasks?: TaskRow[];
   /** Rahbar: eslatma oyi -> administratorga yuborilgan oxirgi topshiriq */
   sent?: Record<string, TaskRow>;
+  /** Bugun davomati qilinmagan guruhlar */
+  attendance?: PendingAttendance[];
 }) {
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<Reminder | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const count = reminders.length + (sync ? 1 : 0) + tasks.length;
+  const count = reminders.length + (sync ? 1 : 0) + tasks.length + attendance.length;
 
   useEffect(() => {
     if (!open) return;
@@ -241,6 +245,20 @@ export function NotificationBell({
             <p className="px-3 pb-4 pt-2 text-sm text-ink-500">Yangi xabar yo‘q. Hammasi joyida ✓</p>
           ) : (
             <ul className="grid max-h-[min(480px,calc(100dvh-8rem))] gap-1 overflow-y-auto overscroll-contain">
+              {attendance.map((a) => (
+                <li key={a.key}>
+                  <Link href="/davomat" onClick={() => setOpen(false)} className="group flex items-start gap-3 rounded-xl px-3 py-2.5 transition hover:bg-teal-50/70">
+                    <IconTile icon={ClipboardCheck} tone="teal" size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-ink-900">Davomat qilinmagan</span>
+                      <span className="num mt-0.5 block text-[13px] text-ink-500">
+                        {a.start}–{a.end} · {a.course || "Kursi yo‘q"}
+                        {role !== "teacher" && a.teacherName ? ` · ${a.teacherName}` : ""} · {a.missing === a.total ? `${a.total} ta o‘quvchi` : `${a.missing} / ${a.total} belgilanmagan`}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
               {tasks.map((t) => (
                 <li key={t.id}>
                   <Link

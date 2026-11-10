@@ -1,6 +1,7 @@
 // Faoliyat jurnali ro'yxati: kunlar bo'yicha guruh, har amal — vaqti, turi (ikonka) va tavsifi.
 import {
   BookOpen,
+  ClipboardCheck,
   ClipboardList,
   FileSpreadsheet,
   FileDown,
@@ -25,6 +26,7 @@ const GROUP_STYLE: Record<ActivityGroup, { icon: LucideIcon; tone: Tone }> = {
   student: { icon: UserPlus, tone: "violet" },
   staff: { icon: UsersRound, tone: "sky" },
   salary: { icon: HandCoins, tone: "orange" },
+  attendance: { icon: ClipboardCheck, tone: "teal" },
   task: { icon: ClipboardList, tone: "brand" },
   settings: { icon: Settings2, tone: "amber" },
   sync: { icon: FileSpreadsheet, tone: "teal" },

@@ -9,6 +9,7 @@ export const PERF_ROUTES: Record<string, string> = {
   "/students/[id]": "O‘quvchi profili",
   "/students/[id]/edit": "O‘quvchini tahrirlash",
   "/qarzdorlar": "Qarzdorlar",
+  "/davomat": "Davomat",
   "/payments": "To‘lovlar",
   "/olinganlar": "Olingan avans/oylik",
   "/staff": "Xodimlar",

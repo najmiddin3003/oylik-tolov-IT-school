@@ -31,6 +31,9 @@ test("yangi bo'limlarga kirish huquqi", async () => {
   assert.equal(canAccess("admin", "/olinganlar"), true);
   // Faoliyat tarixi — hamma
   for (const r of ["owner", "admin", "teacher"] as const) assert.equal(canAccess(r, "/faoliyat"), true, r);
+  // Davomat — hamma rol (o'qituvchiga faqat o'z guruhlari — sahifaning o'zida)
+  for (const r of ["owner", "admin", "teacher"] as const) assert.equal(canAccess(r, "/davomat"), true, r);
+  assert.equal(canAccess("teacher", "/davomatx"), false);
   // Reja va yangiliklar — faqat rahbar
   assert.equal(canAccess("owner", "/reja"), true);
   assert.equal(canAccess("admin", "/reja"), false);

@@ -1,6 +1,7 @@
 // Menyu bandlari — server va client komponentlar birga ishlatadi (shuning uchun "use client" yo'q).
 import {
   CircleUserRound,
+  ClipboardCheck,
   Crown,
   FileSpreadsheet,
   Gauge,
@@ -18,7 +19,7 @@ import {
 import type { Role } from "@/lib/session";
 import type { Tone } from "./ui";
 
-export type NavKey = "home" | "students" | "debtors" | "payments" | "salary" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
+export type NavKey = "home" | "students" | "attendance" | "debtors" | "payments" | "salary" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
 
 export type NavItem = {
   key: NavKey;
@@ -58,6 +59,17 @@ export const NAV: NavItem[] = [
     roles: ["owner", "teacher"],
     per: { teacher: { label: "O‘quvchilarim", short: "O‘quvchilar" } },
   },
+  // Davomat — hamma rol (o'qituvchiga faqat o'z guruhlari); telefonda ham (dars paytida qilinadi)
+  {
+    key: "attendance",
+    href: "/davomat",
+    label: "Davomat",
+    short: "Davomat",
+    icon: ClipboardCheck,
+    tone: "teal",
+    monthAware: false,
+    roles: ["owner", "admin", "teacher"],
+  },
   { key: "debtors", href: "/qarzdorlar", label: "Qarzdorlar", short: "Qarzdorlar", icon: UserX, tone: "rose", monthAware: true, roles: ["owner", "admin", "teacher"] },
   { key: "payments", href: "/payments", label: "To‘lovlar", short: "To‘lovlar", icon: Wallet, tone: "emerald", monthAware: true, roles: ["owner", "admin", "teacher"] },
   {
@@ -69,6 +81,8 @@ export const NAV: NavItem[] = [
     tone: "violet",
     monthAware: false,
     roles: ["admin", "teacher"],
+    // Telefonda pastki menyuda joy tor (davomat qo'shildi) — profil menyusida
+    mobile: false,
   },
   { key: "staff", href: "/staff", label: "Xodimlar", short: "Xodimlar", icon: UsersRound, tone: "sky", monthAware: true, roles: ["owner"] },
   { key: "sync", href: "/sync", label: "Google Sheets", short: "Sheets", icon: FileSpreadsheet, tone: "teal", monthAware: false, roles: ["owner"], mobile: false },

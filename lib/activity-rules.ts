@@ -1,11 +1,12 @@
 // Faoliyat jurnali: amal turlari va ularning guruhlari (sof — brauzerda ham ishlatiladi).
 
-export type ActivityGroup = "auth" | "payment" | "student" | "staff" | "salary" | "task" | "settings" | "sync" | "export";
+export type ActivityGroup = "auth" | "payment" | "student" | "staff" | "salary" | "attendance" | "task" | "settings" | "sync" | "export";
 
 export const ACTIVITY_GROUPS: { key: ActivityGroup; label: string }[] = [
   { key: "auth", label: "Kirish va parol" },
   { key: "payment", label: "To‘lovlar" },
   { key: "student", label: "O‘quvchilar" },
+  { key: "attendance", label: "Davomat" },
   { key: "task", label: "Topshiriqlar" },
   { key: "salary", label: "Oylik va avans" },
   { key: "staff", label: "Xodimlar" },

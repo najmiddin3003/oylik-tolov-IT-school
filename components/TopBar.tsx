@@ -213,6 +213,7 @@ export function HeaderMonth({ fallbackMonth }: { fallbackMonth: string }) {
   // Oy kerak bo'lmagan sahifalar va o'z oy tanlagichi bor sahifalar (xodim sahifasi, «Profilim» — oylik kartasida)
   const hidden =
     pathname.startsWith("/sync") ||
+    pathname.startsWith("/davomat") ||
     pathname.startsWith("/students/new") ||
     /^\/students\/[^/]+\/edit/.test(pathname) ||
     /^\/staff\/[^/]+/.test(pathname) ||

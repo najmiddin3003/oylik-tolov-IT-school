@@ -21,8 +21,10 @@ import {
   type StudentLean,
   type StudentRow,
 } from "./ledger";
-import { Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
+import { Attendance, Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { suggestedArchiveMonth } from "./sheet-archive";
+import { attendanceDay, pendingAttendance, type PendingAttendance } from "./attendance";
+import { isAttendanceStatus, type AttendanceStatus } from "./attendance-rules";
 import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
 import { normalizeText } from "./normalize";
 import { daysLeftInMonth, monthEndReminderActive } from "./reminders";
@@ -189,6 +191,8 @@ export type NavCounts = {
   staff?: number;
   /** Administrator: ochiq topshiriqlar */
   tasks?: number;
+  /** Bugun davomati ochilgan, lekin qilinmagan guruhlar */
+  attendance?: number;
 };
 
 // ---------- Yordamchilar ----------
@@ -295,33 +299,40 @@ export const getNavCounts = cache(async (): Promise<NavCounts> => {
   const month = currentMonth();
   // «Qarzdorlar»: shu oy uchun umuman to'lamaganlar (o'qituvchiga — o'z o'quvchilari)
   const unpaidCount = async (list?: StudentLean[]) => (await monthRows(month, list)).filter((r) => r.status === "unpaid").length;
+  const attendanceCount = async () => (await pendingAttendance({ teacherId: v.teacherId }, tashkentClock(nowMs()))).length;
   if (role === "admin") {
-    const [payments, tasks, debtors] = await Promise.all([
+    const [payments, tasks, debtors, attendance] = await Promise.all([
       Payment.countDocuments({ ...LIVE, month }),
       Task.countDocuments({ toRole: "admin", status: "open" }),
       unpaidCount(),
+      attendanceCount(),
     ]);
-    return { role, payments, tasks, debtors };
+    return { role, payments, tasks, debtors, attendance };
   }
   if (role === "teacher") {
     const mine = await visibleStudents(v);
-    const [payments, debtors] = await Promise.all([Payment.countDocuments({ ...LIVE, month, student: { $in: mine.map((s) => s._id) } }), unpaidCount(mine)]);
-    return { role, students: mine.filter((s) => s.active ?? true).length, payments, debtors };
+    const [payments, debtors, attendance] = await Promise.all([
+      Payment.countDocuments({ ...LIVE, month, student: { $in: mine.map((s) => s._id) } }),
+      unpaidCount(mine),
+      attendanceCount(),
+    ]);
+    return { role, students: mine.filter((s) => s.active ?? true).length, payments, debtors, attendance };
   }
-  const [students, payments, settings, last, staff, debtors] = await Promise.all([
+  const [students, payments, settings, last, staff, debtors, attendance] = await Promise.all([
     Student.countDocuments({ active: true }),
     Payment.countDocuments({ ...LIVE, month }),
     getSettings(),
     SyncRun.findOne({}).select("ok mismatches.resolved").sort({ startedAt: -1 }).lean(),
     Staff.countDocuments({ status: { $ne: "disabled" } }),
     unpaidCount(),
+    attendanceCount(),
   ]);
   let sync: SyncState = "off";
   if (settings.sheetUrl && last) {
     if (!last.ok) sync = "error";
     else sync = (last.mismatches ?? []).some((m) => !m.resolved) ? "warn" : "ok";
   }
-  return { role, students, payments, sync, staff, debtors };
+  return { role, students, payments, sync, staff, debtors, attendance };
 });
 
 // ---------- Oy bo'yicha umumiy holat (bosh sahifa va to'lovlar sahifasi) ----------
@@ -1424,10 +1435,38 @@ export async function getMyActivity(opts: { group?: string; before?: string; lim
  * Qo'ng'iroqcha uchun: administratorga — ochiq topshiriqlar; rahbarga — oy oxiri eslatmalari bo'yicha
  * administratorga yuborilgan topshiriqlar holati (oy -> oxirgi topshiriq).
  */
-export const getBellExtras = cache(async (): Promise<{ tasks: TaskRow[]; sent: Record<string, TaskRow> }> => {
-  const s = await requireAuth();
-  if (s.role === "admin") return { tasks: (await tasksFor("admin")).filter((t) => t.status === "open"), sent: {} };
-  if (s.role !== "owner") return { tasks: [], sent: {} };
-  const reminders = await getReminders();
-  return { tasks: [], sent: reminders.length ? await latestTasksByMonth(reminders.map((r) => r.month)) : {} };
-});
+export const getBellExtras = cache(
+  async (): Promise<{ tasks: TaskRow[]; sent: Record<string, TaskRow>; attendance: PendingAttendance[] }> => {
+    const v = await viewer();
+    // Hammaga: bugun davomati qilinmagan guruhlar (o'qituvchiga — o'ziniki)
+    const attendance = await pendingAttendance({ teacherId: v.teacherId }, tashkentClock(nowMs()));
+    if (v.role === "admin") return { tasks: (await tasksFor("admin")).filter((t) => t.status === "open"), sent: {}, attendance };
+    if (v.role !== "owner") return { tasks: [], sent: {}, attendance };
+    const reminders = await getReminders();
+    return { tasks: [], sent: reminders.length ? await latestTasksByMonth(reminders.map((r) => r.month)) : {}, attendance };
+  },
+);
+
+// ---------- Davomat ----------
+
+export type StudentAttendanceRow = { date: string; start: string; status: AttendanceStatus; note: string; by: string };
+
+/** O'quvchi profili: oxirgi davomat yozuvlari (sahifa o'quvchiga kirish huquqini o'zi tekshiradi). */
+export async function getStudentAttendance(studentId: string, limit = 60): Promise<StudentAttendanceRow[]> {
+  await requireAuth();
+  if (!mongoose.isValidObjectId(studentId)) return [];
+  await connectDB();
+  const docs = await Attendance.find({ student: studentId }, { date: 1, start: 1, status: 1, note: 1, markedByName: 1 }).sort({ date: -1 }).limit(limit).lean();
+  return docs.flatMap((d) =>
+    isAttendanceStatus(d.status) ? [{ date: d.date, start: d.start ?? "", status: d.status, note: d.note ?? "", by: d.markedByName ?? "" }] : [],
+  );
+}
+
+/** «Davomat» sahifasi: shu kun guruhlari va belgilangan holatlar (o'qituvchiga — faqat o'z guruhlari). */
+export async function getAttendancePage(date: string) {
+  const v = await viewer();
+  const [groups, students] = await Promise.all([attendanceDay({ teacherId: v.teacherId }, date), visibleStudents(v)]);
+  // Faol, lekin dars vaqti kiritilmagan o'quvchilar — davomatda ko'rinmaydi
+  const unscheduled = students.filter((s) => s.active !== false && !(s.lessons ?? []).length).length;
+  return { role: v.role, groups, unscheduled };
+}
