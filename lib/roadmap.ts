@@ -37,30 +37,6 @@ export const ROADMAP: RoadmapItem[] = [
     when: "Noyabr 2026",
   },
   {
-    id: "attendance",
-    title: "Davomat (yo‘qlama)",
-    summary: "O‘qituvchi darsda kelgan/kelmagan o‘quvchilarni belgilaydi.",
-    details: [
-      "«Bugun darsga keladi» ro‘yxatidan bir bosishda «keldi / kelmadi».",
-      "Ko‘p dars qoldirganlar rahbar panelida alohida ko‘rinadi.",
-      "To‘lov qilmagan va darsga kelmayotgan o‘quvchilarni ajratib ko‘rish mumkin bo‘ladi.",
-    ],
-    status: "muhokamada",
-    when: "Noyabr–dekabr 2026",
-  },
-  {
-    id: "receipt",
-    title: "To‘lov cheki (kvitansiya)",
-    summary: "Har to‘lovdan keyin chop etiladigan yoki yuboriladigan chek.",
-    details: [
-      "To‘lov saqlangach «Chek» tugmasi: o‘quvchi, oy, summa, usul, kim qabul qilgani.",
-      "PDF ko‘rinishida yuklab olish yoki Telegram orqali yuborish.",
-      "Chek raqami bo‘yicha qidiruv.",
-    ],
-    status: "rejada",
-    when: "Dekabr 2026",
-  },
-  {
     id: "expenses",
     title: "Xarajatlar va sof foyda",
     summary: "Ijara, kommunal, reklama kabi xarajatlarni yozib, oy yakunida sof foydani ko‘rish.",
@@ -96,6 +72,37 @@ export const ROADMAP: RoadmapItem[] = [
 ];
 
 export const DONE: DoneGroup[] = [
+  {
+    id: "attendance-receipt",
+    title: "Davomat, to‘lov cheki va Sheets jadvallari arxivi",
+    date: "11-noyabr, 2026",
+    items: [
+      {
+        title: "Davomat",
+        details: [
+          "Guruhlar dars jadvalidan: har o‘quvchi — Keldi / Kelmadi / Sababli; «Kelmadi» va «Sababli» uchun izoh majburiy.",
+          "Guruh davomati dars boshlanganidan 30 daqiqa o‘tib ochiladi; qilinmaganlari menyuda va qo‘ng‘iroqchada ko‘rinadi.",
+          "Kurs bo‘yicha filtr; o‘quvchi profilida davomat tarixi.",
+          "«Kelmadi» bo‘lgan o‘quvchi keyingi darsi boshlanganda oynada chiqadi — «Gaplashildi» va izoh.",
+        ],
+      },
+      {
+        title: "To‘lov cheki",
+        details: [
+          "Har to‘lovga raqamli chek: o‘quvchi, kurs, oylar, summa, usul, kim qabul qilgani.",
+          "To‘lov saqlangach «Chekni chiqarish»; tarixda har qatorda chek belgisi.",
+          "Chop etish yoki PDF sifatida saqlash; Ctrl + P — shu to‘lov cheki.",
+        ],
+      },
+      {
+        title: "Google Sheets jadvallari arxivi",
+        details: [
+          "Oylik olingach oy jadvali bazaga to‘liq saqlanadi: havola, qiymatlar, Sheets ko‘rinishi va asl .xlsx fayl.",
+          "Jadval o‘chirilsa ham arxivda Sheets’dagidek ko‘rinadi; qatorlar qachon paydo bo‘lgani kuzatiladi.",
+        ],
+      },
+    ],
+  },
   {
     id: "kassa",
     title: "Topshiriqlar, faoliyat jurnali va qorong‘i mavzu",
