@@ -115,6 +115,12 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   cron va avtomatik) ko‘rsatilmaydi, ogohlantirish va hisoblagichlarga kirmaydi, saytga avtomatik qo‘shilmaydi. Masalan, Sheets’ni
   boshqa odam yuritsa va xatoni tuzatib bo‘lmasa. Farq o‘zining «kaliti» bo‘yicha taniladi (o‘quvchi, oy, summalar, Sheets
   qatorining sanasi); shu yozuv o‘zgarsa — farq yana chiqadi. «E’tiborsiz qoldirilganlar» bo‘limida ro‘yxat va «Qaytarish».
+- **Ota-onalarga SMS** (Sozlamalar → «Ota-onalarga SMS») — qarzi bor o‘quvchining «Ota-ona telefoni»ga Eskiz orqali eslatma,
+  har kuni kechqurun (kunlik SMS bilan birga). Hammasi sozlamalardan: yoqish/o‘chirish, **qaysi sanadan keyin** (har oyning
+  1–28-sanasi; o‘tgan oylar qarzi — darhol), **qanchalik tez-tez** (oyiga bir marta yoki to‘laguncha har 3/5/7/10 kunda),
+  qisman to‘laganlarga ham yuborish, **SMS shabloni** — `{#ism#}`, `{#summa#}` (majburiy), `{#oy#}`, `{#markaz#}`; matn Eskiz’da
+  tasdiqlangan shablon bilan harfma-harf bir xil bo‘lishi kerak. Sinov SMS (istalgan raqamga), jurnal, nechta ota-onaga
+  boradi va nechtasida raqam yo‘qligi ko‘rinadi. Bir ishga tushishda ko‘pi bilan 100 ta (qolgani — ertasiga).
 - **To‘lov cheki** — har to‘lovga chek (/chek/…): markaz nomi, chek raqami, o‘quvchi, kurs, o‘qituvchi, sana, usul, kim qabul
   qildi, oylar bo‘yicha summa va jami (oldindan to‘lov oylarga bo‘linsa ham — bitta chek). To‘lov saqlangach «Chekni chiqarish»
   tugmasi; to‘lovlar tarixi va o‘quvchi profilida har qatorda chek belgisi. Chek sahifasida «Chop etish / PDF» (brauzerning
