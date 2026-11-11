@@ -2,7 +2,7 @@
 
 // Sozlamalar sahifasidagi bo'limlar menyusi: bosilganda silliq o'tadi, aylantirilganda qaysi bo'limda turgani belgilanadi.
 import { useEffect, useState } from "react";
-import { BookOpen, Building2, KeyRound, MessageSquareText, SlidersHorizontal, Tags, type LucideIcon } from "lucide-react";
+import { BookOpen, Building2, KeyRound, MessageSquareText, SlidersHorizontal, Tags, UsersRound, type LucideIcon } from "lucide-react";
 import { cx, IconTile, type Tone } from "./ui";
 
 export const SETTINGS_SECTIONS: { id: string; label: string; icon: LucideIcon; tone: Tone }[] = [
@@ -11,6 +11,7 @@ export const SETTINGS_SECTIONS: { id: string; label: string; icon: LucideIcon; t
   { id: "funksiyalar", label: "Funksiyalar", icon: SlidersHorizontal, tone: "brand" },
   { id: "parollar", label: "Parollar", icon: KeyRound, tone: "amber" },
   { id: "sms", label: "SMS eslatma", icon: MessageSquareText, tone: "sky" },
+  { id: "ota-ona-sms", label: "Ota-onalarga SMS", icon: UsersRound, tone: "rose" },
   { id: "umumiy", label: "Umumiy", icon: Building2, tone: "slate" },
 ];
 
