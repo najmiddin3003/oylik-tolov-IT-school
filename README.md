@@ -115,6 +115,10 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   cron va avtomatik) ko‘rsatilmaydi, ogohlantirish va hisoblagichlarga kirmaydi, saytga avtomatik qo‘shilmaydi. Masalan, Sheets’ni
   boshqa odam yuritsa va xatoni tuzatib bo‘lmasa. Farq o‘zining «kaliti» bo‘yicha taniladi (o‘quvchi, oy, summalar, Sheets
   qatorining sanasi); shu yozuv o‘zgarsa — farq yana chiqadi. «E’tiborsiz qoldirilganlar» bo‘limida ro‘yxat va «Qaytarish».
+- **To‘lov cheki** — har to‘lovga chek (/chek/…): markaz nomi, chek raqami, o‘quvchi, kurs, o‘qituvchi, sana, usul, kim qabul
+  qildi, oylar bo‘yicha summa va jami (oldindan to‘lov oylarga bo‘linsa ham — bitta chek). To‘lov saqlangach «Chekni chiqarish»
+  tugmasi; to‘lovlar tarixi va o‘quvchi profilida har qatorda chek belgisi. Chek sahifasida «Chop etish / PDF» (brauzerning
+  «PDF sifatida saqlash»i, A5 varaq). **Ctrl + P** (⌘P): to‘lov saqlangach — shu to‘lov cheki ochiladi va chop etish oynasi chiqadi.
 - **Davomat** (/davomat; rahbar, administrator va o‘qituvchi — o‘qituvchiga faqat o‘z guruhlari) — o‘quvchilar dars jadvali
   bo‘yicha guruhlanadi (bir xil dars vaqti, kurs va o‘qituvchi). Har bir o‘quvchi: **Keldi / Kelmadi / Sababli**; «Kelmadi» va
   «Sababli» uchun **izoh majburiy** (izohsiz saqlanmaydi — brauzerda ham, serverda ham tekshiriladi). Bugungi guruh davomati
