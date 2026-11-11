@@ -10,6 +10,7 @@ import { connectDB } from "@/lib/db";
 import { LIVE, studentFee, type StudentLean } from "@/lib/ledger";
 import { Payment, PAYMENT_METHODS, Student, type PaymentMethod } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { nextReceiptNo } from "@/lib/seq";
 import { getSettings } from "@/lib/settings";
 import { formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 import type { FormState } from "./types";
@@ -72,8 +73,10 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
     parts = allocateAmount(amount!, feeOf, month, paid);
   }
 
-  await Payment.insertMany(
+  const receiptNo = await nextReceiptNo();
+  const inserted = await Payment.insertMany(
     parts.map((p) => ({
+      receiptNo,
       student: studentId,
       month: p.month,
       amount: p.amount,
@@ -91,7 +94,7 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
       : parts.map((p) => `${monthLabel(p.month)} — ${formatMoney(p.amount)}`).join(", ");
   await logActivity(session, "payment.add", `${student.fullName}: ${what} (${METHOD_LABEL[method]}${paidIso !== today ? `, to‘langan sana ${paidIso}` : ""})`);
   await dataChanged();
-  return { ok: true, message: `${student.fullName}: ${what} saqlandi`, nonce: Date.now() };
+  return { ok: true, message: `${student.fullName}: ${what} saqlandi`, nonce: Date.now(), receiptId: String(inserted[0]._id) };
 }
 
 /**

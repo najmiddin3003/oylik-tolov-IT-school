@@ -1480,3 +1480,59 @@ export async function getAttendancePage(date: string) {
   const unscheduled = students.filter((s) => s.active !== false && !(s.lessons ?? []).length).length;
   return { role: v.role, groups, unscheduled, followUps };
 }
+
+// ---------- To'lov cheki ----------
+
+export type Receipt = {
+  id: string;
+  /** Chek raqami (eski to'lovlarda yo'q — null) */
+  no: number | null;
+  centerName: string;
+  student: { id: string; name: string; seq: number | null; group: string; phone: string };
+  teacherName: string;
+  /** To'langan sana va saytga kiritilgan vaqt */
+  paidAt: string;
+  createdAt: string;
+  method: PaymentMethod;
+  note: string;
+  receivedBy: string;
+  items: { month: string; amount: number; archived: boolean }[];
+  total: number;
+};
+
+/** To'lov cheki: shu kiritishdagi barcha to'lovlar (oylarga bo'lingan bo'lsa ham). O'qituvchiga — faqat o'z o'quvchisi. */
+export async function getReceipt(id: string): Promise<Receipt | null> {
+  const v = await viewer();
+  if (!mongoose.isValidObjectId(id)) return null;
+  await connectDB();
+  const first = await Payment.findById(id).lean();
+  if (!first) return null;
+  const docs = first.receiptNo
+    ? await Payment.find({ receiptNo: first.receiptNo, student: first.student }).sort({ month: 1 }).lean()
+    : [first];
+  const [student, settings] = await Promise.all([
+    Student.findById(first.student, { fullName: 1, seq: 1, group: 1, phone: 1, teacher: 1 }).lean(),
+    getSettings(),
+  ]);
+  if (!student) return null;
+  if (v.teacherId && String(student.teacher ?? "") !== v.teacherId) return null;
+  const [teacher, receiver] = await Promise.all([
+    student.teacher ? Staff.findById(student.teacher, { name: 1 }).lean() : null,
+    first.createdByStaff ? Staff.findById(first.createdByStaff, { name: 1 }).lean() : null,
+  ]);
+  const BY: Record<string, string> = { owner: "Rahbar", admin: "Administrator", system: "Google Sheets" };
+  return {
+    id: String(first._id),
+    no: first.receiptNo ?? null,
+    centerName: settings.centerName,
+    student: { id: String(student._id), name: student.fullName, seq: student.seq ?? null, group: student.group ?? "", phone: student.phone ?? "" },
+    teacherName: teacher?.name ?? "",
+    paidAt: first.paidAt.toISOString(),
+    createdAt: (first.createdAt ?? first.paidAt).toISOString(),
+    method: (first.method ?? "naqd") as PaymentMethod,
+    note: first.note ?? "",
+    receivedBy: receiver?.name ?? BY[first.createdBy ?? "owner"] ?? "",
+    items: docs.map((d) => ({ month: d.month, amount: d.amount, archived: Boolean(d.archivedAt) })),
+    total: docs.filter((d) => !d.archivedAt).reduce((s, d) => s + d.amount, 0),
+  };
+}

@@ -23,6 +23,12 @@ export async function ensureStudentSeqs(force = false): Promise<void> {
   g.__seqCheckedAt = Date.now();
 }
 
+/** Keyingi chek raqami (to'lov kiritilganda). */
+export async function nextReceiptNo(): Promise<number> {
+  const doc = await Counter.findOneAndUpdate({ _id: "receipt" }, { $inc: { value: 1 } }, { upsert: true, returnDocument: "after", lean: true });
+  return doc?.value ?? 1;
+}
+
 /** Yangi o'quvchi uchun keyingi raqam. */
 export async function nextStudentSeq(): Promise<number> {
   await ensureStudentSeqs(true);

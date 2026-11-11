@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Banknote, BookOpen, CalendarCheck, Check, CreditCard, Landmark, Lock, Plus, type LucideIcon } from "lucide-react";
+import { Banknote, BookOpen, CalendarCheck, Check, CreditCard, Landmark, Lock, Plus, Printer, type LucideIcon } from "lucide-react";
 import { addPayment } from "@/app/actions/payments";
 import type { FormState } from "@/app/actions/types";
 import type { StudentOption } from "@/lib/data";
@@ -12,6 +12,7 @@ import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
 import { MoneyInput } from "./inputs";
 import { DatePicker, formatDayLong, MonthPicker, Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
+import { ReceiptHotkey } from "./ReceiptActions";
 import { useActionForm } from "./useActionForm";
 
 const METHODS: { key: PaymentMethod; label: string; icon: LucideIcon }[] = [
@@ -57,10 +58,23 @@ export function PaymentForm(props: Props) {
         </p>
       ) : null}
       {state.ok && state.message ? (
-        <p className="rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800" role="status">
-          ✓ {state.message}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800" role="status">
+          <span className="min-w-0 flex-1">✓ {state.message}</span>
+          {state.receiptId ? (
+            <a
+              href={`/chek/${state.receiptId}?print=1`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white px-3 font-semibold text-emerald-800 shadow-card ring-1 ring-inset ring-emerald-200 transition hover:bg-emerald-50"
+              title="Chekni chop etish yoki PDF (Ctrl + P)"
+            >
+              <Printer className="size-4" aria-hidden />
+              Chekni chiqarish
+            </a>
+          ) : null}
+        </div>
       ) : null}
+      <ReceiptHotkey receiptId={state.ok ? state.receiptId : undefined} />
 
       <button type="submit" disabled={pending} className={cx(btn.primary, "h-12 w-full")}>
         <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
