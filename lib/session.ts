@@ -69,6 +69,8 @@ export function canAccess(role: Role, pathname: string): boolean {
   if (under(pathname, "/payments") || pathname === "/api/export/tolovlar") return true;
   // Qarzdorlar va davomat — hamma rol (o'qituvchiga faqat o'z o'quvchilari)
   if (under(pathname, "/qarzdorlar") || under(pathname, "/davomat")) return true;
+  // To'lov cheki — hamma rol (o'qituvchiga faqat o'z o'quvchisi — sahifaning o'zida)
+  if (under(pathname, "/chek")) return true;
   // O'zi olgan avans/oylik — o'qituvchi va administrator
   if (under(pathname, "/olinganlar")) return true;
   if (role === "teacher") {

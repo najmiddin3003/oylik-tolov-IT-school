@@ -58,10 +58,13 @@ const paymentSchema = new Schema(
     editedAt: { type: Date, default: null },
     editedBy: { type: String, enum: ["owner", "admin", null], default: null },
     originalAmount: { type: Number, default: null },
+    /** Chek raqami: bitta kiritishdagi to'lovlar (oldindan to'lov oylarga bo'linsa ham) — bitta chek */
+    receiptNo: { type: Number, default: null },
   },
   { timestamps: true },
 );
 paymentSchema.index({ student: 1, month: 1 });
+paymentSchema.index({ receiptNo: 1 });
 paymentSchema.index({ archivedAt: 1, month: 1, paidAt: -1 });
 paymentSchema.index({ archivedAt: 1, paidAt: 1 });
 

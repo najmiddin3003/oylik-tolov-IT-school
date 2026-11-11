@@ -12,6 +12,7 @@ import { dayLabel } from "@/lib/reminders";
 import type { Role } from "@/lib/session";
 import { dateToISO, formatMoney, MONTH_NAMES, todayISO } from "@/lib/time";
 import { EditedMark, EditPaymentButton } from "./PaymentEdit";
+import { ReceiptLink } from "./ReceiptActions";
 import { ConfirmAction } from "./SubmitButton";
 import { Avatar, btn, cx, Tag } from "./ui";
 
@@ -121,8 +122,10 @@ export function PaymentHistory({ rows, month, role, readOnly }: { rows: PaymentR
                       <span className="num whitespace-nowrap text-right text-[16px] font-bold text-ink-900">{formatMoney(p.amount)}</span>
                       <EditedMark payment={p} />
                     </span>
+                    <div className="flex items-center gap-0.5">
+                      <ReceiptLink paymentId={p.id} />
                     {readOnly ? null : (
-                      <div className="flex items-center gap-0.5">
+                      <>
                         <EditPaymentButton payment={p} />
                         <ConfirmAction
                           action={() => archivePayment(p.id)}
@@ -137,8 +140,9 @@ export function PaymentHistory({ rows, month, role, readOnly }: { rows: PaymentR
                         >
                           <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
                         </ConfirmAction>
-                      </div>
+                      </>
                     )}
+                    </div>
                   </div>
                 </li>
               );

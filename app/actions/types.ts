@@ -5,4 +5,6 @@ export type FormState = {
   fieldErrors?: Record<string, string>;
   /** Har muvaffaqiyatli saqlashda o'zgaradi — forma maydonlarini yangilash uchun */
   nonce?: number;
+  /** To'lov saqlangach: chek (birinchi to'lov ID si) */
+  receiptId?: string;
 };

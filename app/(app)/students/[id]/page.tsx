@@ -8,6 +8,7 @@ import { deleteStudent } from "@/app/actions/students";
 import { PaidCell } from "@/components/cells";
 import { NextLessonCell } from "@/components/Lessons";
 import { EditedMark, EditPaymentButton } from "@/components/PaymentEdit";
+import { ReceiptLink } from "@/components/ReceiptActions";
 import { PaymentForm } from "@/components/PaymentForm";
 import { ConfirmAction } from "@/components/SubmitButton";
 import {
@@ -235,8 +236,10 @@ async function StudentView({
                             <NoteCell note={p.note} source={p.source} />
                           </td>
                           <td className={cx(td, "text-right")}>
+                            <div className="flex items-center justify-end gap-0.5">
+                              <ReceiptLink paymentId={p.id} />
                             {readOnly ? null : (
-                              <div className="flex items-center justify-end gap-0.5">
+                              <>
                                 <EditPaymentButton payment={p} />
                                 <ConfirmAction
                                   action={archivePayment.bind(null, p.id)}
@@ -247,8 +250,9 @@ async function StudentView({
                                 >
                                   <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
                                 </ConfirmAction>
-                              </div>
+                              </>
                             )}
+                            </div>
                           </td>
                         </tr>
                       );
