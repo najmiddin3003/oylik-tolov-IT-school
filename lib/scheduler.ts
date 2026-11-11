@@ -1,5 +1,6 @@
 // O'z serverida (VPS, `next start`) ishlaganda: kuniga bir marta Sheets tekshiruvi va kechki SMS eslatma.
 // Vercel'da bu ishlamaydi — u yerda vercel.json dagi cron'lar /api/cron/sync va /api/cron/sms ni chaqiradi.
+import { runParentSms } from "./parent-sms";
 import { runDailySms, smsHour } from "./sms";
 import { runSyncIfDue } from "./sync";
 import { tashkentHour } from "./time";
@@ -23,7 +24,13 @@ export function startScheduler() {
         .then((res) => {
           if (res.status !== "skipped") console.log(`[scheduler] SMS: ${res.status} — ${res.message}`);
         })
-        .catch((err) => console.error("[scheduler] SMS xatosi:", err));
+        .catch((err) => console.error("[scheduler] SMS xatosi:", err))
+        // Ota-onalarga eslatma — kunlik SMS'dan keyin (Sheets'dagi yangi to'lovlar olib kelingach)
+        .then(() => runParentSms("auto"))
+        .then((res) => {
+          if (res && res.status !== "skipped") console.log(`[scheduler] ota-ona SMS: ${res.status} — ${res.message}`);
+        })
+        .catch((err) => console.error("[scheduler] ota-ona SMS xatosi:", err));
     }
   };
 

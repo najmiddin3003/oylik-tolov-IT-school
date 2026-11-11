@@ -5,6 +5,7 @@ import { connectDB } from "./db";
 import { feeFor, type FeeChange, type PercentChange } from "./fees";
 import { Setting } from "./models";
 import { DEFAULT_OTP_TEMPLATE } from "./otp-text";
+import { normalizeParentSms, type ParentSmsSettings } from "./parent-sms-rules";
 import { normalizeStartDay } from "./reminders";
 
 export const DEFAULT_FEE = 300_000;
@@ -44,6 +45,8 @@ export type AppSettings = {
   legacyPayStaff: string | null;
   ownerPasswordHash: string | null;
   adminPasswordHash: string | null;
+  /** Ota-onalarga to'lov eslatmasi (SMS) */
+  parentSms: ParentSmsSettings;
   /** startDay — joriy oy qarzdorlari shu sanadan boshlab sanaladi (1 — har kuni) */
   sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number; otpTemplate: string };
 };
@@ -68,6 +71,7 @@ type Doc = Record<string, unknown> & {
   legacyPayStaff?: unknown;
   ownerPasswordHash?: string | null;
   adminPasswordHash?: string | null;
+  parentSms?: Partial<Record<keyof ParentSmsSettings, unknown>> | null;
   sms?: { enabled?: boolean; phone?: string; sender?: string; template?: string; startDay?: number; otpTemplate?: string };
 };
 
@@ -108,6 +112,7 @@ function toAppSettings(doc: Doc | null): AppSettings {
     legacyPayStaff: doc?.legacyPayStaff ? String(doc.legacyPayStaff) : null,
     ownerPasswordHash: doc?.ownerPasswordHash ?? null,
     adminPasswordHash: doc?.adminPasswordHash ?? null,
+    parentSms: normalizeParentSms(doc?.parentSms),
     sms: {
       enabled: doc?.sms?.enabled ?? false,
       phone: doc?.sms?.phone || "998336263006",

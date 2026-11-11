@@ -23,6 +23,7 @@ import {
 } from "./ledger";
 import { Attendance, Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { suggestedArchiveMonth } from "./sheet-archive";
+import { parentSmsPreview } from "./parent-sms";
 import { attendanceDay, pendingAttendance, pendingFollowUps, type FollowUp, type PendingAttendance } from "./attendance";
 import { isAttendanceStatus, type AttendanceStatus } from "./attendance-rules";
 import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
@@ -858,9 +859,10 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
 export async function getSettingsPageData(month: string) {
   const session = await requireOwner();
   await connectDB();
-  const [settings, logs, students, roles, syncAlert, teachers, names] = await Promise.all([
+  const [settings, logs, parentLogs, students, roles, syncAlert, teachers, names] = await Promise.all([
     getSettings({ fresh: true }),
-    SmsLog.find({}).sort({ createdAt: -1 }).limit(8).lean(),
+    SmsLog.find({ kind: { $ne: "parent" } }).sort({ createdAt: -1 }).limit(8).lean(),
+    SmsLog.find({ kind: "parent" }).sort({ createdAt: -1 }).limit(15).lean(),
     Student.find({}, { monthlyFee: 1, feeHistory: 1, group: 1, active: 1, teacher: 1 }).lean<StudentLean[]>(),
     activeStaffRoles(),
     syncAlertOn(session),
@@ -918,6 +920,18 @@ export async function getSettingsPageData(month: string) {
       trigger: l.trigger as "cron" | "auto" | "test",
       status: l.status as "sent" | "skipped" | "failed",
       count: l.count ?? 0,
+      text: l.text ?? "",
+      error: l.error ?? "",
+      at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",
+    })),
+    parentSms: settings.parentSms,
+    parentPreview: await parentSmsPreview(settings),
+    parentLogs: parentLogs.map((l) => ({
+      id: String(l._id),
+      trigger: l.trigger as "cron" | "auto" | "test",
+      status: l.status as "sent" | "skipped" | "failed",
+      studentName: l.studentName ?? "",
+      phone: l.phone ?? "",
       text: l.text ?? "",
       error: l.error ?? "",
       at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",

@@ -3,9 +3,20 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Check, Eye, EyeOff, HandCoins, KeyRound, MessageSquareText, Percent, Plus, Send, ShieldCheck, Tags, Trash2, Wallet, X } from "lucide-react";
-import { applyFeeChange, changeOwnerPassword, saveCenterName, saveCourses, saveSmsSettings, sendTestSmsAction, setAdminPassword } from "@/app/actions/settings";
+import {
+  applyFeeChange,
+  changeOwnerPassword,
+  saveCenterName,
+  saveCourses,
+  saveParentSmsSettings,
+  saveSmsSettings,
+  sendParentTestSmsAction,
+  sendTestSmsAction,
+  setAdminPassword,
+} from "@/app/actions/settings";
 import type { FormState } from "@/app/actions/types";
 import { renderOtpText } from "@/lib/otp-text";
+import { PARENT_SMS_REPEAT_OPTIONS, renderParentSms } from "@/lib/parent-sms-rules";
 import { renderSmsText, SMS_START_DAY_OPTIONS } from "@/lib/reminders";
 import { formatNumber, MONTH_NAMES, monthLabel } from "@/lib/time";
 import { MoneyInput, PhoneInput } from "./inputs";
@@ -700,6 +711,134 @@ export function CoursesForm({
           <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
           Saqlash
         </Submit>
+      </div>
+      <Result state={state} />
+    </form>
+  );
+}
+
+// ---------- Ota-onalarga SMS ----------
+
+const REPEAT_LABEL: Record<number, string> = { 0: "Oyiga bir marta", 3: "To‘laguncha har 3 kunda", 5: "To‘laguncha har 5 kunda", 7: "To‘laguncha har hafta", 10: "To‘laguncha har 10 kunda" };
+
+/** Ota-onalarga to'lov eslatmasi: yoqish, qaysi sanadan, qanchalik tez-tez, kimlarga va SMS shabloni. */
+export function ParentSmsForm({
+  settings,
+  centerName,
+  month,
+}: {
+  settings: { enabled: boolean; startDay: number; repeatDays: number; template: string; includePartial: boolean };
+  centerName: string;
+  month: string;
+}) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(saveParentSmsSettings, {});
+  const [template, setTemplate] = useState(settings.template);
+  const [startDay, setStartDay] = useState(String(settings.startDay));
+  const [repeat, setRepeat] = useState(String(settings.repeatDays));
+  const fe = state.fieldErrors ?? {};
+  const preview = renderParentSms(template, { name: "Aliyev Vali", months: [month], debt: 300000, center: centerName }, monthName);
+  const code = (t: string) => <code className="rounded bg-slate-100 px-1 text-ink-600">{t}</code>;
+  return (
+    <form onSubmit={onSubmit} className="grid gap-5" noValidate>
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 transition hover:bg-slate-50/60">
+        <input type="checkbox" name="enabled" defaultChecked={settings.enabled} className="mt-0.5 size-4 shrink-0 rounded accent-brand-600" />
+        <span>
+          <span className="block text-sm font-semibold text-ink-900">Ota-onalarga SMS yuborish</span>
+          <span className="mt-1 block text-xs leading-relaxed text-ink-500">
+            Har kuni kechqurun (20:00) qarzi bor o‘quvchining «Ota-ona telefoni»ga eslatma boradi. To‘lagan o‘quvchiga yuborilmaydi.
+          </span>
+        </span>
+      </label>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <span className={labelCls}>Qaysi sanadan keyin</span>
+          <Select
+            name="startDay"
+            value={startDay}
+            onChange={setStartDay}
+            aria-label="Qaysi sanadan keyin"
+            options={Array.from({ length: 28 }, (_, i) => ({ value: String(i + 1), label: i === 0 ? "Oy boshidan (1-sana)" : `Har oyning ${i + 1}-sanasidan` }))}
+          />
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-400">Joriy oy qarzi shu sanadan boshlab eslatiladi; o‘tgan oylar qarzi — darhol.</p>
+        </div>
+        <div>
+          <span className={labelCls}>Qanchalik tez-tez</span>
+          <Select
+            name="repeatDays"
+            value={repeat}
+            onChange={setRepeat}
+            aria-label="Qanchalik tez-tez"
+            options={PARENT_SMS_REPEAT_OPTIONS.map((d) => ({ value: String(d), label: REPEAT_LABEL[d] }))}
+          />
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-400">Bir ota-onaga kuniga bittadan ko‘p yuborilmaydi.</p>
+        </div>
+      </div>
+
+      <label className="flex cursor-pointer items-center gap-3 text-sm text-ink-700">
+        <input type="checkbox" name="includePartial" defaultChecked={settings.includePartial} className="size-4 rounded accent-brand-600" />
+        Qisman to‘laganlar ota-onasiga ham (qolgan qarzi bilan)
+      </label>
+
+      <div>
+        <label htmlFor="parent-template" className={labelCls}>
+          SMS shabloni
+        </label>
+        <textarea
+          id="parent-template"
+          name="template"
+          rows={3}
+          maxLength={400}
+          value={template}
+          onChange={(e) => setTemplate(e.target.value)}
+          className={cx(inputCls, "h-auto py-2.5")}
+          aria-invalid={!!fe.template}
+        />
+        <FieldError msg={fe.template} />
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
+          {code("{#ism#}")} — o‘quvchi ismi (majburiy), {code("{#summa#}")} — qarz summasi (majburiy), {code("{#oy#}")} — oy(lar), {code("{#markaz#}")} — markaz
+          nomi. Matn Eskiz kabinetida tasdiqlangan shablon bilan <b className="font-semibold text-ink-600">harfma-harf bir xil</b> bo‘lishi kerak — aks holda Eskiz
+          yubormaydi. Lotin harflari va oddiy apostrof (&apos;) ishlating.
+        </p>
+        <div className="mt-3 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 p-3.5">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
+            <MessageSquareText className="size-3.5" aria-hidden />
+            Namuna
+          </p>
+          <p className="mt-1.5 text-sm text-ink-800">{preview}</p>
+          <p className={cx("num mt-1 text-xs", preview.length > 160 ? "text-amber-700" : "text-ink-400")}>
+            {preview.length} belgi{preview.length > 160 ? " — 2 ta SMS bo‘lib ketishi mumkin (ism uzun bo‘lsa)" : ""}
+          </p>
+        </div>
+      </div>
+
+      <Result state={state} />
+      <div>
+        <Submit pending={pending}>
+          <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          Saqlash
+        </Submit>
+      </div>
+    </form>
+  );
+}
+
+/** Ota-ona shabloni bilan sinov SMS — ko'rsatilgan raqamga (birinchi qarzdor ma'lumoti bilan). */
+export function ParentTestSms({ disabled, defaultPhone }: { disabled: boolean; defaultPhone: string }) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(sendParentTestSmsAction, {});
+  return (
+    <form onSubmit={onSubmit} className="grid gap-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-full sm:w-64">
+          <label htmlFor="parent-test-phone" className={labelCls}>
+            Sinov uchun raqam
+          </label>
+          <PhoneInput id="parent-test-phone" name="testPhone" defaultValue={defaultPhone} placeholder="Raqam" />
+        </div>
+        <button type="submit" disabled={pending || disabled} className={btn.outline}>
+          <Send className="size-4 text-brand-600" aria-hidden />
+          {pending ? "Yuborilmoqda…" : "Sinov SMS yuborish"}
+        </button>
       </div>
       <Result state={state} />
     </form>

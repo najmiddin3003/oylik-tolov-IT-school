@@ -26,6 +26,8 @@ import {
   CoursesForm,
   FeeForm,
   OwnerPasswordForm,
+  ParentSmsForm,
+  ParentTestSms,
   SmsForm,
   TestSmsButton,
 } from "@/components/SettingsForms";
@@ -276,6 +278,57 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
                       <span className="min-w-0 flex-1">
                         <span className="num text-ink-500">{l.at ? formatDateTime(l.at) : l.day}</span>
                         <span className="ml-2 text-xs text-ink-400">{l.trigger === "test" ? "sinov" : "kunlik"}</span>
+                        <span className="mt-0.5 block text-ink-800">{l.status === "sent" ? l.text : l.error || "—"}</span>
+                      </span>
+                      {l.status === "sent" ? <Tag tone="emerald">yuborildi</Tag> : l.status === "failed" ? <Tag tone="rose">xato</Tag> : <Tag>yuborilmadi</Tag>}
+                    </li>
+                  ))}
+                </History>
+              ) : null}
+            </div>
+          </Section>
+
+          {/* ---------- Ota-onalarga SMS ---------- */}
+          <Section
+            id="ota-ona-sms"
+            icon={UsersRound}
+            tone="rose"
+            title="Ota-onalarga SMS"
+            subtitle="Qarzi bor o‘quvchining ota-onasiga to‘lov eslatmasi — tanlangan sanadan keyin, shablon bo‘yicha (Eskiz)."
+            right={d.parentSms.enabled ? <Tag tone="emerald">Yoqilgan</Tag> : <Tag>O‘chiq</Tag>}
+          >
+            <div className="mb-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-line p-4">
+                <p className="text-xs text-ink-500">Qarzi bor o‘quvchilar</p>
+                <p className="num mt-1 text-2xl font-bold text-ink-900">{d.parentPreview.debtors}</p>
+              </div>
+              <div className="rounded-2xl border border-line p-4">
+                <p className="text-xs text-ink-500">{d.parentPreview.due ? "Bugun yuboriladi" : `${d.parentSms.startDay}-sanadan yuboriladi`}</p>
+                <p className="num mt-1 text-2xl font-bold text-ink-900">{d.parentPreview.toSend}</p>
+              </div>
+              <div className={cx("rounded-2xl border p-4", d.parentPreview.noPhone ? "border-amber-200 bg-amber-50/60" : "border-line")}>
+                <p className="text-xs text-ink-500">Ota-ona raqami yo‘q</p>
+                <p className="num mt-1 text-2xl font-bold text-ink-900">{d.parentPreview.noPhone}</p>
+                {d.parentPreview.noPhone ? <p className="mt-0.5 text-xs text-amber-800">O‘quvchi profilida «Ota-ona telefoni»ni kiriting</p> : null}
+              </div>
+            </div>
+            <ParentSmsForm settings={d.parentSms} centerName={d.centerName} month={currentMonth()} />
+            <div className="mt-6 grid gap-4 border-t border-line-soft pt-5">
+              <div>
+                <p className="text-sm font-semibold text-ink-800">Sinab ko‘rish</p>
+                <p className="mt-0.5 text-sm text-ink-500">Saqlangan shablon bo‘yicha bitta SMS ko‘rsatilgan raqamga (birinchi qarzdor ma’lumoti bilan) yuboriladi.</p>
+              </div>
+              <ParentTestSms disabled={!d.eskizReady} defaultPhone={d.sms.phone} />
+              {d.parentLogs.length ? (
+                <History title="Oxirgi ota-ona SMS’lari">
+                  {d.parentLogs.map((l) => (
+                    <li key={l.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
+                      <span className="min-w-0 flex-1">
+                        <span className="num text-ink-500">{l.at ? formatDateTime(l.at) : ""}</span>
+                        <span className="ml-2 text-xs text-ink-400">
+                          {l.trigger === "test" ? "sinov" : l.studentName}
+                          {l.phone ? ` · ${formatUzPhone(l.phone)}` : ""}
+                        </span>
                         <span className="mt-0.5 block text-ink-800">{l.status === "sent" ? l.text : l.error || "—"}</span>
                       </span>
                       {l.status === "sent" ? <Tag tone="emerald">yuborildi</Tag> : l.status === "failed" ? <Tag tone="rose">xato</Tag> : <Tag>yuborilmadi</Tag>}

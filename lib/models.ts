@@ -150,6 +150,15 @@ const settingSchema = new Schema(
     /** SMS qulflari: kunlik SMS ikki marta ketmasligi va sinov SMS daqiqada bittadan oshmasligi uchun */
     smsLockUntil: { type: Date, default: null },
     smsTestLockUntil: { type: Date, default: null },
+    /** Ota-onalarga to'lov eslatmasi (SMS): yoqilgan, qaysi sanadan, qayta yuborish oralig'i, shablon */
+    parentSms: {
+      enabled: { type: Boolean },
+      startDay: { type: Number },
+      repeatDays: { type: Number },
+      template: { type: String },
+      includePartial: { type: Boolean },
+    },
+    parentSmsLockUntil: { type: Date, default: null },
   },
   { timestamps: true },
 );
@@ -423,10 +432,15 @@ const smsLogSchema = new Schema(
     text: { type: String, default: "" },
     error: { type: String, default: "" },
     providerId: { type: String, default: "" },
+    /** summary — rahbarga kunlik jami; parent — o'quvchi ota-onasiga (maydon yo'q — summary) */
+    kind: { type: String, enum: ["summary", "parent"], default: "summary" },
+    student: { type: Schema.Types.ObjectId, ref: "Student", default: null },
+    studentName: { type: String, default: "" },
   },
   { timestamps: true },
 );
 smsLogSchema.index({ day: -1, createdAt: -1 });
+smsLogSchema.index({ kind: 1, student: 1, day: -1 });
 
 // ---------- Rahbardan topshiriq (masalan, administratorga: «to'lovlarni yig'ing») ----------
 const taskSchema = new Schema(

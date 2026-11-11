@@ -18,6 +18,8 @@ import { normalizeStartDay, templateHasCount } from "@/lib/reminders";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/passwords";
 import { createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
+import { sendParentTestSms } from "@/lib/parent-sms";
+import { normalizeParentSms, parentTemplateErrors } from "@/lib/parent-sms-rules";
 import { sendTestSms } from "@/lib/sms";
 import { TEACHING_FILTER } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, isValidMonth, monthLabel, monthOfDate } from "@/lib/time";
@@ -231,6 +233,39 @@ export async function sendTestSmsAction(): Promise<FormState> {
   await logActivity(session, "settings.sms_test", res.status === "sent" ? `Sinov SMS yuborildi: «${res.text}»` : `Sinov SMS yuborilmadi: ${res.message}`);
   await dataChanged();
   if (res.status === "sent") return { ok: true, message: `Sinov SMS yuborildi: «${res.text}»` };
+  return { error: res.message };
+}
+
+// ---------- Ota-onalarga SMS ----------
+
+export async function saveParentSmsSettings(_prev: FormState, fd: FormData): Promise<FormState> {
+  const session = await requireOwner({ fresh: true });
+  const template = str(fd, "template", 400).replace(/\s+/g, " ");
+  const p = normalizeParentSms({
+    enabled: fd.get("enabled") === "on",
+    startDay: Number(fd.get("startDay")),
+    repeatDays: Number(fd.get("repeatDays")),
+    template,
+    includePartial: fd.get("includePartial") === "on",
+  });
+  const err = parentTemplateErrors(template);
+  if (err) return { fieldErrors: { template: err } };
+  await updateSettings({ $set: { parentSms: { ...p, template } } });
+  await logActivity(
+    session,
+    "settings.sms",
+    `Ota-onalarga SMS: ${p.enabled ? "yoqildi" : "o‘chirildi"}, har oyning ${p.startDay}-sanasidan, ${p.repeatDays ? `har ${p.repeatDays} kunda` : "oyiga bir marta"}`,
+  );
+  await dataChanged();
+  return { ok: true, message: "Ota-onalarga SMS sozlamalari saqlandi", nonce: Date.now() };
+}
+
+export async function sendParentTestSmsAction(_prev: FormState, fd: FormData): Promise<FormState> {
+  const session = await requireOwner({ fresh: true });
+  const res = await sendParentTestSms(str(fd, "testPhone", 40));
+  await logActivity(session, "settings.sms_test", res.status === "sent" ? `Ota-ona sinov SMS: «${res.text}»` : `Ota-ona sinov SMS yuborilmadi: ${res.message}`);
+  await dataChanged();
+  if (res.status === "sent") return { ok: true, message: `Yuborildi: «${res.text}»` };
   return { error: res.message };
 }
 
