@@ -159,6 +159,13 @@ const settingSchema = new Schema(
       includePartial: { type: Boolean },
     },
     parentSmsLockUntil: { type: Date, default: null },
+    /** Davomat qilinmagan guruh o'qituvchisiga SMS: yoqilgan, davomat ochilgandan necha daqiqa keyin, shablon */
+    attendanceSms: {
+      enabled: { type: Boolean },
+      delayMinutes: { type: Number },
+      template: { type: String },
+    },
+    attendanceSmsLockUntil: { type: Date, default: null },
   },
   { timestamps: true },
 );
@@ -433,7 +440,9 @@ const smsLogSchema = new Schema(
     error: { type: String, default: "" },
     providerId: { type: String, default: "" },
     /** summary — rahbarga kunlik jami; parent — o'quvchi ota-onasiga (maydon yo'q — summary) */
-    kind: { type: String, enum: ["summary", "parent"], default: "summary" },
+    kind: { type: String, enum: ["summary", "parent", "attendance"], default: "summary" },
+    /** Takror yubormaslik kaliti (davomat: "kun|guruh") */
+    ref: { type: String, default: "" },
     student: { type: Schema.Types.ObjectId, ref: "Student", default: null },
     studentName: { type: String, default: "" },
   },
@@ -441,6 +450,7 @@ const smsLogSchema = new Schema(
 );
 smsLogSchema.index({ day: -1, createdAt: -1 });
 smsLogSchema.index({ kind: 1, student: 1, day: -1 });
+smsLogSchema.index({ kind: 1, ref: 1 });
 
 // ---------- Rahbardan topshiriq (masalan, administratorga: «to'lovlarni yig'ing») ----------
 const taskSchema = new Schema(

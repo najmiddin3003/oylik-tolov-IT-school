@@ -5,6 +5,7 @@ import { CalendarX2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock,
 import { AttendanceForm, GroupDetails } from "@/components/AttendanceForm";
 import { FilterForm } from "@/components/FilterForm";
 import { FollowUpList } from "@/components/FollowUps";
+import { PersistFilter } from "@/components/PersistFilter";
 import { DatePicker, Select } from "@/components/pickers";
 import { btn, Card, CardHeader, cx, EmptyState, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { courseKey } from "@/lib/courses";
@@ -17,6 +18,9 @@ import { tashkentClock, weekdayOfIso, WEEKDAY_NAMES } from "@/lib/schedule";
 import { formatDate, formatDateTime, isoToDate, nowMs } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Davomat" };
+
+/** Kurs filtri: «Barcha kurslar» qiymati */
+const ALL = "hammasi";
 
 export default function AttendancePage({ searchParams }: PageProps<"/davomat">) {
   return (
@@ -33,7 +37,7 @@ function shiftDay(iso: string, delta: number): string {
 }
 
 async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davomat">["searchParams"] }) {
-  const { role } = await roleGuard(["owner", "admin", "teacher"]);
+  const { role, staffId } = await roleGuard(["owner", "admin", "teacher"]);
   const sp = await searchParams;
   const kurs = typeof sp.kurs === "string" ? sp.kurs.slice(0, 80) : "";
   const serverNow = nowMs();
@@ -46,6 +50,7 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
   const { groups: allGroups, unscheduled, followUps } = await getAttendancePage(date);
   // Kurs filtri: ro'yxatda faqat ko'rinadigan guruhlar kurslari (o'qituvchiga — faqat o'ziniki)
   const courseOptions = [...new Map(allGroups.map((g) => [courseKey(g.course), g.course || "Kursi yo‘q"])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  // «hammasi» — barcha kurslar (brauzerda eslab qolinadi, yangi ochilishdan farqlash uchun)
   const selected = courseOptions.some(([k]) => k === kurs) ? kurs : "";
   const groups = selected ? allGroups.filter((g) => courseKey(g.course) === selected) : allGroups;
   const showTeacher = role !== "teacher";
@@ -61,7 +66,7 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
     { students: 0, present: 0, absent: 0, excused: 0, pending: 0 },
   );
   const href = (d: string) => {
-    const q = new URLSearchParams({ ...(d === today ? {} : { sana: d }), ...(selected ? { kurs: selected } : {}) }).toString();
+    const q = new URLSearchParams({ ...(d === today ? {} : { sana: d }), ...(courseOptions.length > 1 ? { kurs: selected || ALL } : {}) }).toString();
     return q ? `/davomat?${q}` : "/davomat";
   };
 
@@ -79,12 +84,12 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
             {courseOptions.length > 1 ? (
               <Select
                 name="kurs"
-                defaultValue={selected}
+                defaultValue={selected || ALL}
                 autoSubmit
                 searchable={false}
                 aria-label="Kurs"
                 wrapperClassName="w-full sm:w-56"
-                options={[{ value: "", label: "Barcha kurslar" }, ...courseOptions.map(([value, label]) => ({ value, label }))]}
+                options={[{ value: ALL, label: "Barcha kurslar" }, ...courseOptions.map(([value, label]) => ({ value, label }))]}
               />
             ) : null}
             <DatePicker name="sana" defaultValue={date} autoSubmit max={today} aria-label="Sana" wrapperClassName="w-60" />
@@ -132,6 +137,9 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
           </span>
         </p>
       ) : null}
+
+      {/* Tanlangan kurs brauzerda eslab qolinadi (sahifa yangilansa ham) */}
+      {courseOptions.length > 1 ? <PersistFilter param="kurs" storageKey={`tt-davomat-kurs:${staffId ?? role}`} /> : null}
 
       {followUps.length ? (
         <Card id="sabab" className="mb-5 scroll-mt-24 border-rose-200/80">

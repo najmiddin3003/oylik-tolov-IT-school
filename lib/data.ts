@@ -859,10 +859,11 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
 export async function getSettingsPageData(month: string) {
   const session = await requireOwner();
   await connectDB();
-  const [settings, logs, parentLogs, students, roles, syncAlert, teachers, names] = await Promise.all([
+  const [settings, logs, parentLogs, attLogs, students, roles, syncAlert, teachers, names] = await Promise.all([
     getSettings({ fresh: true }),
-    SmsLog.find({ kind: { $ne: "parent" } }).sort({ createdAt: -1 }).limit(8).lean(),
+    SmsLog.find({ kind: { $nin: ["parent", "attendance"] } }).sort({ createdAt: -1 }).limit(8).lean(),
     SmsLog.find({ kind: "parent" }).sort({ createdAt: -1 }).limit(15).lean(),
+    SmsLog.find({ kind: "attendance" }).sort({ createdAt: -1 }).limit(15).lean(),
     Student.find({}, { monthlyFee: 1, feeHistory: 1, group: 1, active: 1, teacher: 1 }).lean<StudentLean[]>(),
     activeStaffRoles(),
     syncAlertOn(session),
@@ -920,6 +921,16 @@ export async function getSettingsPageData(month: string) {
       trigger: l.trigger as "cron" | "auto" | "test",
       status: l.status as "sent" | "skipped" | "failed",
       count: l.count ?? 0,
+      text: l.text ?? "",
+      error: l.error ?? "",
+      at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",
+    })),
+    attendanceSms: settings.attendanceSms,
+    attendanceLogs: attLogs.map((l) => ({
+      id: String(l._id),
+      status: l.status as "sent" | "skipped" | "failed",
+      group: l.studentName ?? "",
+      phone: l.phone ?? "",
       text: l.text ?? "",
       error: l.error ?? "",
       at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",

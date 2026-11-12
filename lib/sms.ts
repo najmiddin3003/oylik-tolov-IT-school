@@ -55,7 +55,7 @@ async function deliver(d: Delivery): Promise<SmsOutcome> {
 async function logSkip(day: string, trigger: SmsTrigger, reason: string) {
   // Kuniga bitta "yuborilmadi" yozuvi (jurnal to'lib ketmasligi uchun)
   await SmsLog.updateOne(
-    { day, trigger, status: "skipped", kind: { $ne: "parent" } },
+    { day, trigger, status: "skipped", kind: { $nin: ["parent", "attendance"] } },
     { $set: { error: reason }, $setOnInsert: { day, trigger, status: "skipped", months: [], count: 0 } },
     { upsert: true },
   );
@@ -90,12 +90,12 @@ export async function runDailySms(trigger: "cron" | "auto"): Promise<SmsOutcome>
   }
   try {
     const today = todayISO();
-    if (await SmsLog.exists({ day: today, status: "sent", trigger: { $ne: "test" }, kind: { $ne: "parent" } })) {
+    if (await SmsLog.exists({ day: today, status: "sent", trigger: { $ne: "test" }, kind: { $nin: ["parent", "attendance"] } })) {
       return { status: "skipped", message: "Bugun SMS allaqachon yuborilgan" };
     }
     if (
       trigger === "auto" &&
-      (await SmsLog.exists({ day: today, status: "failed", kind: { $ne: "parent" }, createdAt: { $gt: new Date(Date.now() - 3600_000) } }))
+      (await SmsLog.exists({ day: today, status: "failed", kind: { $nin: ["parent", "attendance"] }, createdAt: { $gt: new Date(Date.now() - 3600_000) } }))
     ) {
       return { status: "skipped", message: "Yaqinda xato bo‘ldi — bir soatdan keyin qayta uriniladi" };
     }

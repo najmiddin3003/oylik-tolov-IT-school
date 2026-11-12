@@ -1,5 +1,6 @@
 // O'z serverida (VPS, `next start`) ishlaganda: kuniga bir marta Sheets tekshiruvi va kechki SMS eslatma.
 // Vercel'da bu ishlamaydi — u yerda vercel.json dagi cron'lar /api/cron/sync va /api/cron/sms ni chaqiradi.
+import { runAttendanceSms } from "./attendance-sms";
 import { runParentSms } from "./parent-sms";
 import { runDailySms, smsHour } from "./sms";
 import { runSyncIfDue } from "./sync";
@@ -36,5 +37,7 @@ export function startScheduler() {
 
   setTimeout(tick, 20_000);
   setInterval(tick, CHECK_EVERY_MS).unref?.();
+  // Davomati kechikkan guruhlar o'qituvchisiga SMS — tez-tez (2 daqiqada) tekshiriladi
+  setInterval(() => runAttendanceSms("auto").catch((err) => console.error("[scheduler] davomat SMS:", err)), 2 * 60_000).unref?.();
   console.log("[scheduler] kunlik Sheets tekshiruvi va SMS eslatma rejalashtirildi");
 }
