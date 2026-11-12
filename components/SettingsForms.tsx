@@ -8,6 +8,7 @@ import {
   changeOwnerPassword,
   saveCenterName,
   saveCourses,
+  saveAttendanceSmsSettings,
   saveParentSmsSettings,
   saveSmsSettings,
   sendParentTestSmsAction,
@@ -15,6 +16,7 @@ import {
   setAdminPassword,
 } from "@/app/actions/settings";
 import type { FormState } from "@/app/actions/types";
+import { attendanceSmsAt, renderAttendanceSms } from "@/lib/attendance-sms-rules";
 import { renderOtpText } from "@/lib/otp-text";
 import { PARENT_SMS_REPEAT_OPTIONS, renderParentSms } from "@/lib/parent-sms-rules";
 import { renderSmsText, SMS_START_DAY_OPTIONS } from "@/lib/reminders";
@@ -841,6 +843,87 @@ export function ParentTestSms({ disabled, defaultPhone }: { disabled: boolean; d
         </button>
       </div>
       <Result state={state} />
+    </form>
+  );
+}
+
+// ---------- Davomat SMS ----------
+
+/** Davomat qilinmagan guruh o'qituvchisiga SMS: yoqish, davomat ochilgandan necha daqiqa keyin va shablon. */
+export function AttendanceSmsForm({ settings }: { settings: { enabled: boolean; delayMinutes: number; template: string } }) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(saveAttendanceSmsSettings, {});
+  const [template, setTemplate] = useState(settings.template);
+  const [delay, setDelay] = useState(String(settings.delayMinutes));
+  const fe = state.fieldErrors ?? {};
+  const d = Number(delay);
+  const validDelay = Number.isInteger(d) && d >= 0 && d <= 180;
+  const preview = renderAttendanceSms(template, { group: "Web dasturlash", start: "14:00", missing: 5, teacher: "Najmiddin" });
+  const code = (t: string) => <code className="rounded bg-slate-100 px-1 text-ink-600">{t}</code>;
+  return (
+    <form onSubmit={onSubmit} className="grid gap-5" noValidate>
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4 transition hover:bg-slate-50/60">
+        <input type="checkbox" name="enabled" defaultChecked={settings.enabled} className="mt-0.5 size-4 shrink-0 rounded accent-brand-600" />
+        <span>
+          <span className="block text-sm font-semibold text-ink-900">Davomat qilinmasa — o‘qituvchiga SMS</span>
+          <span className="mt-1 block text-xs leading-relaxed text-ink-500">
+            Guruh davomati ochilgandan (dars boshlanib 30 daqiqa) keyin ham qilinmasa, guruh o‘qituvchisi telefoniga bir marta SMS boradi. Faqat
+            ro‘yxatdan o‘tgan (faol) xodimga.
+          </span>
+        </span>
+      </label>
+      <div className="max-w-xs">
+        <label htmlFor="att-delay" className={labelCls}>
+          Davomat ochilgandan necha daqiqa keyin
+        </label>
+        <input
+          id="att-delay"
+          name="delayMinutes"
+          inputMode="numeric"
+          value={delay}
+          onChange={(e) => setDelay(e.target.value.replace(/\D/g, "").slice(0, 3))}
+          className={cx(inputCls, "num")}
+          aria-invalid={!!fe.delayMinutes}
+        />
+        <FieldError msg={fe.delayMinutes} />
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
+          {validDelay ? `Masalan, 14:00 dagi dars: davomat 14:30 da ochiladi, qilinmasa SMS ${attendanceSmsAt("14:00", d)} da boradi.` : "0 dan 180 gacha"}
+        </p>
+      </div>
+      <div>
+        <label htmlFor="att-template" className={labelCls}>
+          SMS shabloni
+        </label>
+        <textarea
+          id="att-template"
+          name="template"
+          rows={2}
+          maxLength={400}
+          value={template}
+          onChange={(e) => setTemplate(e.target.value)}
+          className={cx(inputCls, "h-auto py-2.5")}
+          aria-invalid={!!fe.template}
+        />
+        <FieldError msg={fe.template} />
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
+          {code("{#guruh#}")} — kurs (majburiy), {code("{#vaqt#}")} — dars boshlanishi, {code("{#soni#}")} — belgilanmagan o‘quvchilar, {code("{#ism#}")} —
+          o‘qituvchi ismi. Matn Eskiz kabinetida tasdiqlangan shablon bilan <b className="font-semibold text-ink-600">harfma-harf bir xil</b> bo‘lishi kerak.
+        </p>
+        <div className="mt-3 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 p-3.5">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-brand-700">
+            <MessageSquareText className="size-3.5" aria-hidden />
+            Namuna
+          </p>
+          <p className="mt-1.5 text-sm text-ink-800">{preview}</p>
+          <p className={cx("num mt-1 text-xs", preview.length > 160 ? "text-amber-700" : "text-ink-400")}>{preview.length} belgi</p>
+        </div>
+      </div>
+      <Result state={state} />
+      <div>
+        <Submit pending={pending}>
+          <Check className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          Saqlash
+        </Submit>
+      </div>
     </form>
   );
 }

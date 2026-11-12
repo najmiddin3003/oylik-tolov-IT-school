@@ -5,6 +5,7 @@ import { connectDB } from "./db";
 import { feeFor, type FeeChange, type PercentChange } from "./fees";
 import { Setting } from "./models";
 import { DEFAULT_OTP_TEMPLATE } from "./otp-text";
+import { normalizeAttendanceSms, type AttendanceSmsSettings } from "./attendance-sms-rules";
 import { normalizeParentSms, type ParentSmsSettings } from "./parent-sms-rules";
 import { normalizeStartDay } from "./reminders";
 
@@ -47,6 +48,8 @@ export type AppSettings = {
   adminPasswordHash: string | null;
   /** Ota-onalarga to'lov eslatmasi (SMS) */
   parentSms: ParentSmsSettings;
+  /** Davomat qilinmagan guruh o'qituvchisiga SMS */
+  attendanceSms: AttendanceSmsSettings;
   /** startDay — joriy oy qarzdorlari shu sanadan boshlab sanaladi (1 — har kuni) */
   sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number; otpTemplate: string };
 };
@@ -72,6 +75,7 @@ type Doc = Record<string, unknown> & {
   ownerPasswordHash?: string | null;
   adminPasswordHash?: string | null;
   parentSms?: Partial<Record<keyof ParentSmsSettings, unknown>> | null;
+  attendanceSms?: Partial<Record<keyof AttendanceSmsSettings, unknown>> | null;
   sms?: { enabled?: boolean; phone?: string; sender?: string; template?: string; startDay?: number; otpTemplate?: string };
 };
 
@@ -113,6 +117,7 @@ function toAppSettings(doc: Doc | null): AppSettings {
     ownerPasswordHash: doc?.ownerPasswordHash ?? null,
     adminPasswordHash: doc?.adminPasswordHash ?? null,
     parentSms: normalizeParentSms(doc?.parentSms),
+    attendanceSms: normalizeAttendanceSms(doc?.attendanceSms),
     sms: {
       enabled: doc?.sms?.enabled ?? false,
       phone: doc?.sms?.phone || "998336263006",

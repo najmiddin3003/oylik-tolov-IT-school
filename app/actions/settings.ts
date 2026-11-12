@@ -18,6 +18,7 @@ import { normalizeStartDay, templateHasCount } from "@/lib/reminders";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/passwords";
 import { createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
+import { attendanceTemplateError, normalizeAttendanceSms } from "@/lib/attendance-sms-rules";
 import { sendParentTestSms } from "@/lib/parent-sms";
 import { normalizeParentSms, parentTemplateErrors } from "@/lib/parent-sms-rules";
 import { sendTestSms } from "@/lib/sms";
@@ -267,6 +268,22 @@ export async function sendParentTestSmsAction(_prev: FormState, fd: FormData): P
   await dataChanged();
   if (res.status === "sent") return { ok: true, message: `Yuborildi: «${res.text}»` };
   return { error: res.message };
+}
+
+// ---------- Davomat SMS ----------
+
+export async function saveAttendanceSmsSettings(_prev: FormState, fd: FormData): Promise<FormState> {
+  const session = await requireOwner({ fresh: true });
+  const template = str(fd, "template", 400).replace(/\s+/g, " ");
+  const delay = Number(str(fd, "delayMinutes", 4));
+  if (!Number.isInteger(delay) || delay < 0 || delay > 180) return { fieldErrors: { delayMinutes: "0 dan 180 gacha daqiqa kiriting" } };
+  const err = attendanceTemplateError(template);
+  if (err) return { fieldErrors: { template: err } };
+  const cfg = normalizeAttendanceSms({ enabled: fd.get("enabled") === "on", delayMinutes: delay, template });
+  await updateSettings({ $set: { attendanceSms: cfg } });
+  await logActivity(session, "settings.sms", `Davomat SMS: ${cfg.enabled ? "yoqildi" : "o‘chirildi"}, davomat ochilgandan ${cfg.delayMinutes} daqiqa keyin`);
+  await dataChanged();
+  return { ok: true, message: "Davomat SMS sozlamalari saqlandi", nonce: Date.now() };
 }
 
 // ---------- Funksiyalar (yoqib-o'chiriladi) ----------

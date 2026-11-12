@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
-import { connection } from "next/server";
+import { after, connection } from "next/server";
+import { runAttendanceSms } from "@/lib/attendance-sms";
 import { connectDB } from "@/lib/db";
 
 // Serverni «uyg'oq» ushlab turish: tashqi xizmat (masalan, cron-job.org) ish vaqtida har 5 daqiqada chaqiradi.
@@ -12,6 +13,8 @@ export async function GET() {
   try {
     await connectDB();
     await mongoose.connection.db?.command({ ping: 1 });
+    // Javobdan keyin: davomati kechikkan guruhlar o'qituvchisiga SMS (ping ish vaqtida har 5 daqiqada keladi)
+    after(() => runAttendanceSms("auto").catch((err) => console.error("[ping] davomat SMS:", err)));
     return Response.json({ ok: true, ms: Math.round(performance.now() - t0) }, { headers: { "cache-control": "no-store" } });
   } catch {
     return Response.json({ ok: false }, { status: 503, headers: { "cache-control": "no-store" } });

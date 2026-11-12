@@ -115,6 +115,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   cron va avtomatik) ko‘rsatilmaydi, ogohlantirish va hisoblagichlarga kirmaydi, saytga avtomatik qo‘shilmaydi. Masalan, Sheets’ni
   boshqa odam yuritsa va xatoni tuzatib bo‘lmasa. Farq o‘zining «kaliti» bo‘yicha taniladi (o‘quvchi, oy, summalar, Sheets
   qatorining sanasi); shu yozuv o‘zgarsa — farq yana chiqadi. «E’tiborsiz qoldirilganlar» bo‘limida ro‘yxat va «Qaytarish».
+- **Davomat SMS** (Sozlamalar → «Davomat SMS») — guruh davomati ochilgandan (dars boshlanib 30 daqiqa) keyin sozlamadagi
+  daqiqa (standart 10) o‘tib ham qilinmasa, guruh o‘qituvchisi telefoniga bir marta SMS (faqat ro‘yxatdan o‘tgan, faol xodimga).
+  Shablon: `{#guruh#}` (majburiy), `{#vaqt#}`, `{#soni#}`, `{#ism#}`. Tekshiruv `/api/ping` (cron-job.org, har 5 daqiqada) yoki
+  `/api/cron/attendance` (CRON_SECRET bilan) chaqirilganda ishlaydi — kechki guruhlar bo‘lsa, ping jadvalini oxirgi dars
+  tugashigacha cho‘zing. Davomat sahifasidagi kurs filtri brauzerda eslab qolinadi.
 - **Ota-onalarga SMS** (Sozlamalar → «Ota-onalarga SMS») — qarzi bor o‘quvchining «Ota-ona telefoni»ga Eskiz orqali eslatma,
   har kuni kechqurun (kunlik SMS bilan birga). Hammasi sozlamalardan: yoqish/o‘chirish, **qaysi sanadan keyin** (har oyning
   1–28-sanasi; o‘tgan oylar qarzi — darhol), **qanchalik tez-tez** (oyiga bir marta yoki to‘laguncha har 3/5/7/10 kunda),
