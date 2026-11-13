@@ -16,6 +16,9 @@ import {
   sortDebtors,
   statusOf,
   studentFee,
+  listFee,
+  discountHistoryOf,
+  withDiscounts,
   toRow,
   type PayStatus,
   type StudentLean,
@@ -23,6 +26,7 @@ import {
 } from "./ledger";
 import { Attendance, Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { suggestedArchiveMonth } from "./sheet-archive";
+import { discountAt, netFee, type DiscountChange } from "./discounts";
 import { parentSmsPreview } from "./parent-sms";
 import { attendanceDay, pendingAttendance, pendingFollowUps, type FollowUp, type PendingAttendance } from "./attendance";
 import { isAttendanceStatus, type AttendanceStatus } from "./attendance-rules";
@@ -64,8 +68,12 @@ export type StudentDetail = {
   /** Asosiy (birinchi) narx; keyingi o'zgarishlar feeHistory da */
   monthlyFee: number;
   feeHistory: FeeChange[];
-  /** Joriy oy uchun narx */
+  /** Chegirma tarixi (chegirmalar o'chiq bo'lsa — bo'sh) */
+  discountHistory: DiscountChange[];
+  /** Joriy oy uchun to'lanadigan narx (chegirma bilan) */
   currentFee: number;
+  /** Chegirmalar funksiyasi yoqilganmi */
+  discounts: boolean;
   startDate: string; // ISO
   active: boolean;
   note: string;
@@ -107,6 +115,8 @@ export type StudentOption = {
   feeHistory: FeeChange[];
   /** oy -> shu oy uchun to'langan summa (tanlangan oy atrofidagi oylar) */
   paid: Record<string, number>;
+  /** Chegirma tarixi (formada to'lanadigan summa chegirma bilan) */
+  discountHistory: DiscountChange[];
 };
 
 export type UnpaidStudent = {
@@ -711,8 +721,9 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
   const v = await viewer();
   if (v.role === "admin" || !mongoose.isValidObjectId(id)) return null;
   await connectDB();
-  const s = await Student.findById(id).lean<StudentLean & { parentPhone?: string | null; note?: string | null }>();
-  if (!s) return null;
+  const raw = await Student.findById(id).lean<StudentLean & { parentPhone?: string | null; note?: string | null }>();
+  if (!raw) return null;
+  const [s] = await withDiscounts([raw]);
   // O'qituvchi — faqat o'z o'quvchisini
   if (v.teacherId && String(s.teacher ?? "") !== v.teacherId) return null;
   const teacherId = s.teacher ? String(s.teacher) : null;
@@ -727,7 +738,9 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
     group: s.group ?? "",
     monthlyFee: s.monthlyFee,
     feeHistory: feeHistoryOf(s),
+    discountHistory: discountHistoryOf(s),
     currentFee: studentFee(s, currentMonth()),
+    discounts: (await getSettings()).discounts.enabled,
     startDate: s.startDate.toISOString(),
     active: s.active ?? true,
     note: s.note ?? "",
@@ -758,7 +771,7 @@ export async function getStudentPayments(student: StudentDetail) {
 
   const start = monthOfDate(new Date(student.startDate));
   const now = currentMonth();
-  const feeOf = (m: string) => studentFee({ monthlyFee: student.monthlyFee, feeHistory: student.feeHistory }, m);
+  const feeOf = (m: string) => netFee(student, m);
   // boshlanish oyidan joriy oygacha (ko'pi bilan 36 oy) + oldindan to'langan oylar
   const all = new Set(byMonth.keys());
   for (let i = 0, m = now; i < 36 && compareMonths(m, start) >= 0; i++, m = shiftMonth(m, -1)) all.add(m);
@@ -833,7 +846,10 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
   await requireRole(["owner", "admin"]);
   await connectDB();
   const [students, agg] = await Promise.all([
-    Student.find({ active: true }, { fullName: 1, monthlyFee: 1, feeHistory: 1, group: 1 }).sort({ fullName: 1 }).lean<StudentLean[]>(),
+    Student.find({ active: true }, { fullName: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1, group: 1 })
+      .sort({ fullName: 1 })
+      .lean<StudentLean[]>()
+      .then(withDiscounts),
     Payment.aggregate<{ _id: { student: mongoose.Types.ObjectId; month: string }; total: number }>([
       { $match: { ...LIVE, month: { $gte: shiftMonth(month, -12), $lte: shiftMonth(month, 12) } } },
       { $group: { _id: { student: "$student", month: "$month" }, total: { $sum: "$amount" } } },
@@ -850,6 +866,7 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
     group: s.group ?? "",
     monthlyFee: s.monthlyFee,
     feeHistory: feeHistoryOf(s),
+    discountHistory: discountHistoryOf(s),
     paid: paid.get(String(s._id)) ?? {},
   }));
 }
@@ -876,7 +893,7 @@ export async function getSettingsPageData(month: string) {
   const now = currentMonth();
   const fees = new Map<number, number>();
   for (const s of active) {
-    const fee = studentFee(s, now);
+    const fee = listFee(s, now);
     fees.set(fee, (fees.get(fee) ?? 0) + 1);
   }
   const feeGroups = [...fees.entries()].map(([fee, count]) => ({ fee, count })).sort((a, b) => b.count - a.count || b.fee - a.fee);
@@ -925,6 +942,8 @@ export async function getSettingsPageData(month: string) {
       error: l.error ?? "",
       at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",
     })),
+    discounts: settings.discounts,
+    discountUsage: await discountUsage(),
     attendanceSms: settings.attendanceSms,
     attendanceLogs: attLogs.map((l) => ({
       id: String(l._id),
@@ -1560,4 +1579,56 @@ export async function getReceipt(id: string): Promise<Receipt | null> {
     items: docs.map((d) => ({ month: d.month, amount: d.amount, archived: Boolean(d.archivedAt) })),
     total: docs.filter((d) => !d.archivedAt).reduce((s, d) => s + d.amount, 0),
   };
+}
+
+// ---------- Chegirmalar ----------
+
+export type DiscountStudentRow = {
+  id: string;
+  seq: number | null;
+  name: string;
+  group: string;
+  /** Joriy oy: ro'yxat narxi va chegirma bilan */
+  listFee: number;
+  netFee: number;
+  /** Joriy oydagi chegirma va undan keyin rejalashtirilgan o'zgarish */
+  current: DiscountChange | null;
+  next: DiscountChange | null;
+};
+
+/** «Chegirmalar» sahifasi (rahbar va administrator): turlar va faol o'quvchilar chegirmasi bilan. */
+export async function getDiscountsPage() {
+  await requireRole(["owner", "admin"]);
+  await connectDB();
+  const [settings, docs] = await Promise.all([
+    getSettings({ fresh: true }),
+    Student.find({ active: true }, { fullName: 1, seq: 1, group: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1 }).sort({ fullName: 1 }).lean<StudentLean[]>(),
+  ]);
+  const month = currentMonth();
+  const rows: DiscountStudentRow[] = docs.map((s) => {
+    const history = discountHistoryOf(s);
+    return {
+      id: String(s._id),
+      seq: s.seq ?? null,
+      name: s.fullName,
+      group: s.group ?? "",
+      listFee: listFee(s, month),
+      netFee: netFee({ monthlyFee: s.monthlyFee, feeHistory: feeHistoryOf(s), discountHistory: history }, month),
+      current: discountAt(history, month),
+      next: history.find((h) => h.from > month) ?? null,
+    };
+  });
+  return { enabled: settings.discounts.enabled, types: settings.discounts.types, students: rows, month };
+}
+
+/** Har bir chegirma turi joriy oyda nechta faol o'quvchida. */
+async function discountUsage(): Promise<Record<string, number>> {
+  const month = currentMonth();
+  const docs = await Student.find({ active: true, "discountHistory.0": { $exists: true } }, { discountHistory: 1 }).lean<StudentLean[]>();
+  const out: Record<string, number> = {};
+  for (const s of docs) {
+    const d = discountAt(discountHistoryOf(s), month);
+    if (d?.typeId) out[d.typeId] = (out[d.typeId] ?? 0) + 1;
+  }
+  return out;
 }

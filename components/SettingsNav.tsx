@@ -2,12 +2,13 @@
 
 // Sozlamalar sahifasidagi bo'limlar menyusi: bosilganda silliq o'tadi, aylantirilganda qaysi bo'limda turgani belgilanadi.
 import { useEffect, useState } from "react";
-import { BookOpen, Building2, ClipboardCheck, KeyRound, MessageSquareText, SlidersHorizontal, Tags, UsersRound, type LucideIcon } from "lucide-react";
+import { BadgePercent, BookOpen, Building2, ClipboardCheck, KeyRound, MessageSquareText, SlidersHorizontal, Tags, UsersRound, type LucideIcon } from "lucide-react";
 import { cx, IconTile, type Tone } from "./ui";
 
 export const SETTINGS_SECTIONS: { id: string; label: string; icon: LucideIcon; tone: Tone }[] = [
   { id: "kurslar", label: "Kurslar", icon: BookOpen, tone: "emerald" },
   { id: "narx", label: "Oylik to‘lov narxi", icon: Tags, tone: "violet" },
+  { id: "chegirmalar", label: "Chegirmalar", icon: BadgePercent, tone: "amber" },
   { id: "funksiyalar", label: "Funksiyalar", icon: SlidersHorizontal, tone: "brand" },
   { id: "parollar", label: "Parollar", icon: KeyRound, tone: "amber" },
   { id: "sms", label: "SMS eslatma", icon: MessageSquareText, tone: "sky" },

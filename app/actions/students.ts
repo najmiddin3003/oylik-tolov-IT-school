@@ -9,7 +9,7 @@ import { cleanCourseName, courseTeacher, courseTeachers, sameCourse, teacherCour
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
 import { applyFeeFrom, changesAfter } from "@/lib/fees";
-import { feeHistoryOf, studentFee, type StudentLean } from "@/lib/ledger";
+import { feeHistoryOf, listFee, type StudentLean } from "@/lib/ledger";
 import { Payment, Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
@@ -101,7 +101,7 @@ export async function saveStudent(
     if (!existing) return { error: "O‘quvchi topilmadi" };
     // Narx o'zgargan bo'lsa — tanlangan oydan boshlab (o'tgan oylar hisobi o'zgarmaydi)
     let fees = { monthlyFee: existing.monthlyFee, feeHistory: feeHistoryOf(existing) };
-    if (monthlyFee !== studentFee(existing, feeFrom)) {
+    if (monthlyFee !== listFee(existing, feeFrom)) {
       fees = applyFeeFrom({ ...fees, startMonth: monthOfDate(startDate!) }, feeFrom, monthlyFee!);
     }
     await Student.updateOne({ _id: id }, { $set: { ...base, ...fees } }, { runValidators: true });

@@ -1,5 +1,6 @@
 // Menyu bandlari — server va client komponentlar birga ishlatadi (shuning uchun "use client" yo'q).
 import {
+  BadgePercent,
   CircleUserRound,
   ClipboardCheck,
   Crown,
@@ -19,7 +20,7 @@ import {
 import type { Role } from "@/lib/session";
 import type { Tone } from "./ui";
 
-export type NavKey = "home" | "students" | "attendance" | "debtors" | "payments" | "salary" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
+export type NavKey = "home" | "students" | "attendance" | "debtors" | "payments" | "salary" | "discounts" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
 
 export type NavItem = {
   key: NavKey;
@@ -82,6 +83,18 @@ export const NAV: NavItem[] = [
     monthAware: false,
     roles: ["admin", "teacher"],
     // Telefonda pastki menyuda joy tor (davomat qo'shildi) — profil menyusida
+    mobile: false,
+  },
+  // Chegirmalar — rahbar va administrator (Sozlamalarda yoqilganda ishlaydi)
+  {
+    key: "discounts",
+    href: "/chegirmalar",
+    label: "Chegirmalar",
+    short: "Chegirma",
+    icon: BadgePercent,
+    tone: "amber",
+    monthAware: false,
+    roles: ["owner", "admin"],
     mobile: false,
   },
   { key: "staff", href: "/staff", label: "Xodimlar", short: "Xodimlar", icon: UsersRound, tone: "sky", monthAware: true, roles: ["owner"] },

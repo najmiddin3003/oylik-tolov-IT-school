@@ -6,7 +6,7 @@ import { addPayment } from "@/app/actions/payments";
 import type { FormState } from "@/app/actions/types";
 import type { StudentOption } from "@/lib/data";
 import { courseKey } from "@/lib/courses";
-import { feeFor } from "@/lib/fees";
+import { netFee } from "@/lib/discounts";
 import type { PaymentMethod } from "@/lib/models";
 import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
 import { MoneyInput } from "./inputs";
@@ -40,7 +40,7 @@ const courseOf = (s: StudentOption) => (s.group.trim() ? courseKey(s.group) : NO
 
 /** Shu oy uchun to'liq to'laganmi (bunday o'quvchilar tanlash ro'yxatida ko'rsatilmaydi). */
 function paidInFull(s: StudentOption, month: string): boolean {
-  const fee = feeFor(s, month);
+  const fee = netFee(s, month);
   return fee > 0 && (s.paid[month] ?? 0) >= fee;
 }
 
@@ -129,7 +129,7 @@ function PaymentFields({
   const [showNote, setShowNote] = useState(false);
 
   const st = students.find((s) => s.id === studentId);
-  const fee = st ? feeFor(st, month) : 0;
+  const fee = st ? netFee(st, month) : 0;
   const paid = st?.paid[month] ?? 0;
   const remaining = Math.max(0, fee - paid);
   const shown = amount ?? (st ? formatNumber(remaining || fee) : "");
@@ -143,7 +143,7 @@ function PaymentFields({
       inCourse
         .filter((s) => s.id === studentId || !paidInFull(s, month))
         .map((s) => {
-          const f = feeFor(s, month);
+          const f = netFee(s, month);
           const p = s.paid[month] ?? 0;
           return {
             value: s.id,

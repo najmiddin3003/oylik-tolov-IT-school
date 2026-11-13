@@ -7,7 +7,7 @@ import { allocateAmount, type Allocation } from "@/lib/allocate";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
-import { LIVE, studentFee, type StudentLean } from "@/lib/ledger";
+import { LIVE, studentFee, withDiscounts, type StudentLean } from "@/lib/ledger";
 import { Payment, PAYMENT_METHODS, Student, type PaymentMethod } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { nextReceiptNo } from "@/lib/seq";
@@ -58,8 +58,10 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
     : "naqd";
 
   await connectDB();
-  const student = await Student.findById(studentId, { fullName: 1, monthlyFee: 1, feeHistory: 1 }).lean<StudentLean>();
-  if (!student) return { error: "O‘quvchi topilmadi" };
+  const found = await Student.findById(studentId, { fullName: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1 }).lean<StudentLean>();
+  if (!found) return { error: "O‘quvchi topilmadi" };
+  // Oldindan to'lov oylarga chegirmali narx bo'yicha bo'linadi
+  const [student] = await withDiscounts([found]);
 
   // Oylik to'lovdan ortiq summa keyingi oylarga o'tkaziladi (oldindan to'lov)
   const feeOf = (m: string) => studentFee(student, m);
