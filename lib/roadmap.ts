@@ -25,18 +25,6 @@ export type DoneGroup = {
 
 export const ROADMAP: RoadmapItem[] = [
   {
-    id: "parents-sms",
-    title: "Ota-onalarga to‘lov eslatmasi (SMS)",
-    summary: "Qarzdor o‘quvchining ota-onasiga oy oxirida avtomatik SMS.",
-    details: [
-      "O‘quvchi profilidagi «Ota-ona telefoni»ga Eskiz orqali eslatma yuboriladi: «Farzandingiz … oyi uchun to‘lov qilmagan».",
-      "Rahbar Sozlamalarda yoqib-o‘chiradi va qaysi sanadan yuborilishini tanlaydi.",
-      "Matn Eskiz’da tasdiqlanishi kerak (xuddi hozirgi kunlik SMS kabi).",
-    ],
-    status: "rejada",
-    when: "Noyabr 2026",
-  },
-  {
     id: "expenses",
     title: "Xarajatlar va sof foyda",
     summary: "Ijara, kommunal, reklama kabi xarajatlarni yozib, oy yakunida sof foydani ko‘rish.",
@@ -58,20 +46,43 @@ export const ROADMAP: RoadmapItem[] = [
     ],
     status: "rejada",
   },
-  {
-    id: "discounts",
-    title: "Chegirmalar va imtiyozlar",
-    summary: "Aka-uka, a’lochi yoki aksiya uchun foizli/summali chegirma.",
-    details: [
-      "O‘quvchiga chegirma turi biriktiriladi — oylik to‘lov avtomatik kamayadi.",
-      "Qaysi oydan qaysi oygacha amal qilishi belgilanadi.",
-      "Hisobotda chegirmalar alohida ko‘rinadi.",
-    ],
-    status: "rejada",
-  },
 ];
 
 export const DONE: DoneGroup[] = [
+  {
+    id: "sms-discounts",
+    title: "Ota-onalarga SMS, davomat SMS va chegirmalar",
+    date: "13-noyabr, 2026",
+    items: [
+      {
+        title: "Ota-onalarga to‘lov eslatmasi (SMS)",
+        details: [
+          "Qarzi bor o‘quvchining ota-onasiga Eskiz orqali shablon bo‘yicha SMS ({#ism#}, {#oy#}, {#summa#}, {#markaz#}).",
+          "Sozlamalardan: qaysi sanadan keyin, oyiga bir marta yoki to‘laguncha har N kunda, qisman to‘laganlarga ham.",
+          "Sinov SMS va yuborilganlar jurnali.",
+        ],
+      },
+      {
+        title: "Davomat SMS",
+        details: [
+          "Guruh davomati ochilgandan keyin belgilangan daqiqada ham qilinmasa — o‘qituvchi telefoniga SMS.",
+          "Daqiqa va shablon sozlamalardan o‘zgartiriladi; davomat sahifasidagi kurs filtri eslab qolinadi.",
+        ],
+      },
+      {
+        title: "Chegirmalar",
+        details: [
+          "Chegirma turlari (foiz yoki summa) — sozlamalardan qo‘shish, tahrirlash, o‘chirish.",
+          "Har o‘quvchiga switch bilan tanlangan oydan; o‘tgan oylar hisobi o‘zgarmaydi.",
+          "Qarz, reja va eslatmalar chegirmali narx bo‘yicha.",
+        ],
+      },
+      {
+        title: "Liquid glass accordionlar",
+        details: ["Barcha ochiladigan bloklar silliq ochiladi, ichki qism xiralikdan tiniqlashadi, sarlavha shishasimon."],
+      },
+    ],
+  },
   {
     id: "attendance-receipt",
     title: "Davomat, to‘lov cheki va Sheets jadvallari arxivi",
