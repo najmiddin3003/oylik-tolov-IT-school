@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { allocateAmount, importFromMonth } from "./allocate";
 import { courseTeacherResolver } from "./course-teacher";
 import { connectDB } from "./db";
-import { LIVE, studentFee, type StudentLean } from "./ledger";
+import { LIVE, studentFee, withDiscounts, type StudentLean } from "./ledger";
 import { Payment, Student, SyncRun, type PaymentMethod } from "./models";
 import { nameKey } from "./normalize";
 import { nameMatches, studentNameKeys } from "./compare";
@@ -156,7 +156,9 @@ export async function importFromRun(runId: string, ids: string[] | "all", opts: 
   // 2) O'quvchilarning oylik to'lovi, boshlanish oyi va hozirgacha to'langan summalari
   const studentIds = [...new Set(studentFor.values())];
   const [infos, paidAgg] = await Promise.all([
-    Student.find({ _id: { $in: studentIds } }, { monthlyFee: 1, feeHistory: 1, startDate: 1 }).lean<StudentLean[]>(),
+    Student.find({ _id: { $in: studentIds } }, { monthlyFee: 1, feeHistory: 1, discountHistory: 1, startDate: 1 })
+      .lean<StudentLean[]>()
+      .then(withDiscounts),
     Payment.aggregate<{ _id: { student: mongoose.Types.ObjectId; month: string }; total: number }>([
       { $match: { ...LIVE, student: { $in: studentIds.map((id) => new mongoose.Types.ObjectId(id)) } } },
       { $group: { _id: { student: "$student", month: "$month" }, total: { $sum: "$amount" } } },

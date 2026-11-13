@@ -10,7 +10,7 @@ import { connectDB } from "@/lib/db";
 import { normalizeUzPhone } from "@/lib/eskiz";
 import { applyFeeFrom, feeFor, type FeeChange } from "@/lib/fees";
 import { isId } from "@/lib/ids";
-import { feeHistoryOf, studentFee, type StudentLean } from "@/lib/ledger";
+import { feeHistoryOf, listFee, type StudentLean } from "@/lib/ledger";
 import { Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { DEFAULT_OTP_TEMPLATE, templateHasCode } from "@/lib/otp-text";
@@ -78,7 +78,7 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
   // Narxi shu oyda allaqachon shunday bo'lsa ham, keyingi rejalashtirilgan o'zgarishlar bekor bo'lishi mumkin
   // (masalan, "yanvardan 400 000" ni "noyabrdan 300 000" bilan bekor qilish) — shuning uchun natijani solishtiramiz.
   const ops = students
-    .filter((s) => (onlyFee === null || studentFee(s, from) === onlyFee) && (onlyCourse === null || sameCourse(s.group, onlyCourse)))
+    .filter((s) => (onlyFee === null || listFee(s, from) === onlyFee) && (onlyCourse === null || sameCourse(s.group, onlyCourse)))
     .flatMap((s) => {
       const current = { monthlyFee: s.monthlyFee, feeHistory: feeHistoryOf(s) };
       const next = applyFeeFrom({ ...current, startMonth: monthOfDate(s.startDate) }, from, fee!);
@@ -92,7 +92,7 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
   let base = settings.defaultFee;
   if (base === null) {
     const counts = new Map<number, number>();
-    for (const s of students) if (s.active !== false) counts.set(studentFee(s, now), (counts.get(studentFee(s, now)) ?? 0) + 1);
+    for (const s of students) if (s.active !== false) counts.set(listFee(s, now), (counts.get(listFee(s, now)) ?? 0) + 1);
     base = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? fee!;
   }
   let schedule = settings.feeSchedule;
@@ -293,6 +293,7 @@ const FEATURES = {
   paymentDateAdmin: { field: "features.paymentDateAdmin", label: "«To‘langan sana» maydoni (administrator)" },
   autoImport: { field: "autoImport", label: "Sheets’dagi yangi to‘lovlarni avtomatik qo‘shish" },
   smsEnabled: { field: "sms.enabled", label: "Kunlik SMS eslatma" },
+  discounts: { field: "discounts.enabled", label: "Chegirmalar" },
 } as const;
 
 export type FeatureKey = keyof typeof FEATURES;

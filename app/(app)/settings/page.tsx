@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import {
+  BadgePercent,
   ClipboardCheck,
   BookOpen,
   Building2,
@@ -20,6 +21,7 @@ import {
 import { changeMyPassword } from "@/app/actions/auth";
 import { setMySyncAlert } from "@/app/actions/me";
 import { disableAdmin, setFeature } from "@/app/actions/settings";
+import { DiscountTypesEditor } from "@/components/Discounts";
 import { FeatureCheck } from "@/components/FeatureCheck";
 import {
   AdminPasswordForm,
@@ -288,6 +290,30 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
                 </History>
               ) : null}
             </div>
+          </Section>
+
+          {/* ---------- Chegirmalar ---------- */}
+          <Section
+            id="chegirmalar"
+            icon={BadgePercent}
+            tone="amber"
+            title="Chegirmalar"
+            subtitle="Aka-uka, a’lochi yoki aksiya uchun — foiz yoki summa. O‘quvchiga «Chegirmalar» sahifasida switch bilan yoqiladi."
+            right={d.discounts.enabled ? <Tag tone="emerald">Yoqilgan</Tag> : <Tag>O‘chiq</Tag>}
+          >
+            <div className="mb-5">
+              <FeatureCheck
+                title="Chegirmalar"
+                hint="Yoqilsa — o‘quvchi oylik to‘lovi chegirma bilan hisoblanadi (qarz, reja, eslatmalar). O‘chirilsa — chegirmalar hech qayerda hisoblanmaydi va ko‘rinmaydi (yozuvlar saqlanib qoladi)."
+                initial={d.discounts.enabled}
+                action={setFeature.bind(null, "discounts")}
+              />
+            </div>
+            <DiscountTypesEditor types={d.discounts.types} usage={d.discountUsage} />
+            <Link href="/chegirmalar" className={cx(btn.outline, "mt-5")}>
+              <BadgePercent className="size-4" aria-hidden />
+              O‘quvchilarga chegirma berish
+            </Link>
           </Section>
 
           {/* ---------- Ota-onalarga SMS ---------- */}

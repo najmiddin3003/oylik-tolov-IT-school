@@ -32,6 +32,7 @@ import {
 import { roleGuard } from "@/lib/auth";
 import { canPickPaymentDate, getStudent, getStudentAttendance, getStudentPayments, type StudentAttendanceRow } from "@/lib/data";
 import { ATTENDANCE_LABEL } from "@/lib/attendance-rules";
+import { discountAt, discountLabel } from "@/lib/discounts";
 import type { PaymentMethod } from "@/lib/models";
 import { scheduleLabel } from "@/lib/schedule";
 import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, nowMs, todayISO } from "@/lib/time";
@@ -72,6 +73,7 @@ async function StudentView({
   ]);
 
   const now = currentMonth();
+  const currentDiscount = discountAt(student.discountHistory, now);
   // To'lov formasi uchun standart oy: URL dagi oy, bo'lmasa eng eski qarzdor oy, bo'lmasa joriy oy
   const oldestDebt = [...months].reverse().find((m) => m.status !== "paid" && compareMonths(m.month, now) <= 0);
   const formMonth = isValidMonth(sp.month) ? sp.month : oldestDebt?.month ?? now;
@@ -81,6 +83,7 @@ async function StudentView({
     group: student.group,
     monthlyFee: student.monthlyFee,
     feeHistory: student.feeHistory,
+    discountHistory: student.discountHistory,
     paid: Object.fromEntries(months.map((m) => [m.month, m.paid])),
   };
   const feeSteps = [
@@ -306,6 +309,25 @@ async function StudentView({
                 }
               />
               <Info label="Boshlagan sana" value={formatDate(student.startDate)} />
+              {student.discounts ? (
+                <Info
+                  label="Chegirma"
+                  value={
+                    <span className="flex flex-wrap items-center gap-2">
+                      {currentDiscount ? (
+                        <Tag tone="amber">{`${currentDiscount.name} · ${discountLabel(currentDiscount)} · ${monthLabel(currentDiscount.from)} dan`}</Tag>
+                      ) : (
+                        <span className="text-ink-500">yo‘q</span>
+                      )}
+                      {readOnly ? null : (
+                        <Link href="/chegirmalar" className="text-xs font-medium text-brand-600 hover:underline">
+                          O‘zgartirish
+                        </Link>
+                      )}
+                    </span>
+                  }
+                />
+              ) : null}
               <Info
                 label="Oylik narx"
                 value={

@@ -24,6 +24,11 @@ const studentSchema = new Schema(
     teacher: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
     /** Google Sheets'da boshqacha yozilgan ismi(lari): Sheets tekshiruvida shu ism bilan ham topiladi */
     sheetNames: { type: [String], default: [] },
+    /** Chegirma tarixi: "from" oyidan boshlab chegirma (tur nomi va qiymati — o'sha paytdagi nusxa; kind null — chegirma yo'q) */
+    discountHistory: {
+      type: [{ from: String, typeId: String, name: String, kind: { type: String, enum: ["percent", "amount", null] }, value: Number, _id: false }],
+      default: [],
+    },
   },
   { timestamps: true },
 );
@@ -166,6 +171,11 @@ const settingSchema = new Schema(
       template: { type: String },
     },
     attendanceSmsLockUntil: { type: Date, default: null },
+    /** Chegirmalar: yoqilgan va turlari (nomi, foiz yoki summa) */
+    discounts: {
+      enabled: { type: Boolean },
+      types: { type: [{ id: String, name: String, kind: { type: String, enum: ["percent", "amount"] }, value: Number, _id: false }], default: undefined },
+    },
   },
   { timestamps: true },
 );

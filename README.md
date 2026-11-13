@@ -115,6 +115,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   cron va avtomatik) ko‘rsatilmaydi, ogohlantirish va hisoblagichlarga kirmaydi, saytga avtomatik qo‘shilmaydi. Masalan, Sheets’ni
   boshqa odam yuritsa va xatoni tuzatib bo‘lmasa. Farq o‘zining «kaliti» bo‘yicha taniladi (o‘quvchi, oy, summalar, Sheets
   qatorining sanasi); shu yozuv o‘zgarsa — farq yana chiqadi. «E’tiborsiz qoldirilganlar» bo‘limida ro‘yxat va «Qaytarish».
+- **Chegirmalar** — Sozlamalar → «Chegirmalar»: yoqish/o‘chirish (o‘chiq bo‘lsa — hech qayerda hisoblanmaydi), chegirma turlari
+  (nomi, foiz yoki summa) — qo‘shish, tahrirlash, o‘chirish. «Chegirmalar» sahifasida (rahbar va administrator) har o‘quvchiga
+  switch bilan yoqiladi/o‘chiriladi: tur va **qaysi oydan** tanlanadi; o‘tgan oylar hisobi o‘zgarmaydi. Har o‘quvchida bitta
+  chegirma. Qarz, reja, eslatmalar, oldindan to‘lov taqsimoti — chegirmali narx bo‘yicha. Tur tahrirlansa/o‘chirilsa — shu
+  chegirmasi bor o‘quvchilarda joriy oydan.
 - **Davomat SMS** (Sozlamalar → «Davomat SMS») — guruh davomati ochilgandan (dars boshlanib 30 daqiqa) keyin sozlamadagi
   daqiqa (standart 10) o‘tib ham qilinmasa, guruh o‘qituvchisi telefoniga bir marta SMS (faqat ro‘yxatdan o‘tgan, faol xodimga).
   Shablon: `{#guruh#}` (majburiy), `{#vaqt#}`, `{#soni#}`, `{#ism#}`. Tekshiruv `/api/ping` (cron-job.org, har 5 daqiqada) yoki

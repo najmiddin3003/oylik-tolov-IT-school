@@ -297,17 +297,86 @@ dialog[open]::backdrop {
   }
 }
 
-/* Ochiladigan bo'limlar (accordion): ichki qism silliq ochiladi */
-details.accordion::details-content {
+/*
+  Ochiladigan bo'limlar (barcha <details>): «liquid glass» — ichki qism silliq ochiladi va xiralikdan tiniqlashib
+  oqib chiqadi, ochiq sarlavha shishasimon yaltiraydi (yarim shaffof fon, blur, yuqori chetida yorug' chiziq).
+*/
+:root {
+  interpolate-size: allow-keywords;
+  --glass-bg: linear-gradient(180deg, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.38));
+  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.9), inset 0 -1px 0 rgb(15 23 42 / 0.05), 0 8px 24px -16px rgb(30 41 120 / 0.35);
+  --glass-sheen: linear-gradient(115deg, transparent 20%, rgb(255 255 255 / 0.55) 45%, transparent 60%);
+}
+:root.dark {
+  --glass-bg: linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.03));
+  --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 -1px 0 rgb(0 0 0 / 0.25), 0 8px 24px -16px rgb(0 0 0 / 0.6);
+  --glass-sheen: linear-gradient(115deg, transparent 20%, rgb(255 255 255 / 0.12) 45%, transparent 60%);
+}
+details::details-content {
   block-size: 0;
   overflow-y: clip;
   transition:
-    block-size 0.28s ease,
-    content-visibility 0.28s ease allow-discrete;
+    block-size 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    content-visibility 0.45s ease allow-discrete;
 }
-details.accordion[open]::details-content {
+details[open]::details-content {
   block-size: auto;
   block-size: calc-size(auto, size);
+}
+/* Ichki qism: xira va biroz yuqoridan — tiniq joyiga «oqib» tushadi */
+details[open] > :not(summary) {
+  transition:
+    opacity 0.4s ease,
+    filter 0.45s ease,
+    translate 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  @starting-style {
+    opacity: 0;
+    filter: blur(8px) saturate(1.4);
+    translate: 0 -6px;
+  }
+}
+details > summary {
+  position: relative;
+  isolation: isolate;
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.35s ease,
+    scale 0.15s ease;
+}
+details > summary:active {
+  scale: 0.995;
+}
+/* Ochiq sarlavha — shisha: yarim shaffof fon, blur va bir marta o'tadigan yaltiroq */
+details[open] > summary {
+  background-image: var(--glass-bg);
+  box-shadow: var(--glass-edge);
+  backdrop-filter: blur(14px) saturate(170%);
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+}
+details > summary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--glass-sheen) no-repeat;
+  background-size: 250% 100%;
+  background-position: 120% 0;
+  opacity: 0;
+  pointer-events: none;
+}
+details[open] > summary::after {
+  animation: glass-sheen 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes glass-sheen {
+  0% {
+    opacity: 1;
+    background-position: 120% 0;
+  }
+  100% {
+    opacity: 0;
+    background-position: -40% 0;
+  }
 }
 details.accordion > summary {
   list-style: none;
@@ -316,7 +385,7 @@ details.accordion > summary::-webkit-details-marker {
   display: none;
 }
 details.accordion .accordion-chevron {
-  transition: rotate 0.2s ease;
+  transition: rotate 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 /* Faqat o'z sarlavhasidagi strelka (ichma-ich bo'limlarda tashqisi ochiq bo'lsa ham ichkisi to'g'ri ko'rinadi) */
 details.accordion[open] > summary .accordion-chevron {
@@ -336,7 +405,12 @@ details.accordion[open] > summary .accordion-chevron {
   .sb-anim,
   dialog,
   dialog::backdrop,
-  details.accordion::details-content {
+  details::details-content,
+  details > summary,
+  details[open] > :not(summary) {
     transition: none;
+  }
+  details[open] > summary::after {
+    animation: none;
   }
 }

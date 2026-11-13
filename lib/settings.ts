@@ -6,6 +6,7 @@ import { feeFor, type FeeChange, type PercentChange } from "./fees";
 import { Setting } from "./models";
 import { DEFAULT_OTP_TEMPLATE } from "./otp-text";
 import { normalizeAttendanceSms, type AttendanceSmsSettings } from "./attendance-sms-rules";
+import { normalizeDiscountTypes, type DiscountType } from "./discounts";
 import { normalizeParentSms, type ParentSmsSettings } from "./parent-sms-rules";
 import { normalizeStartDay } from "./reminders";
 
@@ -50,6 +51,8 @@ export type AppSettings = {
   parentSms: ParentSmsSettings;
   /** Davomat qilinmagan guruh o'qituvchisiga SMS */
   attendanceSms: AttendanceSmsSettings;
+  /** Chegirmalar: o'chiq bo'lsa — hech qayerda hisoblanmaydi va ko'rinmaydi */
+  discounts: { enabled: boolean; types: DiscountType[] };
   /** startDay — joriy oy qarzdorlari shu sanadan boshlab sanaladi (1 — har kuni) */
   sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number; otpTemplate: string };
 };
@@ -76,6 +79,7 @@ type Doc = Record<string, unknown> & {
   adminPasswordHash?: string | null;
   parentSms?: Partial<Record<keyof ParentSmsSettings, unknown>> | null;
   attendanceSms?: Partial<Record<keyof AttendanceSmsSettings, unknown>> | null;
+  discounts?: { enabled?: boolean | null; types?: unknown } | null;
   sms?: { enabled?: boolean; phone?: string; sender?: string; template?: string; startDay?: number; otpTemplate?: string };
 };
 
@@ -118,6 +122,7 @@ function toAppSettings(doc: Doc | null): AppSettings {
     adminPasswordHash: doc?.adminPasswordHash ?? null,
     parentSms: normalizeParentSms(doc?.parentSms),
     attendanceSms: normalizeAttendanceSms(doc?.attendanceSms),
+    discounts: { enabled: doc?.discounts?.enabled === true, types: normalizeDiscountTypes(doc?.discounts?.types) },
     sms: {
       enabled: doc?.sms?.enabled ?? false,
       phone: doc?.sms?.phone || "998336263006",
