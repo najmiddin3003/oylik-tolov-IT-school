@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { CalendarCheck2, CheckCircle2, ChevronDown, Clock3, Lightbulb, Rocket } from "lucide-react";
-import { Card, cx, IconTile, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { ChevronDown, Clock3, Lightbulb, Rocket } from "lucide-react";
+import { Card, IconTile, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
-import { DONE, ROADMAP, type RoadmapStatus } from "@/lib/roadmap";
+import { ROADMAP, type RoadmapStatus } from "@/lib/roadmap";
 
 export const metadata: Metadata = { title: "Reja va yangiliklar" };
 
@@ -23,17 +23,16 @@ export default function RoadmapPage() {
 
 async function Roadmap() {
   await ownerGuard();
-  const doneCount = DONE.reduce((n, g) => n + g.items.length, 0);
 
   return (
     <>
       <PageHeader
         eyebrow="Rahbar uchun"
         title="Reja va yangiliklar"
-        subtitle="Saytda kelgusida qilinadigan ishlar va shu paytgacha qilinganlari. Mavzuni bossangiz — to‘liq ma’lumot ochiladi."
+        subtitle="Saytda kelgusida qilinadigan ishlar. Mavzuni bossangiz — to‘liq ma’lumot ochiladi."
       />
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="max-w-3xl">
         <section aria-labelledby="plan-title" className="min-w-0">
           <div className="group mb-4 flex items-center gap-3.5">
             <IconTile icon={Rocket} tone="brand" variant="solid" />
@@ -83,60 +82,6 @@ async function Roadmap() {
           </div>
         </section>
 
-        <section aria-labelledby="done-title" className="min-w-0">
-          <div className="group mb-4 flex items-center gap-3.5">
-            <IconTile icon={CalendarCheck2} tone="emerald" variant="solid" />
-            <div>
-              <h2 id="done-title" className="text-[19px] font-semibold tracking-[-0.01em] text-ink-900">
-                Shu paytgacha qilingan ishlar
-              </h2>
-              <p className="mt-0.5 text-sm text-ink-500">
-                {DONE.length} ta bosqich · {doneCount} ta imkoniyat
-              </p>
-            </div>
-          </div>
-          <div className="grid gap-3">
-            {DONE.map((g, i) => (
-              <Card key={g.id} className="overflow-hidden">
-                <details className="accordion" open={i === 0}>
-                  <summary className="flex cursor-pointer items-start gap-3.5 px-5 py-4 transition hover:bg-slate-50/60 sm:px-6">
-                    <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-emerald-50 text-emerald-600 ring-1 ring-inset ring-emerald-100">
-                      <CheckCircle2 className="size-[17px]" aria-hidden />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-semibold text-ink-900">{g.title}</span>
-                      <span className="num mt-1 block text-sm text-ink-500">
-                        {g.date} · {g.items.length} ta imkoniyat
-                      </span>
-                    </span>
-                    <ChevronDown className="accordion-chevron mt-1.5 size-[18px] shrink-0 text-ink-400" aria-hidden />
-                  </summary>
-                  <div className="grid gap-2 border-t border-line-soft px-4 pb-4 pt-3 sm:px-5">
-                    {g.items.map((it) => (
-                      <details key={it.title} className="accordion rounded-xl border border-line-soft">
-                        <summary className="flex cursor-pointer items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-ink-800 transition hover:bg-slate-50/70">
-                          <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
-                          <span className="min-w-0 flex-1">{it.title}</span>
-                          <ChevronDown className="accordion-chevron size-4 shrink-0 text-ink-400" aria-hidden />
-                        </summary>
-                        <ul className={cx("grid gap-1.5 px-3.5 pb-3 pt-0.5 text-sm leading-relaxed text-ink-600")}>
-                          {it.details.map((d) => (
-                            <li key={d} className="flex gap-2">
-                              <span className="text-ink-300" aria-hidden>
-                                —
-                              </span>
-                              {d}
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    ))}
-                  </div>
-                </details>
-              </Card>
-            ))}
-          </div>
-        </section>
       </div>
     </>
   );
