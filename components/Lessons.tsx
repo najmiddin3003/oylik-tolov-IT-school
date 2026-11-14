@@ -4,7 +4,7 @@
 // «Bugun darsga keladi» (to'lovlar sahifasi) — to'lovni o'quvchi kelgan vaqtda yig'ish uchun.
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { CalendarClock, CalendarDays, Phone, Plus, Sunrise, UsersRound } from "lucide-react";
+import { CalendarClock, CalendarDays, Phone, Plus, Sunrise, UserX, UsersRound } from "lucide-react";
 import type { PayStatus } from "@/lib/data";
 import { dayLabel } from "@/lib/reminders";
 import {
@@ -28,6 +28,25 @@ import { Select } from "./pickers";
 import { Avatar, btn, Card, cx, IconTile } from "./ui";
 import { useNow } from "./useNow";
 
+/** Bugun darsga kelmagan o'quvchi (davomatdan): «Hozir darsda» o'rniga ko'rsatiladi. */
+export type Away = "absent" | "excused";
+
+export function AwayBadge({ away, className = "" }: { away: Away; className?: string }) {
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center gap-1 whitespace-nowrap font-medium",
+        away === "absent" ? "text-rose-600" : "text-amber-700",
+        className,
+      )}
+      title={away === "absent" ? "Bugun davomatda «Kelmadi» belgilangan" : "Bugun davomatda «Sababli» belgilangan"}
+    >
+      <UserX className="size-3.5 shrink-0" aria-hidden />
+      {away === "absent" ? "Kelmadi" : "Sababli"}
+    </span>
+  );
+}
+
 /** Yashil "jonli" nuqta — hozir darsda. */
 export function LiveDot({ className = "" }: { className?: string }) {
   return (
@@ -47,10 +66,13 @@ export function NextLessonCell({
   serverNow,
   muted = false,
   fluid = false,
+  away = null,
 }: {
   lessons: Lesson[];
   serverNow: number;
   muted?: boolean;
+  /** Bugun davomatda «Kelmadi» / «Sababli» — bugungi dars o'rniga shu */
+  away?: Away | null;
   /** Ustun kengligiga moslashadi (o'zgaruvchan kenglikdagi jadvalda); aks holda 180px gacha */
   fluid?: boolean;
 }) {
@@ -60,7 +82,12 @@ export function NextLessonCell({
   const full = scheduleLabel(lessons);
   return (
     <div className={cx("min-w-0", !fluid && "max-w-[180px]", muted && "opacity-60")} title={full}>
-      {next ? (
+      {next && away && next.inDays === 0 ? (
+        <p className="num flex min-w-0 items-center gap-1.5 whitespace-nowrap text-sm">
+          <AwayBadge away={away} />
+          <span className="truncate text-[13px] text-ink-400">bugun, {next.lesson.start}</span>
+        </p>
+      ) : next ? (
         <p
           className={cx(
             "num flex min-w-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium",
@@ -90,6 +117,8 @@ export type TodayStudent = {
   /** Kursi (guruh nomi) va o'qituvchisi — blokdagi filtr uchun */
   group: string;
   teacherId: string | null;
+  /** Bugun davomatda «Kelmadi» / «Sababli» */
+  away?: Away | null;
 };
 
 /** Filtrdagi «kursi yo'q» va «o'qituvchi biriktirilmagan» qiymatlari */
@@ -314,7 +343,7 @@ export function TodayLessons({
               </header>
               <ul className="divide-y divide-line-soft">
                 {slot.items.map((s) => (
-                  <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <li key={s.id} className={cx("flex items-center gap-3 px-4 py-2.5", s.away && "bg-rose-50/40")}>
                     <Avatar name={s.name} />
                     <div className="min-w-0 flex-1">
                       {canOpenProfile ? (
@@ -325,6 +354,7 @@ export function TodayLessons({
                         <span className="block truncate text-[15px] font-medium text-ink-900">{s.name}</span>
                       )}
                       <p className="num mt-0.5 truncate text-[13px]">
+                        {s.away ? <AwayBadge away={s.away} className="mr-2" /> : null}
                         {s.status === "paid" ? (
                           <span className="font-medium text-emerald-600">to‘lagan ✓</span>
                         ) : (

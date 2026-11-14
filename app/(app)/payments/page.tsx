@@ -116,6 +116,7 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
       debt: r.debt,
       status: r.status,
       lessons: r.lessons,
+      away: r.away,
       group: r.group,
       teacherId: r.teacherId,
     }));

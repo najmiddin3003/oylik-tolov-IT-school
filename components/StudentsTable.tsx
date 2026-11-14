@@ -284,7 +284,7 @@ export function StudentsTable({
                     </td>
                   ) : null}
                   <td className={cx(td, "overflow-hidden")}>
-                    <NextLessonCell lessons={r.lessons} serverNow={serverNow} muted={!r.active} fluid={custom} />
+                    <NextLessonCell lessons={r.lessons} serverNow={serverNow} muted={!r.active} fluid={custom} away={r.away} />
                   </td>
                   <td className={cx(td, "num overflow-hidden text-ellipsis whitespace-nowrap text-right text-[15px] font-medium text-ink-900")}>{formatMoney(r.monthlyFee)}</td>
                   <td
