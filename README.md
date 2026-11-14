@@ -99,7 +99,7 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   «Sahifaga o'tishda vaqt qayerga ketyapti» kartasi. «Qaysi Vercel tuguni orqali kirilmoqda» — foydalanuvchilar kiradigan
   tugunlar ulushi (`x-vercel-id`), har biridan o'tish vaqti va so'rov tugundan serverdagi kodgacha yetib borgan vaqt. O'lchov har ochilishda o'zi yoziladi (javob yuborilgandan keyin — foydalanuvchini kutdirmaydi),
   30 kun saqlanadi, Vercel loglarida ham `[perf] …` qatori bo'lib chiqadi. Prefetch va server action so'rovlari o'lchanmaydi.
-- **Reja va yangiliklar** (rahbar) — kelgusida qilinadigan ishlar va shu paytgacha qilinganlar, ochiladigan bo‘limlarda.
+- **Reja va yangiliklar** (rahbar) — kelgusida qilinadigan ishlar, ochiladigan bo‘limlarda.
 - **Oy oxiri eslatmasi** — oy tugashiga 10 kun qolganda (va o‘tgan oyda to‘lamaganlar qolgan bo‘lsa) yuqoridagi
   qo‘ng‘iroqchada: «10 ta o‘quvchi to‘lov qilmadi» — bosilsa ism-familiyalar ro‘yxati.
 - **Sozlamalar** (rahbar): **kurslar** (nomi, standart narxi va o‘qituvchisi; nomi o‘zgarsa — o‘quvchilari ham o‘tadi), oylik to‘lov narxi
