@@ -2,7 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
-import { Banknote, CalendarClock, CalendarDays, CreditCard, GraduationCap, HandCoins, Hourglass, Landmark, Pencil, Plus, Trash2, Wallet, type LucideIcon } from "lucide-react";
+import {
+  Banknote,
+  ChevronDown,
+  ClipboardCheck,
+  CreditCard,
+  GraduationCap,
+  HandCoins,
+  Hourglass,
+  Landmark,
+  Pencil,
+  Phone as PhoneIcon,
+  Plus,
+  Trash2,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { archivePayment } from "@/app/actions/payments";
 import { deleteStudent } from "@/app/actions/students";
 import { PaidCell } from "@/components/cells";
@@ -20,21 +35,18 @@ import {
   EmptyState,
   GroupChip,
   IconTile,
-  MiniStat,
   NoteCell,
   PageSkeleton,
   StatusBadge,
   studentCode,
   Tag,
-  td,
-  th,
+  type Tone,
 } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
 import { canPickPaymentDate, getStudent, getStudentAttendance, getStudentPayments, type StudentAttendanceRow } from "@/lib/data";
 import { ATTENDANCE_LABEL } from "@/lib/attendance-rules";
 import { discountAt, discountLabel } from "@/lib/discounts";
 import type { PaymentMethod } from "@/lib/models";
-import { scheduleLabel } from "@/lib/schedule";
 import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, nowMs, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "O‘quvchi profili" };
@@ -91,17 +103,25 @@ async function StudentView({
     ...student.feeHistory,
   ];
   const code = studentCode(student.seq);
+  // To'lovlar oylar bo'yicha (har oy qatori ochilsa — shu oy to'lovlari)
+  const byMonth = new Map<string, typeof payments>();
+  for (const p of payments) byMonth.set(p.month, [...(byMonth.get(p.month) ?? []), p]);
+  const listFeeNow = feeSteps.filter((f) => compareMonths(f.from, now) <= 0).at(-1)?.fee ?? student.monthlyFee;
+  const att = { present: 0, absent: 0, excused: 0 };
+  for (const r of attendance) att[r.status]++;
+  const attPct = attendance.length ? Math.round((att.present / attendance.length) * 100) : null;
+  const tel = (v: string) => `tel:${v.replace(/[^\d+]/g, "")}`;
 
   return (
     <>
-      <div className="mb-7 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+      {/* Sarlavha: ism, kurs/o'qituvchi/holat va tez amallar (qo'ng'iroq, to'lov, tahrirlash) */}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-center gap-4">
           <Avatar name={student.fullName} size="lg" />
           <div className="min-w-0">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">O‘quvchi profili</p>
-            <h1 className="truncate text-[26px] font-bold leading-tight tracking-[-0.025em] text-ink-900 sm:text-[30px]">{student.fullName}</h1>
-            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-ink-500">
-              {code ? <span className="num font-medium text-ink-400">{code}</span> : null}
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">O‘quvchi profili{code ? ` · ${code}` : ""}</p>
+            <h1 className="text-[24px] font-bold leading-tight tracking-[-0.025em] text-ink-900 sm:text-[30px]">{student.fullName}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-500">
               <GroupChip name={student.group} />
               {student.teacherName ? (
                 <span className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-brand-100 bg-brand-50/70 px-2.5 text-[13px] font-medium text-brand-800">
@@ -109,48 +129,89 @@ async function StudentView({
                   <span className="truncate">{student.teacherName}</span>
                 </span>
               ) : null}
-              {student.lessons.length ? (
-                <span className="num inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-sky-100 bg-sky-50/70 px-2.5 text-[13px] font-medium text-sky-800">
-                  <CalendarClock className="size-3.5 shrink-0 text-sky-500" aria-hidden />
-                  <span className="truncate">{scheduleLabel(student.lessons)}</span>
-                </span>
-              ) : null}
               {student.active ? <Tag tone="emerald">Faol</Tag> : <Tag>Nofaol</Tag>}
             </div>
           </div>
         </div>
-        {/* Tahrirlash — rahbar va o'qituvchi (o'z o'quvchisi, cheklangan maydonlar); o'chirish — faqat rahbar */}
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href={`/students/${student.id}/edit`} className={btn.outline}>
-            <Pencil className="size-[17px]" strokeWidth={1.8} aria-hidden />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          {student.phone ? (
+            <a href={tel(student.phone)} className={cx(btn.outline, "px-3")} title={`O‘quvchi: ${student.phone}`}>
+              <PhoneIcon className="size-4" aria-hidden />
+              <span className="sm:hidden xl:inline">O‘quvchi</span>
+            </a>
+          ) : null}
+          {student.parentPhone ? (
+            <a href={tel(student.parentPhone)} className={cx(btn.outline, "px-3")} title={`Ota-ona: ${student.parentPhone}`}>
+              <PhoneIcon className="size-4" aria-hidden />
+              <span className="sm:hidden xl:inline">Ota-ona</span>
+            </a>
+          ) : null}
+          <Link href={`/students/${student.id}/edit`} className={cx(btn.outline, "px-3")} title="Tahrirlash">
+            <Pencil className="size-4" strokeWidth={1.8} aria-hidden />
             Tahrirlash
           </Link>
           {readOnly ? null : (
-            <ConfirmAction
-              action={deleteStudent.bind(null, student.id, "/students")}
-              confirmText={`${student.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
-              className={btn.danger}
-              pendingText="O‘chirilmoqda…"
-            >
-              <Trash2 className="size-[17px]" strokeWidth={1.8} aria-hidden />
-              O‘chirish
-            </ConfirmAction>
+            <>
+              <a href="#tolov" className={cx(btn.primary, "px-4 xl:hidden")}>
+                <Plus className="size-4" aria-hidden />
+                To‘lov
+              </a>
+              <ConfirmAction
+                action={deleteStudent.bind(null, student.id, "/students")}
+                confirmText={`${student.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
+                className={cx(btn.iconDanger, "size-11 rounded-xl border border-line bg-surface")}
+                pendingText="…"
+                title="O‘quvchini o‘chirish"
+              >
+                <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
+              </ConfirmAction>
+            </>
           )}
         </div>
       </div>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
-        <MiniStat label="Oylik to‘lov (hozir)" value={formatNumber(student.currentFee)} unit="so‘m" icon={Wallet} tone="violet" />
-        <MiniStat label="Jami to‘langan" value={formatNumber(totalPaid)} unit="so‘m" icon={HandCoins} tone="emerald" />
-        <MiniStat label="Qarz" value={formatNumber(totalDebt)} unit="so‘m" icon={Hourglass} tone={totalDebt ? "amber" : "emerald"} />
-        <MiniStat label="O‘qishni boshlagan" value={formatDate(student.startDate)} icon={CalendarDays} tone="brand" />
+      {/* Asosiy ko'rsatkichlar: telefonda 2×2 */}
+      <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5">
+        <Stat
+          icon={Wallet}
+          tone="violet"
+          label="Oylik to‘lov"
+          value={formatNumber(student.currentFee)}
+          hint={
+            currentDiscount ? (
+              <>
+                <span className="line-through">{formatNumber(listFeeNow)}</span> · {currentDiscount.name} {discountLabel(currentDiscount)}
+              </>
+            ) : (
+              `${monthLabel(feeSteps.at(-1)!.from)} dan`
+            )
+          }
+        />
+        <Stat icon={HandCoins} tone="emerald" label="Jami to‘langan" value={formatNumber(totalPaid)} hint={`${payments.length} ta to‘lov`} />
+        <Stat
+          icon={Hourglass}
+          tone={totalDebt ? "amber" : "emerald"}
+          label="Qarz"
+          value={formatNumber(totalDebt)}
+          hint={totalDebt ? (oldestDebt ? `${monthLabel(oldestDebt.month)} dan` : "") : "Qarz yo‘q ✓"}
+        />
+        <Stat
+          icon={ClipboardCheck}
+          tone={attPct === null ? "slate" : attPct >= 80 ? "emerald" : attPct >= 60 ? "amber" : "rose"}
+          label="Davomat"
+          value={attPct === null ? "—" : `${attPct}%`}
+          hint={attendance.length ? `kelmadi ${att.absent} · sababli ${att.excused}` : "hali qilinmagan"}
+          unit=""
+        />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
         <div className="flex min-w-0 flex-col gap-6">
-          <Card>
+          {/* Oylar bo'yicha holat va to'lovlar — bitta ro'yxat: oy qatori ochilsa, shu oy to'lovlari */}
+          <Card className="overflow-hidden">
             <CardHeader
-              title="Oylar bo‘yicha holat"
+              title="To‘lovlar"
+              subtitle="Oy qatorini bossangiz — shu oy to‘lovlari ochiladi"
               right={
                 totalDebt > 0 ? (
                   <span className="num text-sm font-semibold text-amber-700">Jami qarz: {formatMoney(totalDebt)}</span>
@@ -159,148 +220,131 @@ async function StudentView({
                 )
               }
             />
-            <div className="relative overflow-x-auto border-t border-line-soft">
-              <table className="w-full min-w-[560px]">
-                <thead className="bg-slate-50/70">
-                  <tr>
-                    <th className={th}>Oy</th>
-                    <th className={th}>To‘landi / oylik</th>
-                    <th className={cx(th, "text-right")}>Qarz</th>
-                    <th className={th}>Holat</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line-soft">
-                  {months.map((m) => {
-                    const future = compareMonths(m.month, now) > 0;
-                    const debt = Math.max(0, m.fee - m.paid);
-                    return (
-                      <tr key={m.month} className="transition hover:bg-slate-50/50">
-                        <td className={cx(td, "whitespace-nowrap font-medium text-ink-900")}>
-                          {monthLabel(m.month)}
-                          {future ? <span className="ml-2 text-xs font-normal text-ink-400">oldindan</span> : null}
-                        </td>
-                        <td className={td}>
+            <ul className="divide-y divide-line-soft border-t border-line-soft">
+              {months.map((m) => {
+                const future = compareMonths(m.month, now) > 0;
+                const debt = Math.max(0, m.fee - m.paid);
+                const list = byMonth.get(m.month) ?? [];
+                return (
+                  <li key={m.month}>
+                    <details className="accordion" open={m.month === now || m.month === formMonth}>
+                      <summary className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1 px-4 py-3 transition hover:bg-slate-50/60 sm:grid-cols-[9.5rem_minmax(0,1fr)_7.5rem_7rem_1.25rem] sm:px-6">
+                        <span className="min-w-0">
+                          <span className="block font-medium text-ink-900">{monthLabel(m.month)}</span>
+                          <span className="num block text-xs text-ink-400">
+                            {list.length ? `${list.length} ta to‘lov` : "to‘lov yo‘q"}
+                            {future ? " · oldindan" : ""}
+                          </span>
+                        </span>
+                        <span className="hidden sm:block">
                           <PaidCell paid={m.paid} fee={m.fee} />
-                        </td>
-                        <td className={cx(td, "num whitespace-nowrap text-right font-semibold", debt && !future ? "text-ink-900" : "text-ink-300")}>
+                        </span>
+                        <span className={cx("num whitespace-nowrap text-right text-sm font-semibold", debt && !future ? "text-ink-900" : "text-ink-300")}>
                           {debt && !future ? formatMoney(debt) : "—"}
-                        </td>
-                        <td className={td}>
+                        </span>
+                        <span className="justify-self-end">
                           <StatusBadge status={m.status} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </span>
+                        <ChevronDown className="accordion-chevron hidden size-4 text-ink-400 sm:block" aria-hidden />
+                      </summary>
+                      <div className="border-t border-line-soft bg-slate-50/50 px-4 py-2 sm:px-6">
+                        <p className="num py-1.5 text-[13px] text-ink-500 sm:hidden">
+                          To‘landi {formatNumber(m.paid)} / {formatNumber(m.fee)}
+                        </p>
+                        {list.length ? (
+                          <ul className="divide-y divide-line-soft">
+                            {list.map((p) => {
+                              const meth = METHOD[p.method];
+                              const Icon = meth.icon;
+                              return (
+                                <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
+                                  <span className="num w-24 shrink-0 text-sm text-ink-500">{formatDate(p.paidAt)}</span>
+                                  <span className="num min-w-24 text-[15px] font-semibold text-ink-900">
+                                    {formatMoney(p.amount)}
+                                    <EditedMark payment={p} className="mt-0.5" />
+                                  </span>
+                                  <span className={cx("inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium", meth.cls)}>
+                                    <Icon className="size-3.5" aria-hidden />
+                                    {meth.label}
+                                  </span>
+                                  <span className="min-w-0 flex-1 text-sm text-ink-500">
+                                    <NoteCell note={p.note} source={p.source} />
+                                  </span>
+                                  <span className="ml-auto flex items-center gap-0.5">
+                                    <ReceiptLink paymentId={p.id} />
+                                    {readOnly ? null : (
+                                      <>
+                                        <EditPaymentButton payment={p} />
+                                        <ConfirmAction
+                                          action={archivePayment.bind(null, p.id)}
+                                          confirmText={`${monthLabel(p.month)} uchun ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, «To‘lovlar → Arxiv» dan qaytarish mumkin.`}
+                                          className={btn.iconDanger}
+                                          pendingText="…"
+                                          title="Arxivga o‘tkazish"
+                                        >
+                                          <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
+                                        </ConfirmAction>
+                                      </>
+                                    )}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="py-2.5 text-sm text-ink-500">
+                            Bu oy uchun to‘lov yo‘q.{" "}
+                            {readOnly || future ? null : (
+                              <Link href={`/students/${student.id}?month=${m.month}#tolov`} className="font-medium text-brand-600 hover:underline">
+                                To‘lov kiritish
+                              </Link>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    </details>
+                  </li>
+                );
+              })}
+            </ul>
+            {!months.length ? <EmptyState title="Hali to‘lov yo‘q">To‘lov formasi orqali birinchi to‘lovni kiriting.</EmptyState> : null}
           </Card>
 
-          <Card>
-            <CardHeader title="To‘lovlar tarixi" count={payments.length} />
-            {payments.length === 0 ? (
-              <div className="border-t border-line-soft">
-                <EmptyState title="Hali to‘lov yo‘q">O‘ngdagi forma orqali birinchi to‘lovni kiriting.</EmptyState>
-              </div>
-            ) : (
-              <div className="relative overflow-x-auto border-t border-line-soft">
-                <table className="w-full min-w-[640px]">
-                  <thead className="bg-slate-50/70">
-                    <tr>
-                      <th className={th}>Sana</th>
-                      <th className={th}>Oy uchun</th>
-                      <th className={cx(th, "text-right")}>Summa</th>
-                      <th className={th}>Usul</th>
-                      <th className={th}>Izoh</th>
-                      <th className={th}>
-                        <span className="sr-only">Amal</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line-soft">
-                    {payments.map((p) => {
-                      const m = METHOD[p.method];
-                      const Icon = m.icon;
-                      return (
-                        <tr key={p.id} className="transition hover:bg-slate-50/50">
-                          <td className={cx(td, "num whitespace-nowrap text-ink-500")}>{formatDate(p.paidAt)}</td>
-                          <td className={cx(td, "whitespace-nowrap")}>{monthLabel(p.month)}</td>
-                          <td className={cx(td, "num whitespace-nowrap text-right font-semibold text-ink-900")}>
-                            {formatMoney(p.amount)}
-                            <EditedMark payment={p} className="mt-0.5 flex justify-end" />
-                          </td>
-                          <td className={td}>
-                            <span className={cx("inline-flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium", m.cls)}>
-                              <Icon className="size-3.5" aria-hidden />
-                              {m.label}
-                            </span>
-                          </td>
-                          <td className={cx(td, "max-w-[180px] text-ink-500")}>
-                            <NoteCell note={p.note} source={p.source} />
-                          </td>
-                          <td className={cx(td, "text-right")}>
-                            <div className="flex items-center justify-end gap-0.5">
-                              <ReceiptLink paymentId={p.id} />
-                            {readOnly ? null : (
-                              <>
-                                <EditPaymentButton payment={p} />
-                                <ConfirmAction
-                                  action={archivePayment.bind(null, p.id)}
-                                  confirmText={`${monthLabel(p.month)} uchun ${formatMoney(p.amount)} to‘lov arxivga o‘tkazilsinmi? U hisob-kitoblardan chiqadi, «To‘lovlar → Arxiv» dan qaytarish mumkin.`}
-                                  className={btn.iconDanger}
-                                  pendingText="…"
-                                  title="Arxivga o‘tkazish"
-                                >
-                                  <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
-                                </ConfirmAction>
-                              </>
-                            )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+          <AttendanceCard rows={attendance} />
         </div>
 
-        <div className="order-first flex min-w-0 flex-col gap-6 xl:order-none">
+        <div className="flex min-w-0 flex-col gap-6">
           {readOnly ? null : (
-          <Card id="tolov" className="scroll-mt-24 p-6">
-            <div className="group mb-6 flex items-center gap-3.5">
-              <IconTile icon={Plus} tone="brand" variant="solid" />
-              <div>
-                <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Yangi to‘lov</h2>
-                <p className="mt-0.5 text-sm text-ink-500">{student.fullName} uchun</p>
+            <Card id="tolov" className="scroll-mt-24 p-5 sm:p-6">
+              <div className="group mb-5 flex items-center gap-3.5">
+                <IconTile icon={Plus} tone="brand" variant="solid" />
+                <div>
+                  <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Yangi to‘lov</h2>
+                  <p className="mt-0.5 text-sm text-ink-500">{student.fullName} uchun</p>
+                </div>
               </div>
-            </div>
-            {/* Kalit faqat URL dagi oy bo'yicha: to'lovdan keyin forma qayta yaralmaydi va "saqlandi" xabari ko'rinib turadi */}
-            <PaymentForm
-              key={isValidMonth(sp.month) ? sp.month : "auto"}
-              students={[option]}
-              fixedStudentId={student.id}
-              defaultMonth={formMonth}
-              today={todayISO()}
-              canPickDate={pickDate}
-            />
-          </Card>
+              {/* Kalit faqat URL dagi oy bo'yicha: to'lovdan keyin forma qayta yaralmaydi va "saqlandi" xabari ko'rinib turadi */}
+              <PaymentForm
+                key={isValidMonth(sp.month) ? sp.month : "auto"}
+                students={[option]}
+                fixedStudentId={student.id}
+                defaultMonth={formMonth}
+                today={todayISO()}
+                canPickDate={pickDate}
+              />
+            </Card>
           )}
 
-          <Card className="p-6">
+          <Card className="p-5 sm:p-6">
             <h2 className="mb-4 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Ma’lumotlar</h2>
             <dl className="grid gap-3.5 text-sm">
-              <Info label="Telefon" value={student.phone ? <Phone value={student.phone} /> : "—"} />
-              <Info label="Ota-ona telefoni" value={student.parentPhone ? <Phone value={student.parentPhone} /> : "—"} />
-              <Info label="Kurs" value={student.group || "—"} />
-              <Info label="O‘qituvchisi" value={student.teacherName || "—"} />
+              <Info label="Telefon" value={student.phone ? <Phone value={student.phone} /> : <span className="text-ink-400">kiritilmagan</span>} />
+              <Info label="Ota-ona" value={student.parentPhone ? <Phone value={student.parentPhone} /> : <span className="text-ink-400">kiritilmagan</span>} />
               <Info
                 label="Dars vaqti"
                 value={
                   student.lessons.length ? (
-                    <NextLessonCell lessons={student.lessons} serverNow={nowMs()} muted={!student.active} away={student.away} />
+                    <NextLessonCell lessons={student.lessons} serverNow={nowMs()} muted={!student.active} away={student.away} fluid />
                   ) : (
                     <Link href={`/students/${student.id}/edit`} className="font-medium text-brand-600 hover:underline">
                       Kiritish
@@ -308,7 +352,19 @@ async function StudentView({
                   )
                 }
               />
-              <Info label="Boshlagan sana" value={formatDate(student.startDate)} />
+              <Info label="Boshlagan" value={formatDate(student.startDate)} />
+              <Info
+                label="Oylik narx"
+                value={
+                  <ul className="grid gap-0.5">
+                    {feeSteps.map((f) => (
+                      <li key={f.from} className="num">
+                        {formatMoney(f.fee)} <span className="text-ink-400">· {monthLabel(f.from)} dan</span>
+                      </li>
+                    ))}
+                  </ul>
+                }
+              />
               {student.discounts ? (
                 <Info
                   label="Chegirma"
@@ -317,7 +373,7 @@ async function StudentView({
                       {currentDiscount ? (
                         <Tag tone="amber">{`${currentDiscount.name} · ${discountLabel(currentDiscount)} · ${monthLabel(currentDiscount.from)} dan`}</Tag>
                       ) : (
-                        <span className="text-ink-500">yo‘q</span>
+                        <span className="text-ink-400">yo‘q</span>
                       )}
                       {readOnly ? null : (
                         <Link href="/chegirmalar" className="text-xs font-medium text-brand-600 hover:underline">
@@ -328,32 +384,39 @@ async function StudentView({
                   }
                 />
               ) : null}
-              <Info
-                label="Oylik narx"
-                value={
-                  <ul className="grid gap-1">
-                    {feeSteps.map((f) => (
-                      <li key={f.from} className="num">
-                        {formatMoney(f.fee)} <span className="text-ink-400">— {monthLabel(f.from)} dan</span>
-                      </li>
-                    ))}
-                  </ul>
-                }
-              />
               {student.note ? <Info label="Izoh" value={<span className="whitespace-pre-wrap">{student.note}</span>} /> : null}
             </dl>
           </Card>
-
-          <AttendanceCard rows={attendance} />
         </div>
       </div>
     </>
   );
 }
 
+/** Ixcham ko'rsatkich (telefonda 2×2 sig'adi). */
+function Stat({ icon: Icon, tone, label, value, hint, unit = "so‘m" }: { icon: LucideIcon; tone: Tone; label: string; value: string; hint?: ReactNode; unit?: string }) {
+  return (
+    <Card className="group flex min-w-0 items-start gap-3 p-3.5 sm:p-5">
+      {/* Telefonda belgisiz — raqam to'liq sig'ishi uchun */}
+      <span className="hidden sm:block">
+        <IconTile icon={Icon} tone={tone} size="md" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] text-ink-500 sm:text-sm">{label}</p>
+        <p className="num mt-0.5 truncate text-[19px] font-bold leading-tight tracking-[-0.02em] text-ink-900 sm:text-[24px]">
+          {value}
+          {unit && value !== "—" ? <span className="ml-1 text-xs font-medium text-ink-400 sm:text-sm">{unit}</span> : null}
+        </p>
+        {hint ? <p className="num mt-1 truncate text-xs text-ink-500">{hint}</p> : null}
+      </div>
+    </Card>
+  );
+}
+
 function Phone({ value }: { value: string }) {
   return (
-    <a className="num text-ink-900 hover:text-brand-600" href={`tel:${value.replace(/[^\d+]/g, "")}`}>
+    <a className="num inline-flex items-center gap-1.5 text-ink-900 hover:text-brand-600" href={`tel:${value.replace(/[^\d+]/g, "")}`}>
+      <PhoneIcon className="size-3.5 text-ink-400" aria-hidden />
       {value}
     </a>
   );
@@ -361,43 +424,51 @@ function Phone({ value }: { value: string }) {
 
 function Info({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="grid grid-cols-[130px_1fr] gap-2">
+    <div className="grid grid-cols-[96px_1fr] gap-2">
       <dt className="text-ink-400">{label}</dt>
       <dd className="min-w-0 text-ink-900">{value}</dd>
     </div>
   );
 }
 
-const ATT_TONE = { present: "emerald", absent: "rose", excused: "amber" } as const;
-
-/** Davomat tarixi: oxirgi darslar (kelmagan / sababli — izohi bilan). */
+/** Davomat: oxirgi darslar rangli nuqtalar qatori (eskisidan yangisiga) va kelmagan / sababli kunlar izohi bilan. */
 function AttendanceCard({ rows }: { rows: StudentAttendanceRow[] }) {
-  const count = (s: StudentAttendanceRow["status"]) => rows.filter((r) => r.status === s).length;
+  const count = (st: StudentAttendanceRow["status"]) => rows.filter((r) => r.status === st).length;
+  const misses = rows.filter((r) => r.status !== "present");
+  const DOT = { present: "bg-emerald-500", absent: "bg-rose-500", excused: "bg-amber-400" } as const;
   return (
-    <Card>
-      <CardHeader title="Davomat" count={rows.length || undefined} subtitle={rows.length ? `Oxirgi ${rows.length} ta dars` : undefined} />
+    <Card className="overflow-hidden">
+      <CardHeader title="Davomat" subtitle={rows.length ? `Oxirgi ${rows.length} ta dars` : undefined} />
       {rows.length ? (
-        <>
-          <p className="num flex flex-wrap gap-1.5 px-6 pb-3">
+        <div className="border-t border-line-soft px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-1.5" aria-label="Oxirgi darslar">
+            {[...rows].reverse().map((r) => (
+              <span
+                key={r.date}
+                className={cx("size-3.5 rounded-full ring-2 ring-surface", DOT[r.status])}
+                title={`${formatDate(r.date)}${r.start ? ` ${r.start}` : ""} — ${ATTENDANCE_LABEL[r.status]}${r.note ? `: ${r.note}` : ""}`}
+              />
+            ))}
+          </div>
+          <p className="num mt-3 flex flex-wrap gap-1.5">
             <Tag tone="emerald">Keldi: {count("present")}</Tag>
             <Tag tone="rose">Kelmadi: {count("absent")}</Tag>
             <Tag tone="amber">Sababli: {count("excused")}</Tag>
           </p>
-          <ul className="max-h-96 divide-y divide-line-soft overflow-y-auto border-t border-line-soft">
-            {rows.map((r) => (
-              <li key={r.date} className="px-6 py-2.5 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="num text-ink-700">
-                    {formatDate(r.date)}
-                    {r.start ? <span className="text-ink-400"> · {r.start}</span> : null}
-                  </span>
-                  <Tag tone={ATT_TONE[r.status]}>{ATTENDANCE_LABEL[r.status]}</Tag>
-                </div>
-                {r.note ? <p className="mt-0.5 text-[13px] text-ink-500">{r.note}</p> : null}
-              </li>
-            ))}
-          </ul>
-        </>
+          {misses.length ? (
+            <ul className="mt-3 grid gap-1.5 text-sm">
+              {misses.slice(0, 12).map((r) => (
+                <li key={r.date} className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="num w-24 shrink-0 text-ink-500">{formatDate(r.date)}</span>
+                  <span className={cx("font-medium", r.status === "absent" ? "text-rose-600" : "text-amber-700")}>{ATTENDANCE_LABEL[r.status]}</span>
+                  {r.note ? <span className="min-w-0 text-ink-600">— {r.note}</span> : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-emerald-700">Barcha darslarga kelgan ✓</p>
+          )}
+        </div>
       ) : (
         <p className="border-t border-line-soft px-6 py-5 text-sm text-ink-400">Hali davomat qilinmagan.</p>
       )}
