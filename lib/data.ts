@@ -19,6 +19,8 @@ import {
   listFee,
   discountHistoryOf,
   withDiscounts,
+  todayAway,
+  type AwayStatus,
   toRow,
   type PayStatus,
   type StudentLean,
@@ -74,6 +76,8 @@ export type StudentDetail = {
   currentFee: number;
   /** Chegirmalar funksiyasi yoqilganmi */
   discounts: boolean;
+  /** Bugun davomatda «Kelmadi» / «Sababli» */
+  away: AwayStatus | null;
   startDate: string; // ISO
   active: boolean;
   note: string;
@@ -129,6 +133,8 @@ export type UnpaidStudent = {
   status: PayStatus;
   /** Dars jadvali — to'lovni o'quvchi kelgan vaqtda yig'ish uchun */
   lessons: Lesson[];
+  /** Bugun davomatda «Kelmadi» / «Sababli» */
+  away: AwayStatus | null;
 };
 
 export type Reminder = {
@@ -269,7 +275,7 @@ function findPayments(filter: Record<string, unknown>, sort: Record<string, 1 | 
 }
 
 function toUnpaid(r: StudentRow): UnpaidStudent {
-  return { id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status, lessons: r.lessons };
+  return { id: r.id, name: r.fullName, phone: r.phone, fee: r.monthlyFee, paid: r.paid, debt: r.debt, status: r.status, lessons: r.lessons, away: r.away };
 }
 
 // ---------- Kim ko'ryapti ----------
@@ -565,10 +571,12 @@ export async function listDebtors(opts: {
   // Dars holati: bugungi dars vaqtlari va har bir variantda tanlangan bo'limdagi o'quvchilar soni
   const clock = tashkentClock(nowMs());
   const inTab = base.filter((r) => r.status === opts.tab);
-  const countFor = (f: LessonFilter) => inTab.filter((r) => matchesLessonFilter(r.lessons, f, clock)).length;
+  // «Hozir darsda» — bugun davomatda «Kelmadi» / «Sababli» belgilanganlar kirmaydi
+  const lessonMatch = (r: StudentRow, f: LessonFilter) => matchesLessonFilter(r.lessons, f, clock) && !(f === "now" && r.away);
+  const countFor = (f: LessonFilter) => inTab.filter((r) => lessonMatch(r, f)).length;
   const slots = todaySlots(base.map((r) => r.lessons), clock).map((slot) => ({ ...slot, count: countFor(slot.key as LessonFilter) }));
   const lessonCounts = { now: countFor("now"), today: countFor("today"), done: countFor("done"), none: countFor("none") };
-  const filtered = base.filter((r) => matchesLessonFilter(r.lessons, opts.lesson, clock));
+  const filtered = base.filter((r) => lessonMatch(r, opts.lesson));
   // Bugungi darslar bo'yicha tanlansa — dars boshlanishi bo'yicha tartib
   const startToday = (r: StudentRow) => {
     const l = lessonOn(r.lessons, clock.weekday);
@@ -745,6 +753,7 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
     active: s.active ?? true,
     note: s.note ?? "",
     lessons: normalizeLessons(s.lessons),
+    away: (await todayAway()).get(String(s._id)) ?? null,
   };
 }
 

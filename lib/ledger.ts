@@ -4,11 +4,11 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { applyDiscount, discountAt, isDiscountKind, type DiscountChange } from "./discounts";
 import { feeFor, type FeeChange } from "./fees";
-import { Payment, Student } from "./models";
+import { Attendance, Payment, Student } from "./models";
 import { normalizeLessons, type Lesson } from "./schedule";
 import { ensureStudentSeqs } from "./seq";
 import { getSettings } from "./settings";
-import { compareMonths, monthOfDate } from "./time";
+import { compareMonths, monthOfDate, todayISO } from "./time";
 
 export type PayStatus = "paid" | "partial" | "unpaid";
 
@@ -29,7 +29,12 @@ export type StudentLean = {
   /** O'qituvchisi (xodim ID) */
   teacher?: mongoose.Types.ObjectId | null;
   discountHistory?: { from?: string | null; typeId?: string | null; name?: string | null; kind?: string | null; value?: number | null }[] | null;
+  /** Bugungi davomat: darsga kelmadi / sababli (keldi yoki belgilanmagan — yo'q) */
+  away?: AwayStatus | null;
 };
+
+/** Bugun darsga kelmagan o'quvchi holati (davomatdan) */
+export type AwayStatus = "absent" | "excused";
 
 export type StudentRow = {
   id: string;
@@ -47,6 +52,8 @@ export type StudentRow = {
   started: boolean;
   /** Dars jadvali (kunlar va vaqt) */
   lessons: Lesson[];
+  /** Bugun davomatda «Kelmadi» / «Sababli» belgilangan bo'lsa — «Hozir darsda» o'rniga shu ko'rsatiladi */
+  away: AwayStatus | null;
   /** O'qituvchisi (xodim ID); biriktirilmagan — null */
   teacherId: string | null;
 };
@@ -98,6 +105,8 @@ export const loadStudents = cache(async (): Promise<StudentLean[]> => {
     .sort({ fullName: 1 })
     .limit(5000)
     .lean<StudentLean[]>();
+  const away = await todayAway();
+  if (away.size) for (const s of list) s.away = away.get(String(s._id)) ?? null;
   return withDiscounts(list);
 });
 
@@ -126,9 +135,16 @@ export function toRow(s: StudentLean, paidMap: Map<string, number>, month: strin
     status: statusOf(fee, paid),
     started: compareMonths(monthOfDate(s.startDate), month) <= 0,
     lessons: normalizeLessons(s.lessons),
+    away: s.away ?? null,
     teacherId: s.teacher ? String(s.teacher) : null,
   };
 }
+
+/** Bugun davomatda «Kelmadi» yoki «Sababli» belgilangan o'quvchilar (o'quvchi ID -> holat). */
+export const todayAway = cache(async (): Promise<Map<string, AwayStatus>> => {
+  const docs = await Attendance.find({ date: todayISO(), status: { $in: ["absent", "excused"] } }, { student: 1, status: 1 }).lean();
+  return new Map(docs.map((d) => [String(d.student), d.status as AwayStatus]));
+});
 
 const byStatus: Record<PayStatus, number> = { unpaid: 0, partial: 1, paid: 2 };
 

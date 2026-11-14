@@ -453,6 +453,7 @@ async function TeacherDashboard({ session, month, page }: { session: Session; mo
       debt: r.debt,
       status: r.status,
       lessons: r.lessons,
+      away: r.away,
       group: r.group,
       teacherId: r.teacherId,
     }));
@@ -604,7 +605,7 @@ function DebtorsTable({
                     </td>
                   ) : null}
                   <td className={td}>
-                    <NextLessonCell lessons={r.lessons} serverNow={serverNow} />
+                    <NextLessonCell lessons={r.lessons} serverNow={serverNow} away={r.away} />
                   </td>
                   <td className={td}>
                     <PaidCell paid={r.paid} fee={r.monthlyFee} />

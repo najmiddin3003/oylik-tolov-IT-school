@@ -243,7 +243,7 @@ async function Debtors({ searchParams }: { searchParams: PageProps<"/qarzdorlar"
                       </td>
                     )}
                     <td className={td}>
-                      <NextLessonCell lessons={r.lessons} serverNow={serverNow} />
+                      <NextLessonCell lessons={r.lessons} serverNow={serverNow} away={r.away} />
                     </td>
                     <td className={td}>
                       <PaidCell paid={r.paid} fee={r.monthlyFee} />

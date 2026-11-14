@@ -300,7 +300,7 @@ async function StudentView({
                 label="Dars vaqti"
                 value={
                   student.lessons.length ? (
-                    <NextLessonCell lessons={student.lessons} serverNow={nowMs()} muted={!student.active} />
+                    <NextLessonCell lessons={student.lessons} serverNow={nowMs()} muted={!student.active} away={student.away} />
                   ) : (
                     <Link href={`/students/${student.id}/edit`} className="font-medium text-brand-600 hover:underline">
                       Kiritish

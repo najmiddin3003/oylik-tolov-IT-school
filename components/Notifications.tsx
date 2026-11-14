@@ -11,7 +11,7 @@ import { minutesUntil, nextLesson, nextLessonLabel, scheduleLabel, tashkentClock
 import type { Role } from "@/lib/session";
 import type { TaskRow } from "@/lib/tasks";
 import { formatDate, formatMoney, formatNumber, monthLabel } from "@/lib/time";
-import { LiveDot } from "./Lessons";
+import { AwayBadge, LiveDot } from "./Lessons";
 import { Avatar, btn, cx, IconTile } from "./ui";
 import { useDialog } from "./Modal";
 import { SendTaskButton } from "./TaskButtons";
@@ -105,7 +105,9 @@ function UnpaidList({ students, month, role, onClose }: { students: UnpaidStuden
               <span className="block truncate text-[15px] font-medium text-ink-900">{s.name}</span>
             )}
             <p className="num mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[13px] text-ink-400">
-              {next ? (
+              {next && s.away && next.inDays === 0 ? (
+                <AwayBadge away={s.away} />
+              ) : next ? (
                 <span
                   className={cx("inline-flex items-center gap-1 font-medium", next.now ? "text-emerald-700" : next.inDays === 0 ? "text-brand-700" : "text-ink-600")}
                   title={scheduleLabel(s.lessons)}
