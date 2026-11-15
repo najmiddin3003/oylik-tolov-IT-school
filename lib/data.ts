@@ -28,7 +28,7 @@ import {
 } from "./ledger";
 import { Attendance, Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { suggestedArchiveMonth } from "./sheet-archive";
-import { discountAt, netFee, type DiscountChange } from "./discounts";
+import { discountAt, netFee, type DiscountChange, type DiscountType } from "./discounts";
 import { parentSmsPreview } from "./parent-sms";
 import { attendanceDay, pendingAttendance, pendingFollowUps, type FollowUp, type PendingAttendance } from "./attendance";
 import { isAttendanceStatus, type AttendanceStatus } from "./attendance-rules";
@@ -406,6 +406,9 @@ export const getMonthOverview = cache(async (month: string, group = "", teacher 
       partial: rows.filter((r) => r.status === "partial").length,
       unpaid: rows.filter((r) => r.status === "unpaid").length,
       expected: rows.reduce((sum, r) => sum + r.monthlyFee, 0),
+      /** Chegirmalar jami va nechta o'quvchida (reja chegirmasiz hisoblanadi) */
+      discount: rows.reduce((sum, r) => sum + r.discount, 0),
+      discounted: rows.filter((r) => r.discount > 0).length,
       debt: rows.reduce((sum, r) => sum + r.debt, 0),
       collected,
       paymentCount,
@@ -437,6 +440,8 @@ export type TeamMember = StaffView & {
   debtors: number;
   debt: number;
   expected: number;
+  /** O'quvchilariga shu oy chegirmalar jami (oylikka kirmaydi) */
+  discount: number;
   /** Shu oyda o'quvchilaridan olingan tushum (oylik hisoblash o'chiq bo'lsa ham) */
   collected: number;
 };
@@ -457,6 +462,7 @@ export async function getTeamOverview(month: string) {
     debtors: list.filter((r) => r.status !== "paid").length,
     debt: list.reduce((s, r) => s + r.debt, 0),
     expected: list.reduce((s, r) => s + r.monthlyFee, 0),
+    discount: list.reduce((s, r) => s + r.discount, 0),
   });
   const members: TeamMember[] = [];
   for (const d of staffDocs) {
@@ -1630,6 +1636,13 @@ export async function getDiscountsPage() {
     };
   });
   return { enabled: settings.discounts.enabled, types: settings.discounts.types, students: rows, month };
+}
+
+/** Chegirma turlari (chegirmalar yoqilgan bo'lsa; aks holda bo'sh) — o'quvchi formalari va profil uchun. */
+export async function getDiscountOptions(): Promise<{ enabled: boolean; types: DiscountType[] }> {
+  await requireRole(["owner", "admin"]);
+  const { discounts } = await getSettings();
+  return { enabled: discounts.enabled, types: discounts.enabled ? discounts.types : [] };
 }
 
 /** Har bir chegirma turi joriy oyda nechta faol o'quvchida. */

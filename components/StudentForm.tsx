@@ -6,10 +6,12 @@ import { Check, Info, Lock } from "lucide-react";
 import { saveStudent, saveStudentByTeacher } from "@/app/actions/students";
 import type { FormState } from "@/app/actions/types";
 import { sameCourse, teacherOnCourseChange } from "@/lib/courses";
+import type { DiscountType } from "@/lib/discounts";
 import type { StudentDetail } from "@/lib/data";
 import { feeFor, type FeeChange } from "@/lib/fees";
 import type { Lesson } from "@/lib/schedule";
 import { dateToISO, formatDate, formatMoney, formatNumber } from "@/lib/time";
+import { NewStudentDiscountField } from "./Discounts";
 import { MoneyInput, PhoneInput } from "./inputs";
 import { DatePicker, MonthPicker, Select } from "./pickers";
 import { ScheduleField } from "./ScheduleField";
@@ -40,8 +42,11 @@ export function StudentForm({
   standard,
   templates = [],
   teachers = [],
+  discountTypes = [],
 }: {
   student?: StudentDetail;
+  /** Chegirma turlari (yangi o'quvchi; chegirmalar yoqilgan bo'lsa) */
+  discountTypes?: DiscountType[];
   /** Kurslar (Sozlamalar → Kurslar): standart oylik narxi va o'qituvchisi */
   courses: { name: string; fee: number | null; teacher?: string | null; teachers?: string[] }[];
   /** O'qituvchilar (biriktirish uchun) */
@@ -151,6 +156,7 @@ export function StudentForm({
           />
           <FieldError msg={fe.monthlyFee} />
         </div>
+        {!student && discountTypes.length ? <NewStudentDiscountField types={discountTypes} fee={Number(fee.replace(/\D/g, "")) || 0} error={fe.discountType} /> : null}
         {student ? (
           <div className="sm:col-span-2">
             <span className={labelCls}>Yangi narx qaysi oydan boshlab</span>

@@ -247,6 +247,20 @@ test("bu oy rejasi: oylik davri bo'yicha — amalda yig'ilgan va hamma to'lasa",
   assert.equal(payPlanOf([{ monthlyFee: 300000, debt: 500000 }, { monthlyFee: 300000, debt: -50000 }], 40, { base: 0, closed: false }).debt, 300000);
 });
 
+test("bu oy rejasi: chegirma rejaga ham, oylikka ham kirmaydi", () => {
+  // 300 ming narx, biriga 10% chegirma — to'lashi kerak 270 ming; chegirma 30 ming
+  const rows = [
+    { monthlyFee: 300000, debt: 0, discount: 0 },
+    { monthlyFee: 270000, debt: 270000, discount: 30000 },
+  ];
+  const plan = payPlanOf(rows, 40, { base: 300000, closed: false });
+  assert.equal(plan.expected, 570000, "reja — chegirmali summalar");
+  assert.equal(plan.discount, 30000);
+  assert.equal(plan.discounted, 1);
+  assert.equal(plan.planShare, Math.round((570000 * 40) / 100), "hamma to'lasa: chegirmali summadan foiz");
+  assert.equal(payPlanOf([{ monthlyFee: 1, debt: 0 }], 40, { base: 0, closed: false }).discount, 0);
+});
+
 test("oylik hisoblash switch: belgilanmagan bo'lsa rahbardan boshqasiga yoqilgan", () => {
   assert.equal(payEnabledOf({ role: "teacher" }), true);
   assert.equal(payEnabledOf({ role: "admin" }), true);

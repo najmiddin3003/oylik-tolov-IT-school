@@ -123,7 +123,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   (nomi, foiz yoki summa) — qo‘shish, tahrirlash, o‘chirish. «Chegirmalar» sahifasida (rahbar va administrator) har o‘quvchiga
   switch bilan yoqiladi/o‘chiriladi: tur va **qaysi oydan** tanlanadi; o‘tgan oylar hisobi o‘zgarmaydi. Har o‘quvchida bitta
   chegirma. Qarz, reja, eslatmalar, oldindan to‘lov taqsimoti — chegirmali narx bo‘yicha. Tur tahrirlansa/o‘chirilsa — shu
-  chegirmasi bor o‘quvchilarda joriy oydan.
+  chegirmasi bor o‘quvchilarda joriy oydan. Rahbar chegirmani **o‘quvchi profilida** ham yoqadi/o‘chiradi («Chegirma» bloki);
+  **yangi o‘quvchi** qo‘shishda (to‘liq forma va administratorning tezkor oynasi) chegirma turi tanlansa — boshlagan oyidan.
+  Chegirma **umumiy rejaga va tushumga qo‘shilmaydi**, o‘qituvchi oyligi ham chegirmali to‘lovdan hisoblanadi — ya’ni chegirma
+  o‘qituvchi oyligidan ham, markaz hisobidan ham kamayadi. Rahbar panelida (reja kartasi va xodim kartasi), «Bu oy rejasi»da va
+  Excel hisobotida chegirmalar jami alohida ko‘rinadi.
 - **Davomat SMS** (Sozlamalar → «Davomat SMS») — guruh davomati ochilgandan (dars boshlanib 30 daqiqa) keyin sozlamadagi
   daqiqa (standart 10) o‘tib ham qilinmasa, guruh o‘qituvchisi telefoniga bir marta SMS (faqat ro‘yxatdan o‘tgan, faol xodimga).
   Shablon: `{#guruh#}` (majburiy), `{#vaqt#}`, `{#soni#}`, `{#ism#}`. Tekshiruv `/api/ping` (cron-job.org, har 5 daqiqada) yoki

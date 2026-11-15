@@ -8,6 +8,7 @@ import { courseTeacherResolver } from "@/lib/course-teacher";
 import { cleanCourseName, courseTeacher, courseTeachers, sameCourse, teacherCourses, teacherOnCourseChange } from "@/lib/courses";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
+import { discountLabel, type DiscountChange } from "@/lib/discounts";
 import { applyFeeFrom, changesAfter } from "@/lib/fees";
 import { feeHistoryOf, listFee, type StudentLean } from "@/lib/ledger";
 import { Payment, Staff, Student } from "@/lib/models";
@@ -15,7 +16,7 @@ import { parseAmount } from "@/lib/normalize";
 import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 import { parseLessons } from "@/lib/schedule";
 import { nextStudentSeq } from "@/lib/seq";
-import { getSettings, standardFee } from "@/lib/settings";
+import { getSettings, standardFee, type AppSettings } from "@/lib/settings";
 import { TEACHING_FILTER } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, isoToDate, isValidMonth, monthOfDate } from "@/lib/time";
 import type { FormState } from "./types";
@@ -28,6 +29,17 @@ function str(formData: FormData, key: string): string {
 function cleanPhone(raw: string): string {
   const uz = normalizeUzPhone(raw);
   return uz ? formatUzPhone(uz) : raw.slice(0, 40);
+}
+
+/**
+ * Yangi o'quvchi: formada tanlangan chegirma turi — o'qishni boshlagan oydan. Tanlanmagan — chegirmasiz;
+ * chegirmalar o'chiq yoki tur topilmasa — xato.
+ */
+function newStudentDiscount(raw: string, settings: AppSettings, startMonth: string): { history: DiscountChange[]; label: string } | { error: string } {
+  if (!raw) return { history: [], label: "" };
+  const t = settings.discounts.enabled ? settings.discounts.types.find((x) => x.id === raw) : undefined;
+  if (!t) return { error: settings.discounts.enabled ? "Chegirma turi topilmadi" : "Chegirmalar o‘chirilgan (Sozlamalar → Chegirmalar)" };
+  return { history: [{ from: startMonth, typeId: t.id, name: t.name, kind: t.kind, value: t.value }], label: `${t.name} ${discountLabel(t)}` };
 }
 
 /** Aynan shu ism-familiya (katta-kichik harf farqisiz) — bir xil ismli faol o'quvchini topish uchun. */
@@ -109,12 +121,18 @@ export async function saveStudent(
     await logActivity(session, "student.edit", `O‘quvchi ma’lumotlari o‘zgartirildi: ${fullName}`);
   } else {
     // Standart narx bilan qo'shilsa — rejalashtirilgan o'zgarishlar (masalan, "dekabrdan 350 000") unga ham qo'llanadi
-    const settings = await getSettings();
+    const settings = await getSettings({ fresh: true });
     const startMonth = monthOfDate(startDate!);
+    const discount = newStudentDiscount(str(formData, "discountType"), settings, startMonth);
+    if ("error" in discount) return { fieldErrors: { discountType: discount.error } };
     const feeHistory = standardFee(settings, startMonth) === monthlyFee ? changesAfter(settings.feeSchedule, startMonth) : [];
-    const created = await Student.create({ ...base, monthlyFee: monthlyFee!, feeHistory, seq: await nextStudentSeq() });
+    const created = await Student.create({ ...base, monthlyFee: monthlyFee!, feeHistory, discountHistory: discount.history, seq: await nextStudentSeq() });
     savedId = String(created._id);
-    await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName}${group ? ` (${group})` : ""}, oylik ${formatMoney(monthlyFee!)}`);
+    await logActivity(
+      session,
+      "student.add",
+      `Yangi o‘quvchi: ${fullName}${group ? ` (${group})` : ""}, oylik ${formatMoney(monthlyFee!)}${discount.label ? `, chegirma: ${discount.label}` : ""}`,
+    );
   }
   redirect(`/students/${savedId}`);
 }
@@ -292,8 +310,10 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
   if (dup && str(formData, "confirmDuplicate") !== "1") {
     return { error: `«${fullName}» ismli faol o‘quvchi allaqachon bor. Baribir qo‘shish uchun yana bir marta «Saqlash»ni bosing.`, fieldErrors: { confirmDuplicate: "1" } };
   }
-  const settings = await getSettings();
+  const settings = await getSettings({ fresh: true });
   const startMonth = monthOfDate(startDate!);
+  const discount = newStudentDiscount(str(formData, "discountType"), settings, startMonth);
+  if ("error" in discount) return { fieldErrors: { discountType: discount.error } };
   const feeHistory = standardFee(settings, startMonth) === monthlyFee ? changesAfter(settings.feeSchedule, startMonth) : [];
   await Student.create({
     fullName,
@@ -302,6 +322,7 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
     group,
     monthlyFee: monthlyFee!,
     feeHistory,
+    discountHistory: discount.history,
     startDate: startDate!,
     active: true,
     note: "",
@@ -309,9 +330,9 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
     teacher,
     seq: await nextStudentSeq(),
   });
-  await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${group}), oylik ${formatMoney(monthlyFee!)}`);
+  await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${group}), oylik ${formatMoney(monthlyFee!)}${discount.label ? `, chegirma: ${discount.label}` : ""}`);
   await dataChanged();
-  return { ok: true, message: `${fullName} qo‘shildi (${group}, oylik ${formatMoney(monthlyFee!)})`, nonce: Date.now() };
+  return { ok: true, message: `${fullName} qo‘shildi (${group}, oylik ${formatMoney(monthlyFee!)}${discount.label ? `, chegirma: ${discount.label}` : ""})`, nonce: Date.now() };
 }
 
 /**

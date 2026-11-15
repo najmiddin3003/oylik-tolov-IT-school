@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import {
+  BadgePercent,
   ArrowUpRight,
   BookOpen,
   CalendarDays,
@@ -121,7 +122,7 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
           </div>
         </div>
         <dl className="relative mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <HeadFigure icon={Wallet} label="Jami tushum" value={formatMoney(team.finance.collected)} hint={`Reja: ${formatMoney(center.expected)} · ${planPct}%`} />
+          <HeadFigure icon={Wallet} label="Jami tushum" value={formatMoney(team.finance.collected)} hint={`Reja: ${formatMoney(center.expected)} · ${planPct}%${center.discount ? ` · chegirma −${formatNumber(center.discount)}` : ""}`} />
           <HeadFigure icon={UsersRound} label="Xodimlar oyligi" value={formatMoney(team.finance.staffShare)} hint={`${team.members.filter((m) => m.pay.enabled).length} ta xodimga hisoblanadi`} />
           <HeadFigure
             icon={HandCoins}
@@ -232,6 +233,18 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
             <LegendItem dot="bg-brand-600" label="Rejaga tushdi" value={formatMoney(planDone)} />
             <LegendItem dot="bg-unpaid" label="Qolgan to‘lov" value={formatMoney(center.debt)} />
           </dl>
+          {center.discount ? (
+            <p className="num mt-4 flex items-start gap-2 rounded-xl bg-amber-50/70 px-3.5 py-2.5 text-[13px] text-amber-900 ring-1 ring-inset ring-amber-100">
+              <BadgePercent className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>
+                Chegirmalar: <b className="font-semibold">−{formatMoney(center.discount)}</b> ({center.discounted} ta o‘quvchi) — rejaga va tushumga kirmaydi,
+                o‘qituvchi oyligi ham chegirmali summadan hisoblanadi.{" "}
+                <Link href="/chegirmalar" className="font-medium underline-offset-4 hover:underline">
+                  Chegirmalar →
+                </Link>
+              </span>
+            </p>
+          ) : null}
           <p className="mt-4 flex items-center gap-2 text-xs text-ink-400">
             <Info className="size-3.5" aria-hidden />
             To‘lov kiritilganda ko‘rsatkichlar avtomatik yangilanadi.
@@ -379,6 +392,7 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
             <span>Tushum: {formatMoney(collectedFromStudents)}</span>
             <span>Qarz: {formatMoney(m.debt)}</span>
           </p>
+          {m.discount ? <p className="num mt-1 text-xs text-amber-700">Chegirma: −{formatMoney(m.discount)} — tushum va oylikka kirmaydi</p> : null}
         </>
       ) : (
         <p className="mt-4 text-sm text-ink-500">

@@ -38,6 +38,7 @@ async function summarySheet(month: string, viewer: Viewer, group = ""): Promise<
     [text("Oy"), text(monthLabel(month))],
     ...(group ? [[text("Guruh"), text(group)]] : []),
     [text("Kutilayotgan tushum"), money(totals.expected)],
+    ...(totals.discount ? [[text(`  chegirmalar (${totals.discounted} ta o‘quvchi, rejaga kirmaydi)`), money(-totals.discount)]] : []),
     [text("Tushgan summa"), money(totals.collected)],
     [text("  shundan naqd"), money(totals.cash)],
     [text("  karta va o‘tkazma"), money(totals.nonCash)],

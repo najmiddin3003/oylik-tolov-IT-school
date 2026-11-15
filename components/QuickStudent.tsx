@@ -8,8 +8,10 @@ import { BookOpen, Check, Lock, UserPlus } from "lucide-react";
 import { addStudentByTeacher, addStudentQuick } from "@/app/actions/students";
 import type { FormState } from "@/app/actions/types";
 import { teacherOnCourseChange } from "@/lib/courses";
+import type { DiscountType } from "@/lib/discounts";
 import type { Lesson } from "@/lib/schedule";
 import { formatMoney, formatNumber } from "@/lib/time";
+import { NewStudentDiscountField } from "./Discounts";
 import { MoneyInput, PhoneInput } from "./inputs";
 import { Modal, ModalBody, ModalHeader } from "./Modal";
 import { DatePicker, Select } from "./pickers";
@@ -26,12 +28,15 @@ export function QuickStudentButton({
   templates,
   today,
   forTeacher = false,
+  discountTypes = [],
   className,
 }: {
   courses: Course[];
   teachers: Teacher[];
   templates: Lesson[][];
   today: string;
+  /** Chegirma turlari (rahbar va administrator; chegirmalar yoqilgan bo'lsa) */
+  discountTypes?: DiscountType[];
   /** O'qituvchi o'zi qo'shadi: `courses` — uning kurslari, narx — kurs narxi, o'qituvchi tanlanmaydi */
   forTeacher?: boolean;
   className?: string;
@@ -56,7 +61,15 @@ export function QuickStudentButton({
           }
           onClose={() => setOpen(false)}
         />
-        <QuickStudentForm courses={courses} teachers={teachers} templates={templates} today={today} forTeacher={forTeacher} onDone={() => setOpen(false)} />
+        <QuickStudentForm
+          courses={courses}
+          teachers={teachers}
+          templates={templates}
+          today={today}
+          forTeacher={forTeacher}
+          discountTypes={forTeacher ? [] : discountTypes}
+          onDone={() => setOpen(false)}
+        />
       </Modal>
     </>
   );
@@ -68,6 +81,7 @@ function QuickStudentForm({
   templates,
   today,
   forTeacher,
+  discountTypes,
   onDone,
 }: {
   courses: Course[];
@@ -75,6 +89,7 @@ function QuickStudentForm({
   templates: Lesson[][];
   today: string;
   forTeacher: boolean;
+  discountTypes: DiscountType[];
   onDone: () => void;
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(forTeacher ? addStudentByTeacher : addStudentQuick, {});
@@ -101,7 +116,16 @@ function QuickStudentForm({
         {/* Bir xil ismli o'quvchi bor deb ogohlantirilgan bo'lsa — keyingi yuborishda tasdiq */}
         {state.fieldErrors?.confirmDuplicate ? <input type="hidden" name="confirmDuplicate" value="1" /> : null}
         {noCourse ? null : (
-          <QuickFields key={state.nonce ?? 0} courses={courses} teachers={teachers} templates={templates} today={today} lockFee={forTeacher} fe={state.fieldErrors ?? {}} />
+          <QuickFields
+            key={state.nonce ?? 0}
+            courses={courses}
+            teachers={teachers}
+            templates={templates}
+            today={today}
+            lockFee={forTeacher}
+            discountTypes={discountTypes}
+            fe={state.fieldErrors ?? {}}
+          />
         )}
       </ModalBody>
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line-soft bg-slate-50/60 px-5 py-3.5 sm:px-6">
@@ -123,12 +147,14 @@ function QuickFields({
   templates,
   today,
   lockFee,
+  discountTypes,
   fe,
 }: {
   courses: Course[];
   teachers: Teacher[];
   templates: Lesson[][];
   today: string;
+  discountTypes: DiscountType[];
   /** Oylik to'lov — kurs narxi, o'zgartirilmaydi (narxi belgilanmagan kursda — kiritiladi) */
   lockFee: boolean;
   fe: Record<string, string>;
@@ -225,6 +251,11 @@ function QuickFields({
           </div>
         )}
       </div>
+      {discountTypes.length ? (
+        <div className="max-w-sm">
+          <NewStudentDiscountField types={discountTypes} fee={Number(fee.replace(/\D/g, "")) || 0} error={fe.discountType} />
+        </div>
+      ) : null}
       {teachers.length ? (
         <div className="max-w-sm">
           <span className={labelCls}>

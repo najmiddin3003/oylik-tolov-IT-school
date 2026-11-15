@@ -69,6 +69,11 @@ export function PayPlanPanel({
         />
       </div>
 
+      {plan.discount ? (
+        <p className="num mt-3 text-xs text-amber-800">
+          Chegirma: {plan.discounted} ta o‘quvchiga −{formatMoney(plan.discount)} — rejaga ham, oylikka ham kirmaydi (oylik chegirmali to‘lovdan hisoblanadi).
+        </p>
+      ) : null}
       {plan.closed ? null : (
         <div className="mt-4 flex items-center gap-3">
           <Progress value={plan.collected} max={reach} className="h-2 flex-1 bg-surface" />

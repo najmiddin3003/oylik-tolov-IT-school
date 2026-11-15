@@ -42,8 +42,10 @@ export type StudentRow = {
   fullName: string;
   phone: string;
   group: string;
-  /** Tanlangan oy uchun oylik to'lov (narx tarixi hisobga olingan) */
+  /** Tanlangan oy uchun oylik to'lov (narx tarixi va chegirma hisobga olingan) */
   monthlyFee: number;
+  /** Shu oy chegirmasi (ro'yxat narxi − to'lanadigan summa): rejaga, tushumga va o'qituvchi oyligiga kirmaydi */
+  discount: number;
   active: boolean;
   paid: number;
   debt: number;
@@ -129,6 +131,7 @@ export function toRow(s: StudentLean, paidMap: Map<string, number>, month: strin
     phone: s.phone ?? "",
     group: s.group ?? "",
     monthlyFee: fee,
+    discount: Math.max(0, listFee(s, month) - fee),
     active: s.active ?? true,
     paid,
     debt: Math.max(0, fee - paid),
