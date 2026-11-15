@@ -49,8 +49,12 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     o‘quvchi, Sheets’dan import va ro‘yxatdagi ommaviy «Kurs» amali ham uni o‘zi qo‘yadi; yagona o‘qituvchi almashsa, avvalgisining
     shu kursdagi o‘quvchilari yangisiga o‘tadi. **Bir nechta** o‘qituvchi bo‘lsa, avtomatik biriktirilmaydi — o‘quvchi qo‘shishda
     ustozi tanlanadi (ro‘yxatda «shu kurs» belgisi bilan). Boshqa o‘qituvchiga alohida biriktirilganlar o‘zgarmaydi.
-  - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
-    rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). **Administratorda foiz yo‘q — belgilangan oylik**
+  - **«Oylik hisoblash» switch** — har bir xodimga («Xodimlar» ro‘yxatida o‘ng tomonda va xodim sahifasida). Yoqilgan bo‘lsa
+    oylik hisoblanadi, o‘chiq bo‘lsa — hisoblanmaydi (xodim kartasida, «Xodimlar oyligi» jamida, «Profilim» va Excel
+    hisobotida «oylik hisoblanmaydi»; olingan avans/oyliklar ro‘yxati qoladi). Standart: o‘qituvchi va administratorga
+    yoqilgan, rahbarga o‘chiq (rahbar dars bersa va o‘z o‘quvchilaridan oylik olsa — yoqadi).
+  - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — **xodimning o‘z o‘quvchilari** to‘lagan pul (rahbarda
+    ham — dars beradigan o‘quvchilari; butun markaz tushumidan hisoblanmaydi). **Administratorda foiz yo‘q — belgilangan oylik**
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
     Xodim sahifasida (va «Profilim»da) oylik kartasining o‘zida **oy tanlagich** (‹ oy ›) va **«Oylar bo‘yicha»** jadvali:
     oxirgi 12 oy — tushum, hisoblangan oylik, olingan oylik/avans, qolgani va jami; oy bosilsa, o‘sha oy tafsiloti ochiladi.
@@ -119,7 +123,11 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   (nomi, foiz yoki summa) — qo‘shish, tahrirlash, o‘chirish. «Chegirmalar» sahifasida (rahbar va administrator) har o‘quvchiga
   switch bilan yoqiladi/o‘chiriladi: tur va **qaysi oydan** tanlanadi; o‘tgan oylar hisobi o‘zgarmaydi. Har o‘quvchida bitta
   chegirma. Qarz, reja, eslatmalar, oldindan to‘lov taqsimoti — chegirmali narx bo‘yicha. Tur tahrirlansa/o‘chirilsa — shu
-  chegirmasi bor o‘quvchilarda joriy oydan.
+  chegirmasi bor o‘quvchilarda joriy oydan. Rahbar chegirmani **o‘quvchi profilida** ham yoqadi/o‘chiradi («Chegirma» bloki);
+  **yangi o‘quvchi** qo‘shishda (to‘liq forma va administratorning tezkor oynasi) chegirma turi tanlansa — boshlagan oyidan.
+  Chegirma **umumiy rejaga va tushumga qo‘shilmaydi**, o‘qituvchi oyligi ham chegirmali to‘lovdan hisoblanadi — ya’ni chegirma
+  o‘qituvchi oyligidan ham, markaz hisobidan ham kamayadi. Rahbar panelida (reja kartasi va xodim kartasi), «Bu oy rejasi»da va
+  Excel hisobotida chegirmalar jami alohida ko‘rinadi.
 - **Davomat SMS** (Sozlamalar → «Davomat SMS») — guruh davomati ochilgandan (dars boshlanib 30 daqiqa) keyin sozlamadagi
   daqiqa (standart 10) o‘tib ham qilinmasa, guruh o‘qituvchisi telefoniga bir marta SMS (faqat ro‘yxatdan o‘tgan, faol xodimga).
   Shablon: `{#guruh#}` (majburiy), `{#vaqt#}`, `{#soni#}`, `{#ism#}`. Tekshiruv `/api/ping` (cron-job.org, har 5 daqiqada) yoki

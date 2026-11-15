@@ -36,6 +36,7 @@ import { pageGuard } from "@/lib/auth";
 import {
   canPickPaymentDate,
   countArchivedPayments,
+  getDiscountOptions,
   getMonthOverview,
   getMyTasks,
   getStaffPay,
@@ -145,7 +146,7 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
               </span>
               Excel yuklash
             </a>
-            {admin ? <QuickStudentButton courses={courses} teachers={admin.teachers} templates={admin.templates} today={todayISO()} /> : null}
+            {admin ? <QuickStudentButton courses={courses} teachers={admin.teachers} templates={admin.templates} discountTypes={admin.discountTypes} today={todayISO()} /> : null}
           </>
         }
       />
@@ -364,10 +365,10 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
 
 /** Administrator uchun qo'shimcha ma'lumotlar: topshiriqlar, o'quvchi qo'shish oynasi uchun ro'yxatlar. */
 async function adminExtras() {
-  const [tasks, teachers, templates] = await Promise.all([getMyTasks(), listTeacherChoices(), listScheduleTemplates()]);
+  const [tasks, teachers, templates, discounts] = await Promise.all([getMyTasks(), listTeacherChoices(), listScheduleTemplates(), getDiscountOptions()]);
   const months = [...new Set(tasks.filter((t) => t.status === "open").map((t) => t.month))];
   const lists = await Promise.all(months.map((m) => listUnpaid(m)));
-  return { tasks, teachers, templates, taskLists: Object.fromEntries(months.map((m, i) => [m, lists[i]])) };
+  return { tasks, teachers, templates, discountTypes: discounts.types, taskLists: Object.fromEntries(months.map((m, i) => [m, lists[i]])) };
 }
 
 /** Rahbardan kelgan topshiriqlar (administrator). */

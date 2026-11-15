@@ -9,6 +9,7 @@ import { PayPlanPanel } from "@/components/PayPlan";
 import { SalaryCycleNote } from "@/components/SalaryCycleNote";
 import { FixedPayForm, PercentForm, SalaryForm } from "@/components/SettingsForms";
 import { StaffEditForm } from "@/components/StaffForms";
+import { StaffPaySwitch } from "@/components/StaffPaySwitch";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { HeaderMonth } from "@/components/TopBar";
 import { btn, Card, cx, IconTile, PageSkeleton, Tag, type Tone } from "@/components/ui";
@@ -136,21 +137,24 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
               title="Oylik"
               right={<HeaderMonth fallbackMonth={currentMonth()} />}
               subtitle={
-                fixed
-                  ? "Belgilangan oylik — har oy bir xil summa. Olingan oylik va avanslar ayiriladi."
-                  : staff.shareBase === "center"
-                    ? "Butun markaz tushumidan foiz. Olingan oylik va avanslar ayiriladi."
+                !pay.enabled
+                  ? "Oylik hisoblash o‘chiq — bu xodimga oylik hisoblanmaydi."
+                  : fixed
+                    ? "Belgilangan oylik — har oy bir xil summa. Olingan oylik va avanslar ayiriladi."
                     : "O‘z o‘quvchilari to‘lagan pullardan foiz. Olingan oylik va avanslar ayiriladi."
               }
             />
-            {d.plan ? (
-              <PayPlanPanel
-                plan={d.plan}
-                month={month}
-                center={staff.shareBase === "center"}
-                debtHref={`/students?${new URLSearchParams({ ...(staff.shareBase === "center" ? {} : { teacher: staff.id }), tab: "debt", month })}`}
-              />
+            <div className="-mt-2 mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-line bg-slate-50/60 px-4 py-3">
+              <StaffPaySwitch id={staff.id} name={staff.name} on={pay.enabled} />
+              <span className="text-xs leading-relaxed text-ink-500">
+                {fixed ? "Yoqilgan bo‘lsa — belgilangan oylik hisoblanadi." : "Yoqilgan bo‘lsa — o‘z o‘quvchilari to‘lovlaridan foiz bo‘yicha hisoblanadi."}
+              </span>
+            </div>
+            {pay.enabled && d.plan ? (
+              <PayPlanPanel plan={d.plan} month={month} debtHref={`/students?${new URLSearchParams({ teacher: staff.id, tab: "debt", month })}`} />
             ) : null}
+            {pay.enabled ? (
+            <>
             <SalaryCycleNote
               cycle={pay.cycle}
               month={month}
@@ -162,11 +166,17 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
             />
             {/* Tushum reja blokida («Amalda yig'ildi») — bu yerda takrorlanmaydi */}
             <div className={cx("mb-6 grid gap-3", fixed || d.plan ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
-              {fixed || d.plan ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilari tushumi"} value={formatMoney(pay.base)} />}
+              {fixed || d.plan ? null : <Figure label="O‘quvchilari tushumi" value={formatMoney(pay.base)} />}
               <Figure label={payLabel(pay)} value={formatMoney(pay.share)} tone="brand" />
               <Figure label="Olindi (oylik/avans)" value={`− ${formatMoney(pay.taken)}`} tone="amber" />
               <Figure label="Qoldi" value={formatMoney(pay.left)} tone={pay.left < 0 ? "rose" : "emerald"} strong />
             </div>
+            </>
+            ) : pay.taken ? (
+              <p className="num mb-6 text-sm text-ink-600">
+                {monthLabel(month)} uchun berilgan avans/oylik: <b className="font-semibold text-ink-900">{formatMoney(pay.taken)}</b>
+              </p>
+            ) : null}
             <SalaryForm
               month={pay.cycle && month > pay.cycle.current ? pay.cycle.current : month}
               today={todayISO()}
@@ -209,16 +219,12 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
             ) : null}
           </Card>
 
-          <PayMonths
-            rows={d.history}
-            selected={month}
-            current={currentMonth()}
-            basePath={`/staff/${staff.id}`}
-            baseLabel={fixed ? null : staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilari tushumi"}
-          />
+          {pay.enabled ? (
+            <PayMonths rows={d.history} selected={month} current={currentMonth()} basePath={`/staff/${staff.id}`} baseLabel={fixed ? null : "O‘quvchilari tushumi"} />
+          ) : null}
 
-          {/* Oylik summasi (administrator) yoki foizi */}
-          {fixed ? (
+          {/* Oylik summasi (administrator) yoki foizi — oylik hisoblash yoqilgan bo'lsa */}
+          {!pay.enabled ? null : fixed ? (
             <Card className="p-6">
               <SectionTitle
                 icon={Wallet}
@@ -244,7 +250,7 @@ async function StaffMember({ params, searchParams }: { params: PageProps<"/staff
         <div className="grid gap-6 self-start">
           <Card className="p-6">
             <SectionTitle icon={UserCog} tone="sky" title="Ma’lumotlari" subtitle={ROLE_HINT[staff.role]} />
-            <StaffEditForm action={updateStaff.bind(null, staff.id)} name={staff.name} role={staff.role} shareBase={staff.shareBase} teaches={staff.teaches} self={self} />
+            <StaffEditForm action={updateStaff.bind(null, staff.id)} name={staff.name} role={staff.role} teaches={staff.teaches} self={self} />
           </Card>
 
         </div>

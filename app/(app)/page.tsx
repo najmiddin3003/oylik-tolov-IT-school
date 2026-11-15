@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import {
+  BadgePercent,
   ArrowUpRight,
   BookOpen,
   CalendarDays,
@@ -121,8 +122,8 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
           </div>
         </div>
         <dl className="relative mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <HeadFigure icon={Wallet} label="Jami tushum" value={formatMoney(team.finance.collected)} hint={`Reja: ${formatMoney(center.expected)} · ${planPct}%`} />
-          <HeadFigure icon={UsersRound} label="Xodimlar oyligi" value={formatMoney(team.finance.staffShare)} hint={`${staffCards.length} ta xodim ulushi`} />
+          <HeadFigure icon={Wallet} label="Jami tushum" value={formatMoney(team.finance.collected)} hint={`Reja: ${formatMoney(center.expected)} · ${planPct}%${center.discount ? ` · chegirma −${formatNumber(center.discount)}` : ""}`} />
+          <HeadFigure icon={UsersRound} label="Xodimlar oyligi" value={formatMoney(team.finance.staffShare)} hint={`${team.members.filter((m) => m.pay.enabled).length} ta xodimga hisoblanadi`} />
           <HeadFigure
             icon={HandCoins}
             label="Berilgan avans/oylik"
@@ -232,6 +233,18 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
             <LegendItem dot="bg-brand-600" label="Rejaga tushdi" value={formatMoney(planDone)} />
             <LegendItem dot="bg-unpaid" label="Qolgan to‘lov" value={formatMoney(center.debt)} />
           </dl>
+          {center.discount ? (
+            <p className="num mt-4 flex items-start gap-2 rounded-xl bg-amber-50/70 px-3.5 py-2.5 text-[13px] text-amber-900 ring-1 ring-inset ring-amber-100">
+              <BadgePercent className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>
+                Chegirmalar: <b className="font-semibold">−{formatMoney(center.discount)}</b> ({center.discounted} ta o‘quvchi) — rejaga va tushumga kirmaydi,
+                o‘qituvchi oyligi ham chegirmali summadan hisoblanadi.{" "}
+                <Link href="/chegirmalar" className="font-medium underline-offset-4 hover:underline">
+                  Chegirmalar →
+                </Link>
+              </span>
+            </p>
+          ) : null}
           <p className="mt-4 flex items-center gap-2 text-xs text-ink-400">
             <Info className="size-3.5" aria-hidden />
             To‘lov kiritilganda ko‘rsatkichlar avtomatik yangilanadi.
@@ -341,7 +354,8 @@ function cycleHint(cycle: TeamMember["pay"]["cycle"], month: string): string | n
 /** Xodim kartasi (rahbar paneli): o'quvchilari, tushumi va oyligi. */
 function TeamCard({ m, month }: { m: TeamMember; month: string }) {
   const isTeacher = isTeaching(m);
-  const collectedFromStudents = isTeacher ? m.pay.base : 0;
+  // Oylik hisoblanayotgan bo'lsa — oylik davri bo'yicha tushum, aks holda shu oy tushumi
+  const collectedFromStudents = isTeacher ? (m.pay.enabled ? m.pay.base : m.collected) : 0;
   return (
     <Card className="group flex flex-col p-5 transition hover:shadow-pop">
       <div className="flex items-start gap-3">
@@ -378,19 +392,27 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
             <span>Tushum: {formatMoney(collectedFromStudents)}</span>
             <span>Qarz: {formatMoney(m.debt)}</span>
           </p>
+          {m.discount ? <p className="num mt-1 text-xs text-amber-700">Chegirma: −{formatMoney(m.discount)} — tushum va oylikka kirmaydi</p> : null}
         </>
       ) : (
         <p className="mt-4 text-sm text-ink-500">
-          {m.pay.kind === "fixed"
-            ? m.pay.share
-              ? "Belgilangan oylik"
-              : "Oylik belgilanmagan"
-            : m.pay.percent
-              ? `Butun markaz tushumidan ${m.pay.percent}%`
-              : "Oylik foizi belgilanmagan"}
+          {!m.pay.enabled
+            ? "Oylik hisoblanmaydi"
+            : m.pay.kind === "fixed"
+              ? m.pay.share
+                ? "Belgilangan oylik"
+                : "Oylik belgilanmagan"
+              : m.pay.percent
+                ? `O‘z o‘quvchilari to‘lovlaridan ${m.pay.percent}%`
+                : "Oylik foizi belgilanmagan"}
         </p>
       )}
 
+      {!m.pay.enabled ? (
+        <p className="num mt-4 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[13px] text-ink-500 ring-1 ring-inset ring-line-soft">
+          Oylik hisoblash o‘chiq{m.pay.taken ? ` · olingan: ${formatMoney(m.pay.taken)}` : ""}
+        </p>
+      ) : (
       <div className="num mt-4 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[13px] ring-1 ring-inset ring-line-soft">
         <div className="flex items-center justify-between gap-2">
           <span className="text-ink-500">{payLabel(m.pay)}</span>
@@ -406,6 +428,7 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
         </div>
         {cycleHint(m.pay.cycle, month) ? <p className="mt-1.5 text-xs leading-snug text-amber-700">{cycleHint(m.pay.cycle, month)}</p> : null}
       </div>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {isTeacher ? (
@@ -476,22 +499,40 @@ async function TeacherDashboard({ session, month, page }: { session: Session; mo
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_1fr] xl:gap-5">
-        <HeroKpiCard
-          label={`Mening oyligim (${pay?.percent ?? 0}%)`}
-          value={formatNumber(pay?.share ?? 0)}
-          unit="so‘m"
-          share={[
-            { label: "O‘quvchilarim tushumi", value: formatMoney(pay?.base ?? 0) },
-            { label: "Olindi (oylik/avans)", value: `− ${formatMoney(pay?.taken ?? 0)}` },
-            { label: "Qoldi", value: formatMoney(pay?.left ?? 0), strong: true, negative: (pay?.left ?? 0) < 0 },
-          ]}
-          hint={
-            <Link href={`/me?${new URLSearchParams({ month: pay?.cycle && month > pay.cycle.current ? pay.cycle.current : month })}`} className="underline-offset-4 hover:underline">
-              {cycleHint(pay?.cycle ?? null, month) ?? "Oylik tafsilotlari"} →
-            </Link>
-          }
-          icon={Wallet}
-        />
+        {pay && !pay.enabled ? (
+          <HeroKpiCard
+            label="Mening oyligim"
+            value="—"
+            unit="hisoblanmaydi"
+            share={[
+              { label: "Oylik hisoblash", value: "o‘chiq (rahbar yoqadi)" },
+              { label: "Olindi (oylik/avans)", value: formatMoney(pay.taken) },
+            ]}
+            hint={
+              <Link href={`/me?${new URLSearchParams({ month })}`} className="underline-offset-4 hover:underline">
+                Profilim →
+              </Link>
+            }
+            icon={Wallet}
+          />
+        ) : (
+          <HeroKpiCard
+            label={`Mening oyligim (${pay?.percent ?? 0}%)`}
+            value={formatNumber(pay?.share ?? 0)}
+            unit="so‘m"
+            share={[
+              { label: "O‘quvchilarim tushumi", value: formatMoney(pay?.base ?? 0) },
+              { label: "Olindi (oylik/avans)", value: `− ${formatMoney(pay?.taken ?? 0)}` },
+              { label: "Qoldi", value: formatMoney(pay?.left ?? 0), strong: true, negative: (pay?.left ?? 0) < 0 },
+            ]}
+            hint={
+              <Link href={`/me?${new URLSearchParams({ month: pay?.cycle && month > pay.cycle.current ? pay.cycle.current : month })}`} className="underline-offset-4 hover:underline">
+                {cycleHint(pay?.cycle ?? null, month) ?? "Oylik tafsilotlari"} →
+              </Link>
+            }
+            icon={Wallet}
+          />
+        )}
         <KpiCard label="O‘quvchilarim" value={totals.students} hint={`${monthLabel(month)} uchun to‘lashi kerak`} icon={Users} tone="violet" />
         <KpiCard
           label="To‘liq to‘laganlar"

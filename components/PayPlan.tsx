@@ -12,14 +12,11 @@ export function PayPlanPanel({
   plan,
   month,
   debtHref,
-  center,
 }: {
   plan: PayPlan;
   month: string;
   /** To'lamaganlar ro'yxati (O'quvchilar → Qarzdorlar, shu oy) */
   debtHref: string;
-  /** Markaz tushumidan oladi — reja barcha o'quvchilar bo'yicha */
-  center: boolean;
 }) {
   const reach = plan.collected + plan.debt;
   const pct = reach ? Math.round((plan.collected / reach) * 100) : 0;
@@ -32,7 +29,6 @@ export function PayPlanPanel({
           {name} oyligi
         </h3>
         <p className="num text-[13px] text-ink-500">
-          {center ? "Butun markaz: " : ""}
           {plan.students} ta o‘quvchi · {plan.percent}%
         </p>
       </div>
@@ -73,6 +69,11 @@ export function PayPlanPanel({
         />
       </div>
 
+      {plan.discount ? (
+        <p className="num mt-3 text-xs text-amber-800">
+          Chegirma: {plan.discounted} ta o‘quvchiga −{formatMoney(plan.discount)} — rejaga ham, oylikka ham kirmaydi (oylik chegirmali to‘lovdan hisoblanadi).
+        </p>
+      ) : null}
       {plan.closed ? null : (
         <div className="mt-4 flex items-center gap-3">
           <Progress value={plan.collected} max={reach} className="h-2 flex-1 bg-surface" />

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowRight, BookOpen, Crown, History, UserPlus, UsersRound } from "lucide-react";
 import { LegacyPayForm, StaffAddForm } from "@/components/StaffForms";
+import { StaffPaySwitch } from "@/components/StaffPaySwitch";
 import { StaffHelpButton } from "@/components/StaffHelp";
 import { Card, CardHeader, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
@@ -76,7 +77,7 @@ async function StaffView({ searchParams }: { searchParams: PageProps<"/staff">["
       {/* Ro'yxat va qo'shish bloki bir xil balandlikda */}
       <div className="grid items-stretch gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
         <Card className="flex min-w-0 flex-col">
-          <CardHeader title="Xodimlar ro‘yxati" count={active.length} subtitle="Bosib — oyligi, foizi va kirish huquqi" />
+          <CardHeader title="Xodimlar ro‘yxati" count={active.length} subtitle="Bosib — oyligi, foizi va kirish huquqi · o‘ngdagi switch — oylik hisoblash" />
           {active.length === 0 ? (
             <div className="border-t border-line-soft">
               <EmptyState title="Hali xodim yo‘q" icon={UsersRound} tone="sky">
@@ -126,8 +127,8 @@ function StaffRow({ s, month, self }: { s: StaffRowView; month: string; self: bo
   // O'qituvchi yoki dars ham beradigan rahbar — o'quvchilari soni ko'rsatiladi
   const teaching = isTeaching(s);
   return (
-    <li>
-      <Link href={`/staff/${s.id}?month=${month}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-6 py-4 transition hover:bg-slate-50/60">
+    <li className="flex items-center gap-2 pr-4 transition hover:bg-slate-50/60 sm:pr-6">
+      <Link href={`/staff/${s.id}?month=${month}`} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 py-4 pl-6">
         <span
           className={cx(
             "inline-flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white",
@@ -163,11 +164,13 @@ function StaffRow({ s, month, self }: { s: StaffRowView; month: string; self: bo
         </span>
         <span className="num flex shrink-0 items-center gap-2 text-[13px] text-ink-500">
           {teaching ? <span className="rounded-lg bg-violet-50 px-2 py-1 font-medium text-violet-700">{s.students} ta o‘quvchi</span> : null}
-          {percent ? <span className="rounded-lg bg-slate-100 px-2 py-1 font-semibold text-ink-700">{percent}%</span> : null}
-          {salary ? <span className="rounded-lg bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">oylik {formatMoney(salary)}</span> : null}
+          {s.payEnabled && percent ? <span className="rounded-lg bg-slate-100 px-2 py-1 font-semibold text-ink-700">{percent}%</span> : null}
+          {s.payEnabled && salary ? <span className="rounded-lg bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">oylik {formatMoney(salary)}</span> : null}
           <ArrowRight className="size-4 text-ink-300" aria-hidden />
         </span>
       </Link>
+      {/* Oylik hisoblash — switch (havoladan tashqarida) */}
+      <StaffPaySwitch id={s.id} name={s.name} on={s.payEnabled} withLabel={false} />
     </li>
   );
 }

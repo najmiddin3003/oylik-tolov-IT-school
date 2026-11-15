@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import {
+  BadgePercent,
   Banknote,
   ChevronDown,
   ClipboardCheck,
@@ -24,6 +25,7 @@ import { PaidCell } from "@/components/cells";
 import { NextLessonCell } from "@/components/Lessons";
 import { EditedMark, EditPaymentButton } from "@/components/PaymentEdit";
 import { ReceiptLink } from "@/components/ReceiptActions";
+import { StudentDiscountPanel } from "@/components/Discounts";
 import { PaymentForm } from "@/components/PaymentForm";
 import { ConfirmAction } from "@/components/SubmitButton";
 import {
@@ -43,9 +45,10 @@ import {
   type Tone,
 } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
-import { canPickPaymentDate, getStudent, getStudentAttendance, getStudentPayments, type StudentAttendanceRow } from "@/lib/data";
+import { canPickPaymentDate, getDiscountOptions, getStudent, getStudentAttendance, getStudentPayments, type StudentAttendanceRow } from "@/lib/data";
 import { ATTENDANCE_LABEL } from "@/lib/attendance-rules";
-import { discountAt, discountLabel } from "@/lib/discounts";
+import { discountAt, discountLabel, netFee } from "@/lib/discounts";
+import { feeFor } from "@/lib/fees";
 import type { PaymentMethod } from "@/lib/models";
 import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, nowMs, todayISO } from "@/lib/time";
 
@@ -78,10 +81,11 @@ async function StudentView({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const student = await getStudent(id);
   if (!student) notFound();
-  const [{ payments, months, totalDebt, totalPaid }, pickDate, attendance] = await Promise.all([
+  const [{ payments, months, totalDebt, totalPaid }, pickDate, attendance, discountOpts] = await Promise.all([
     getStudentPayments(student),
     canPickPaymentDate(role),
     getStudentAttendance(student.id),
+    readOnly ? Promise.resolve(null) : getDiscountOptions(),
   ]);
 
   const now = currentMonth();
@@ -335,6 +339,51 @@ async function StudentView({
             </Card>
           )}
 
+          {discountOpts ? (
+            <Card id="chegirma" className="scroll-mt-24 p-5 sm:p-6">
+              <div className="group mb-4 flex items-center gap-3.5">
+                <IconTile icon={BadgePercent} tone="amber" />
+                <div>
+                  <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Chegirma</h2>
+                  <p className="mt-0.5 text-sm text-ink-500">Tanlangan oydan qo‘llanadi · tushumga va o‘qituvchi oyligiga kirmaydi</p>
+                </div>
+              </div>
+              {!discountOpts.enabled ? (
+                <p className="text-sm text-ink-500">
+                  Chegirmalar o‘chirilgan.{" "}
+                  <Link href="/settings#chegirmalar" className="font-medium text-brand-600 hover:underline">
+                    Sozlamalarda yoqish
+                  </Link>
+                </p>
+              ) : (
+                <>
+                  <StudentDiscountPanel
+                    s={{
+                      id: student.id,
+                      seq: student.seq,
+                      name: student.fullName,
+                      group: student.group,
+                      listFee: feeFor(student, now),
+                      netFee: netFee(student, now),
+                      current: currentDiscount,
+                      next: student.discountHistory.find((h) => compareMonths(h.from, now) > 0) ?? null,
+                    }}
+                    types={discountOpts.types}
+                    month={now}
+                  />
+                  {!discountOpts.types.length ? (
+                    <p className="mt-3 text-xs text-ink-500">
+                      Hali chegirma turi yo‘q —{" "}
+                      <Link href="/settings#chegirmalar" className="font-medium text-brand-600 hover:underline">
+                        Sozlamalarda qo‘shing
+                      </Link>
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </Card>
+          ) : null}
+
           <Card className="p-5 sm:p-6">
             <h2 className="mb-4 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Ma’lumotlar</h2>
             <dl className="grid gap-3.5 text-sm">
@@ -365,7 +414,7 @@ async function StudentView({
                   </ul>
                 }
               />
-              {student.discounts ? (
+              {student.discounts && readOnly ? (
                 <Info
                   label="Chegirma"
                   value={
@@ -374,11 +423,6 @@ async function StudentView({
                         <Tag tone="amber">{`${currentDiscount.name} · ${discountLabel(currentDiscount)} · ${monthLabel(currentDiscount.from)} dan`}</Tag>
                       ) : (
                         <span className="text-ink-400">yo‘q</span>
-                      )}
-                      {readOnly ? null : (
-                        <Link href="/chegirmalar" className="text-xs font-medium text-brand-600 hover:underline">
-                          O‘zgartirish
-                        </Link>
                       )}
                     </span>
                   }

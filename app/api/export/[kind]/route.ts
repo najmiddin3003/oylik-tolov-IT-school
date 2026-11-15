@@ -38,6 +38,7 @@ async function summarySheet(month: string, viewer: Viewer, group = ""): Promise<
     [text("Oy"), text(monthLabel(month))],
     ...(group ? [[text("Guruh"), text(group)]] : []),
     [text("Kutilayotgan tushum"), money(totals.expected)],
+    ...(totals.discount ? [[text(`  chegirmalar (${totals.discounted} ta o‘quvchi, rejaga kirmaydi)`), money(-totals.discount)]] : []),
     [text("Tushgan summa"), money(totals.collected)],
     [text("  shundan naqd"), money(totals.cash)],
     [text("  karta va o‘tkazma"), money(totals.nonCash)],
@@ -47,8 +48,10 @@ async function summarySheet(month: string, viewer: Viewer, group = ""): Promise<
     [text("Qisman to‘laganlar"), int(totals.partial)],
     [text("To‘lamaganlar"), int(totals.unpaid)],
   ];
-  const payLines = (label: string, pay: { kind: "percent" | "fixed"; percent: number; share: number; taken: number; left: number }, salaries: SalaryRow[]) => {
-    rows.push(
+  const payLines = (label: string, pay: { kind: "percent" | "fixed"; percent: number; share: number; taken: number; left: number; enabled: boolean }, salaries: SalaryRow[]) => {
+    if (!pay.enabled) {
+      rows.push([blank(), blank()], [text(`${label}: hisoblanmaydi (oylik hisoblash o‘chiq)`), blank()], [text("Olindi (oylik va avans)"), money(pay.taken)]);
+    } else rows.push(
       [blank(), blank()],
       [text(pay.kind === "fixed" ? label : `${label} (${pay.percent}%)`), money(pay.share, { fontWeight: "bold" })],
       [text("Olindi (oylik va avans)"), money(pay.taken)],
@@ -69,7 +72,8 @@ async function summarySheet(month: string, viewer: Viewer, group = ""): Promise<
     for (const m of team.members) {
       // Rahbar — faqat dars ham bersa (o'qituvchi sifatidagi oyligi)
       if (m.role === "owner" && !isTeaching(m)) continue;
-      rows.push([text(`  ${m.name} · ${m.pay.kind === "fixed" ? "belgilangan oylik" : `${m.pay.percent}%`} · olindi ${formatNumber(m.pay.taken)}`), money(m.pay.share)]);
+      const how = !m.pay.enabled ? "oylik hisoblanmaydi" : m.pay.kind === "fixed" ? "belgilangan oylik" : `o‘quvchilari to‘lovidan ${m.pay.percent}%`;
+      rows.push([text(`  ${m.name} · ${how} · olindi ${formatNumber(m.pay.taken)}`), money(m.pay.share)]);
     }
     rows.push(
       [text("Berilgan avans (shu oy hisobidan)"), money(team.finance.given.avans)],

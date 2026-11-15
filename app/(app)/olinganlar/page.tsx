@@ -60,11 +60,15 @@ async function MySalaries() {
       <SalaryCycleNote cycle={now.pay.cycle} month={now.month} thisMonth={thisMonth} who="selfForm" className="mb-6" />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
-        <MiniStat label={`${monthLabel(now.month)}: ${payLabel(now.pay).toLowerCase()}`} value={formatMoney(now.pay.share)} icon={PiggyBank} tone="brand" />
+        {now.pay.enabled ? (
+          <MiniStat label={`${monthLabel(now.month)}: ${payLabel(now.pay).toLowerCase()}`} value={formatMoney(now.pay.share)} icon={PiggyBank} tone="brand" />
+        ) : (
+          <MiniStat label="Oylik hisoblash" value="O‘chiq" hint="Rahbar «Xodimlar» bo‘limida yoqadi" icon={PiggyBank} tone="brand" />
+        )}
         <MiniStat label={`${monthLabel(now.month)}: olindi`} value={formatMoney(now.pay.taken)} icon={HandCoins} tone="orange" />
         <MiniStat
           label={`${monthLabel(now.month)}: qoldi`}
-          value={<span className={now.pay.left < 0 ? "text-rose-600" : "text-emerald-600"}>{formatMoney(now.pay.left)}</span>}
+          value={now.pay.enabled ? <span className={now.pay.left < 0 ? "text-rose-600" : "text-emerald-600"}>{formatMoney(now.pay.left)}</span> : "—"}
           icon={Wallet}
           tone="emerald"
         />
@@ -101,9 +105,10 @@ async function MySalaries() {
                       ) : null}
                     </h2>
                     <p className="num mt-0.5 text-sm text-ink-500">
-                      {payLabel(m.pay)} {formatMoney(m.pay.share)} · olindi {formatMoney(m.pay.taken)}
+                      {m.pay.enabled ? `${payLabel(m.pay)} ${formatMoney(m.pay.share)}` : "Oylik hisoblanmaydi"} · olindi {formatMoney(m.pay.taken)}
                     </p>
                   </div>
+                  {m.pay.enabled ? (
                   <span
                     className={cx(
                       "num rounded-xl px-3 py-1.5 text-sm font-bold ring-1 ring-inset",
@@ -112,6 +117,7 @@ async function MySalaries() {
                   >
                     Qoldi: {formatMoney(m.pay.left)}
                   </span>
+                  ) : null}
                 </div>
                 {m.salaries.length === 0 ? (
                   <p className="px-6 py-5 text-sm text-ink-400">Bu oy uchun hali avans yoki oylik yozilmagan.</p>

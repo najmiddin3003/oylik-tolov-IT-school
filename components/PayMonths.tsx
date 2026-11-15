@@ -19,7 +19,7 @@ export function PayMonths({
   current: string;
   /** Oy havolasi: `${basePath}?month=YYYY-MM` */
   basePath: string;
-  /** Foizli oylikda tushum ustuni nomi ("O‘quvchilari tushumi" / "Markaz tushumi"); belgilangan oylikda — yo'q */
+  /** Foizli oylikda tushum ustuni nomi ("O‘quvchilari tushumi"); belgilangan oylikda — yo'q */
   baseLabel: string | null;
 }) {
   const total = rows.reduce((t, r) => ({ base: t.base + r.base, share: t.share + r.share, taken: t.taken + r.taken, left: t.left + r.left }), {

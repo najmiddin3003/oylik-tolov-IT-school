@@ -28,7 +28,7 @@ import {
 } from "./ledger";
 import { Attendance, Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { suggestedArchiveMonth } from "./sheet-archive";
-import { discountAt, netFee, type DiscountChange } from "./discounts";
+import { discountAt, netFee, type DiscountChange, type DiscountType } from "./discounts";
 import { parentSmsPreview } from "./parent-sms";
 import { attendanceDay, pendingAttendance, pendingFollowUps, type FollowUp, type PendingAttendance } from "./attendance";
 import { isAttendanceStatus, type AttendanceStatus } from "./attendance-rules";
@@ -406,6 +406,9 @@ export const getMonthOverview = cache(async (month: string, group = "", teacher 
       partial: rows.filter((r) => r.status === "partial").length,
       unpaid: rows.filter((r) => r.status === "unpaid").length,
       expected: rows.reduce((sum, r) => sum + r.monthlyFee, 0),
+      /** Chegirmalar jami va nechta o'quvchida (reja chegirmasiz hisoblanadi) */
+      discount: rows.reduce((sum, r) => sum + r.discount, 0),
+      discounted: rows.filter((r) => r.discount > 0).length,
       debt: rows.reduce((sum, r) => sum + r.debt, 0),
       collected,
       paymentCount,
@@ -437,6 +440,10 @@ export type TeamMember = StaffView & {
   debtors: number;
   debt: number;
   expected: number;
+  /** O'quvchilariga shu oy chegirmalar jami (oylikka kirmaydi) */
+  discount: number;
+  /** Shu oyda o'quvchilaridan olingan tushum (oylik hisoblash o'chiq bo'lsa ham) */
+  collected: number;
 };
 
 /** Rahbar paneli: har bir xodim (o'quvchilari, tushumi, oyligi) va markaz bo'yicha jami. */
@@ -455,11 +462,13 @@ export async function getTeamOverview(month: string) {
     debtors: list.filter((r) => r.status !== "paid").length,
     debt: list.reduce((s, r) => s + r.debt, 0),
     expected: list.reduce((s, r) => s + r.monthlyFee, 0),
+    discount: list.reduce((s, r) => s + r.discount, 0),
   });
   const members: TeamMember[] = [];
   for (const d of staffDocs) {
     if (d.status === "disabled") continue;
-    members.push({ ...toStaffView(d), pay: await staffPay(d, month), ...stats(byTeacher.get(String(d._id)) ?? []) });
+    const id = String(d._id);
+    members.push({ ...toStaffView(d), pay: await staffPay(d, month), ...stats(byTeacher.get(id) ?? []), collected: collections.byTeacher.get(id) ?? 0 });
   }
   const order: Record<Role, number> = { owner: 0, teacher: 1, admin: 2 };
   members.sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
@@ -1309,11 +1318,10 @@ async function payHistory(doc: StaffLean, month: string): Promise<PayMonth[]> {
  * qancha to'lamagan va hamma to'lasa oylik qancha bo'ladi. Belgilangan oylikda — null.
  */
 async function staffPlan(doc: StaffLean, pay: StaffPay, month: string): Promise<PayPlan | null> {
-  if (pay.kind !== "percent") return null;
-  const center = doc.shareBase === "center";
+  if (pay.kind !== "percent" || !pay.enabled) return null;
   const { rows } = await getMonthOverview(month);
   const id = String(doc._id);
-  const mine = center ? rows : rows.filter((r) => r.teacherId === id);
+  const mine = rows.filter((r) => r.teacherId === id);
   // Foiz 0 va o'z o'quvchisi yo'q (masalan, oylik olmaydigan rahbar) — reja ko'rsatilmaydi
   if (!pay.percent && !mine.length) return null;
   // Oylik davri: shu oy oyligi olinganmi va davr qachon boshlangan (oldingi oy oyligi olingan kun).
@@ -1628,6 +1636,13 @@ export async function getDiscountsPage() {
     };
   });
   return { enabled: settings.discounts.enabled, types: settings.discounts.types, students: rows, month };
+}
+
+/** Chegirma turlari (chegirmalar yoqilgan bo'lsa; aks holda bo'sh) — o'quvchi formalari va profil uchun. */
+export async function getDiscountOptions(): Promise<{ enabled: boolean; types: DiscountType[] }> {
+  await requireRole(["owner", "admin"]);
+  const { discounts } = await getSettings();
+  return { enabled: discounts.enabled, types: discounts.enabled ? discounts.types : [] };
 }
 
 /** Har bir chegirma turi joriy oyda nechta faol o'quvchida. */
