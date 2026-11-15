@@ -56,7 +56,8 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
   const { staff, pay } = me;
   const isOwner = staff.role === "owner";
   const fixed = pay.kind === "fixed";
-  const showPay = staff.role !== "owner" || pay.percent > 0 || me.salaries.length > 0;
+  // Oylik hisoblash o'chiq bo'lsa — hisob ko'rsatilmaydi (olingan avans/oylik bo'lsa — faqat ro'yxati)
+  const showPay = pay.enabled || me.salaries.length > 0 || !isOwner;
 
   return (
     <>
@@ -91,19 +92,18 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
                 title="Mening oyligim"
                 right={<HeaderMonth fallbackMonth={currentMonth()} />}
                 subtitle={
-                  fixed
-                    ? `${pay.share ? "Belgilangan oylik — har oy bir xil summa." : "Oylik hali belgilanmagan — rahbar «Xodimlar» bo‘limida belgilaydi."} Olingan oylik va avanslar ayiriladi.`
-                    : `${staff.shareBase === "center" ? "Butun markaz tushumidan" : "O‘quvchilaringiz to‘lagan pullardan"} ${pay.percent}%. Olingan oylik va avanslar ayiriladi.`
+                  !pay.enabled
+                    ? "Sizga oylik hisoblash o‘chirilgan (rahbar «Xodimlar» bo‘limida yoqadi). Quyida — olingan avans va oyliklar."
+                    : fixed
+                      ? `${pay.share ? "Belgilangan oylik — har oy bir xil summa." : "Oylik hali belgilanmagan — rahbar «Xodimlar» bo‘limida belgilaydi."} Olingan oylik va avanslar ayiriladi.`
+                      : `O‘quvchilaringiz to‘lagan pullardan ${pay.percent}%. Olingan oylik va avanslar ayiriladi.`
                 }
               />
-              {me.plan ? (
-                <PayPlanPanel
-                  plan={me.plan}
-                  month={month}
-                  center={staff.shareBase === "center"}
-                  debtHref={`/students?${new URLSearchParams({ ...(staff.shareBase === "center" ? {} : { teacher: staff.id }), tab: "debt", month })}`}
-                />
+              {pay.enabled && me.plan ? (
+                <PayPlanPanel plan={me.plan} month={month} debtHref={`/students?${new URLSearchParams({ teacher: staff.id, tab: "debt", month })}`} />
               ) : null}
+              {pay.enabled ? (
+              <>
               <SalaryCycleNote
                 cycle={pay.cycle}
                 month={month}
@@ -115,11 +115,13 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
               />
               {/* Tushum reja blokida («Amalda yig'ildi») — bu yerda takrorlanmaydi */}
               <div className={cx("mb-6 grid gap-3", fixed || me.plan ? "sm:grid-cols-3" : "sm:grid-cols-2 2xl:grid-cols-4")}>
-                {fixed || me.plan ? null : <Figure label={staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilarim tushumi"} value={formatMoney(pay.base)} />}
+                {fixed || me.plan ? null : <Figure label="O‘quvchilarim tushumi" value={formatMoney(pay.base)} />}
                 <Figure label={payLabel(pay)} value={formatMoney(pay.share)} tone="brand" />
                 <Figure label="Olindi (oylik/avans)" value={`− ${formatMoney(pay.taken)}`} tone="amber" />
                 <Figure label="Qoldi" value={formatMoney(pay.left)} tone={pay.left < 0 ? "rose" : "emerald"} strong />
               </div>
+              </>
+              ) : null}
               {/* Olganlarim ro'yxati — yozuv bo'lsa (bo'lmasa «Olindi: 0» yetarli) */}
               {me.salaries.length ? (
                 <div className="overflow-hidden rounded-2xl border border-line">
@@ -154,14 +156,8 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
               )}
             </Card>
           ) : null}
-          {showPay ? (
-            <PayMonths
-              rows={me.history}
-              selected={month}
-              current={currentMonth()}
-              basePath="/me"
-              baseLabel={fixed ? null : staff.shareBase === "center" ? "Markaz tushumi" : "O‘quvchilarim tushumi"}
-            />
+          {pay.enabled ? (
+            <PayMonths rows={me.history} selected={month} current={currentMonth()} basePath="/me" baseLabel={fixed ? null : "O‘quvchilarim tushumi"} />
           ) : null}
           <RecentActivity activity={activity} />
         </div>

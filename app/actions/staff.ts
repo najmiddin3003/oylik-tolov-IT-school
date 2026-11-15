@@ -19,7 +19,7 @@ import { ROLES, type Role } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
 import { scheduleSheetArchive } from "@/lib/sheet-archive-after";
 import { getStaffById, salaryHistoryOf, shareHistoryOf } from "@/lib/staff";
-import { defaultShareBase, isTeaching, parsePercent, payKindOf, ROLE_LABEL } from "@/lib/staff-rules";
+import { isTeaching, parsePercent, payKindOf, ROLE_LABEL } from "@/lib/staff-rules";
 import { currentMonth, formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 
 const MAX_SALARY = 100_000_000;
@@ -67,7 +67,6 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
     role: role as Role,
     status: "invited",
     shareHistory: percent ? [{ from: "0000-01", percent }] : [],
-    shareBase: defaultShareBase(role as Role),
     // Belgilangan oylik — qo'shilgan oydan boshlab (avvalgi oylarga yozilmaydi; kerak bo'lsa profilida o'zgartiriladi)
     salaryHistory: salary ? [{ from: currentMonth(), amount: salary }] : [],
   });
@@ -105,7 +104,6 @@ export async function updateStaff(id: string, _prev: FormState, fd: FormData): P
   if (!isId(id)) return { error: "Xodim topilmadi" };
   const name = str(fd, "name", 80).replace(/\s+/g, " ");
   const role = str(fd, "role");
-  const base = str(fd, "shareBase") === "center" ? "center" : "students";
   const fieldErrors: Record<string, string> = {};
   if (name.length < 2) fieldErrors.name = "Ism-familiyani kiriting";
   if (!isRole(role)) fieldErrors.role = "Lavozimni tanlang";
@@ -117,7 +115,7 @@ export async function updateStaff(id: string, _prev: FormState, fd: FormData): P
   if (!before) return { error: "Xodim topilmadi" };
   // Belgi faqat formada ko'rsatilgan bo'lsa o'qiladi (eski ochiq sahifadan yuborilsa — o'zgarmaydi)
   const teaches = role === "owner" && (fd.has("teachesShown") ? fd.get("teaches") === "on" : before.teaches === true);
-  await Staff.updateOne({ _id: id }, { $set: { name, role, shareBase: base, teaches } });
+  await Staff.updateOne({ _id: id }, { $set: { name, role, teaches } });
   // Dars bermay qolsa — kurslardagi «kurs o'qituvchisi» belgisi olib tashlanadi (o'quvchilari o'zgarmaydi)
   if (!isTeaching({ role: role as Role, teaches })) await clearCourseTeacher(id);
   await logActivity(session, "staff.edit", `Xodim ma’lumotlari: ${name} (${ROLE_LABEL[role as Role]}${teaches ? ", dars ham beradi" : ""})`);
@@ -270,4 +268,20 @@ export async function deleteSalary(id: string): Promise<void> {
     await logActivity(session, "salary.delete", `O‘chirildi: ${staff?.name ?? "xodim"} — ${removed.kind === "oylik" ? "oylik" : "avans"} ${formatMoney(removed.amount)} (${monthLabel(removed.month)})`);
   }
   await dataChanged();
+}
+
+/**
+ * Oylik hisoblash (switch): yoqilsa — xodimga oylik hisoblanadi (o'z o'quvchilari to'lovlaridan foiz; administratorda —
+ * belgilangan oylik), o'chirilsa — hisoblanmaydi. Olingan avans/oylik yozuvlari saqlanadi.
+ */
+export async function setStaffPayEnabled(id: string, on: boolean): Promise<{ ok: boolean }> {
+  const session = await requireOwner({ fresh: true });
+  if (!isId(id)) return { ok: false };
+  await connectDB();
+  const staff = await getStaffById(id);
+  if (!staff) return { ok: false };
+  await Staff.updateOne({ _id: id }, { $set: { payEnabled: Boolean(on) } });
+  await logActivity(session, "staff.pay", `${staff.name}: oylik hisoblash ${on ? "yoqildi" : "o‘chirildi"}`);
+  await dataChanged();
+  return { ok: true };
 }

@@ -7,7 +7,7 @@ import type { AmountChange, PercentChange } from "./fees";
 import { Staff } from "./models";
 import { fingerprint } from "./passwords";
 import type { Role } from "./session";
-import { ownerPhone, TEACHING_FILTER, type ShareBase, type StaffStatus } from "./staff-rules";
+import { ownerPhone, payEnabledOf, TEACHING_FILTER, type StaffStatus } from "./staff-rules";
 
 export type StaffLean = {
   _id: mongoose.Types.ObjectId;
@@ -17,11 +17,12 @@ export type StaffLean = {
   status: StaffStatus;
   passwordHash?: string | null;
   shareHistory?: { from?: string | null; percent?: number | null }[] | null;
-  shareBase?: ShareBase | null;
   /** Belgilangan oylik tarixi (administrator) */
   salaryHistory?: { from?: string | null; amount?: number | null }[] | null;
   /** Rahbar o'zi ham dars beradi */
   teaches?: boolean | null;
+  /** Oylik hisoblash yoqilganmi (maydon yo'q — staff-rules → payEnabledOf) */
+  payEnabled?: boolean | null;
   activatedAt?: Date | null;
   lastLoginAt?: Date | null;
   createdAt?: Date;
@@ -37,10 +38,11 @@ export type StaffView = {
   role: Role;
   status: StaffStatus;
   shareHistory: PercentChange[];
-  shareBase: ShareBase;
   salaryHistory: AmountChange[];
   /** Rahbar o'zi ham dars beradi (o'qituvchilar ro'yxatlarida ko'rinadi) */
   teaches: boolean;
+  /** Oylik hisoblanadimi (switch) */
+  payEnabled: boolean;
   activatedAt: string | null;
   lastLoginAt: string | null;
 };
@@ -65,9 +67,9 @@ export function toStaffView(s: StaffLean): StaffView {
     role: s.role,
     status: s.status,
     shareHistory: shareHistoryOf(s),
-    shareBase: s.shareBase === "center" ? "center" : "students",
     salaryHistory: salaryHistoryOf(s),
     teaches: s.role === "owner" && s.teaches === true,
+    payEnabled: payEnabledOf(s),
     activatedAt: s.activatedAt ? s.activatedAt.toISOString() : null,
     lastLoginAt: s.lastLoginAt ? s.lastLoginAt.toISOString() : null,
   };
@@ -100,7 +102,7 @@ export async function ensureOwnerInvite(phone: string): Promise<boolean> {
   await connectDB();
   if (await Staff.exists({ $or: [{ role: "owner" }, { phone }] })) return false;
   try {
-    await Staff.create({ name: "Rahbar", phone, role: "owner", status: "invited", shareBase: "center" });
+    await Staff.create({ name: "Rahbar", phone, role: "owner", status: "invited" });
     return true;
   } catch (err) {
     // Bir vaqtda ikki so'rov kelgan bo'lsa — birinchisi yaratgan (telefon noyob)

@@ -14,7 +14,6 @@ import { formatUzPhone, normalizeUzPhone } from "../lib/phone";
 import {
   DEFAULT_OWNER_PHONE,
   defaultPercent,
-  defaultShareBase,
   fixedPayOf,
   isTeaching,
   salaryMonthOf,
@@ -25,6 +24,7 @@ import {
   payKindOf,
   payLabel,
   payHistoryMonths,
+  payEnabledOf,
   payOf,
   payPlanOf,
   staffInitials,
@@ -103,8 +103,6 @@ test("xodim oyligi: foiz, asos va olinganlar", () => {
   assert.equal(parsePercent("-5"), null);
   assert.equal(parsePercent("abc"), null);
   assert.equal(parsePercent(""), null);
-  assert.equal(defaultShareBase("teacher"), "students");
-  assert.equal(defaultShareBase("admin"), "center");
   assert.equal(defaultPercent("teacher"), 40);
   assert.equal(defaultPercent("admin"), 0);
   // "0000-01" — boshidan; keyin noyabrdan 45%
@@ -247,4 +245,13 @@ test("bu oy rejasi: oylik davri bo'yicha — amalda yig'ilgan va hamma to'lasa",
   // Bo'sh ro'yxat; qarz oylik to'lovdan oshmaydi va manfiy bo'lmaydi
   assert.equal(payPlanOf([], 40, { base: 0, closed: false }).planShare, 0);
   assert.equal(payPlanOf([{ monthlyFee: 300000, debt: 500000 }, { monthlyFee: 300000, debt: -50000 }], 40, { base: 0, closed: false }).debt, 300000);
+});
+
+test("oylik hisoblash switch: belgilanmagan bo'lsa rahbardan boshqasiga yoqilgan", () => {
+  assert.equal(payEnabledOf({ role: "teacher" }), true);
+  assert.equal(payEnabledOf({ role: "admin" }), true);
+  assert.equal(payEnabledOf({ role: "owner" }), false);
+  assert.equal(payEnabledOf({ role: "owner", payEnabled: null }), false);
+  assert.equal(payEnabledOf({ role: "owner", payEnabled: true }), true);
+  assert.equal(payEnabledOf({ role: "teacher", payEnabled: false }), false);
 });

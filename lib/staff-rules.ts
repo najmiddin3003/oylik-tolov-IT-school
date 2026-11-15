@@ -17,7 +17,6 @@ export function ownerPhone(envValue: string | undefined): string {
 }
 
 export type StaffStatus = "invited" | "active" | "disabled";
-export type ShareBase = "students" | "center";
 /** Oylik turi: tushumdan foiz yoki belgilangan summa */
 export type PayKind = "percent" | "fixed";
 
@@ -50,14 +49,17 @@ export function isTeaching(s: { role: Role; teaches?: boolean | null }): boolean
 /** Bazadan dars beradigan xodimlarni olish sharti — `isTeaching` bilan bir xil. */
 export const TEACHING_FILTER = { $or: [{ role: "teacher" as const }, { role: "owner" as const, teaches: true }] };
 
+/**
+ * Xodimga oylik hisoblanadimi (switch). Belgilanmagan bo'lsa: o'qituvchi va administratorga — ha, rahbarga — yo'q
+ * (rahbar dars bersa va o'quvchilaridan oylik olsa — yoqadi).
+ */
+export function payEnabledOf(s: { role: Role; payEnabled?: boolean | null }): boolean {
+  return typeof s.payEnabled === "boolean" ? s.payEnabled : s.role !== "owner";
+}
+
 /** Oylik turi: administrator — belgilangan oylik (har oy bir xil summa), o'qituvchi va rahbar — tushumdan foiz. */
 export function payKindOf(role: Role): PayKind {
   return role === "admin" ? "fixed" : "percent";
-}
-
-/** Oylik foizi nimadan: o'qituvchi — o'z o'quvchilari to'lovlaridan, rahbar — butun markaz tushumidan. */
-export function defaultShareBase(role: Role): ShareBase {
-  return role === "teacher" ? "students" : "center";
 }
 
 /** Yangi xodim uchun standart foiz: o'qituvchi — 40%, qolganlar — 0 (oylik hisoblanmaydi). */

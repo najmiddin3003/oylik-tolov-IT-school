@@ -437,6 +437,8 @@ export type TeamMember = StaffView & {
   debtors: number;
   debt: number;
   expected: number;
+  /** Shu oyda o'quvchilaridan olingan tushum (oylik hisoblash o'chiq bo'lsa ham) */
+  collected: number;
 };
 
 /** Rahbar paneli: har bir xodim (o'quvchilari, tushumi, oyligi) va markaz bo'yicha jami. */
@@ -459,7 +461,8 @@ export async function getTeamOverview(month: string) {
   const members: TeamMember[] = [];
   for (const d of staffDocs) {
     if (d.status === "disabled") continue;
-    members.push({ ...toStaffView(d), pay: await staffPay(d, month), ...stats(byTeacher.get(String(d._id)) ?? []) });
+    const id = String(d._id);
+    members.push({ ...toStaffView(d), pay: await staffPay(d, month), ...stats(byTeacher.get(id) ?? []), collected: collections.byTeacher.get(id) ?? 0 });
   }
   const order: Record<Role, number> = { owner: 0, teacher: 1, admin: 2 };
   members.sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name));
@@ -1309,11 +1312,10 @@ async function payHistory(doc: StaffLean, month: string): Promise<PayMonth[]> {
  * qancha to'lamagan va hamma to'lasa oylik qancha bo'ladi. Belgilangan oylikda — null.
  */
 async function staffPlan(doc: StaffLean, pay: StaffPay, month: string): Promise<PayPlan | null> {
-  if (pay.kind !== "percent") return null;
-  const center = doc.shareBase === "center";
+  if (pay.kind !== "percent" || !pay.enabled) return null;
   const { rows } = await getMonthOverview(month);
   const id = String(doc._id);
-  const mine = center ? rows : rows.filter((r) => r.teacherId === id);
+  const mine = rows.filter((r) => r.teacherId === id);
   // Foiz 0 va o'z o'quvchisi yo'q (masalan, oylik olmaydigan rahbar) — reja ko'rsatilmaydi
   if (!pay.percent && !mine.length) return null;
   // Oylik davri: shu oy oyligi olinganmi va davr qachon boshlangan (oldingi oy oyligi olingan kun).

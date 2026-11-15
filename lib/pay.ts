@@ -9,7 +9,7 @@ import { LIVE, loadStudents } from "./ledger";
 import { Payment, Salary } from "./models";
 import { SALARY_CYCLE_FROM, salaryCycles, type CycleClose, type CyclePayment, type SalaryCycles } from "./salary-cycle";
 import { salaryHistoryOf, shareHistoryOf, type StaffLean } from "./staff";
-import { fixedPayOf, payKindOf, payOf, staffPercent, staffSalary, type PayKind } from "./staff-rules";
+import { fixedPayOf, payEnabledOf, payKindOf, payOf, staffPercent, staffSalary, type PayKind } from "./staff-rules";
 import { isoToDate, shiftMonth } from "./time";
 
 export type SalaryRow = {
@@ -62,6 +62,8 @@ export type StaffPay = {
    * hozir tushgan to'lovlar qaysi oy oyligiga qo'shilayotgani.
    */
   cycle: { closedOn: string | null; current: string } | null;
+  /** Oylik hisoblanadimi (xodimdagi switch); o'chiq bo'lsa — oylik 0, hisob yuritilmaydi */
+  enabled: boolean;
 };
 
 /**
@@ -158,17 +160,19 @@ export async function staffPay(staff: StaffLean, month: string): Promise<StaffPa
   const salaries = await monthSalaries(month);
   const id = String(staff._id);
   const taken = (salaries.get(id) ?? []).reduce((s, x) => s + x.amount, 0);
-  if (payKindOf(staff.role) === "fixed") return { staffId: id, ...fixedPayOf(staffSalary(salaryHistoryOf(staff), month), taken), cycle: null };
-  const center = staff.shareBase === "center";
+  const kind = payKindOf(staff.role);
+  // Oylik hisoblash o'chiq — oylik hisoblanmaydi (olingan avans/oylik yozuvlari saqlanadi)
+  if (!payEnabledOf(staff)) return { staffId: id, kind, base: 0, percent: 0, share: 0, taken, left: 0, cycle: null, enabled: false };
+  if (kind === "fixed") return { staffId: id, ...fixedPayOf(staffSalary(salaryHistoryOf(staff), month), taken), cycle: null, enabled: true };
+  // Foizli oylik — o'z o'quvchilari to'lovlaridan
   const percent = staffPercent(shareHistoryOf(staff), month);
   if (month < SALARY_CYCLE_FROM) {
     const collections = await monthCollections(month);
-    const base = center ? collections.total : (collections.byTeacher.get(id) ?? 0);
-    return { staffId: id, ...payOf(base, percent, taken), cycle: null };
+    return { staffId: id, ...payOf(collections.byTeacher.get(id) ?? 0, percent, taken), cycle: null, enabled: true };
   }
-  const cycles = await staffCycles(id, center);
-  // Foiz 0 bo'lsa (masalan, oylik olmaydigan rahbar) — oy holati ko'rsatilmaydi
+  const cycles = await staffCycles(id, false);
+  // Foiz 0 bo'lsa — oy holati ko'rsatilmaydi
   const cycle = percent > 0 ? { closedOn: cycles.closedOn(month), current: cycles.current } : null;
-  return { staffId: id, ...payOf(cycles.bases.get(month) ?? 0, percent, taken), cycle };
+  return { staffId: id, ...payOf(cycles.bases.get(month) ?? 0, percent, taken), cycle, enabled: true };
 }
 

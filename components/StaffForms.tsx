@@ -160,14 +160,12 @@ export function StaffEditForm({
   action,
   name,
   role,
-  shareBase,
   teaches,
   self,
 }: {
   action: (prev: FormState, fd: FormData) => Promise<FormState>;
   name: string;
   role: Role;
-  shareBase: "students" | "center";
   /** Rahbar o'zi ham dars beradi */
   teaches: boolean;
   /** Rahbar o'zini tahrirlayapti — lavozimni o'zgartirib bo'lmaydi */
@@ -205,28 +203,12 @@ export function StaffEditForm({
             />
           )}
         </div>
-        {payKindOf(roleNow) === "fixed" ? (
-          <div>
-            {/* Administratorga oylik foizda emas, belgilangan summada — foiz asosi kerak emas (o'zgarmasdan saqlanadi) */}
-            <input type="hidden" name="shareBase" value={shareBase} />
-            <span className={labelCls}>Oylik turi</span>
-            <p className="flex h-11 items-center rounded-xl border border-line bg-slate-50 px-3.5 text-[15px] text-ink-600">Belgilangan oylik</p>
-          </div>
-        ) : (
-          <div>
-            <span className={labelCls}>Oylik foizi nimadan</span>
-            <Select
-              name="shareBase"
-              defaultValue={shareBase}
-              searchable={false}
-              aria-label="Oylik foizi nimadan"
-              options={[
-                { value: "students", label: "O‘z o‘quvchilari to‘lovlaridan" },
-                { value: "center", label: "Butun markaz tushumidan" },
-              ]}
-            />
-          </div>
-        )}
+        <div>
+          <span className={labelCls}>Oylik turi</span>
+          <p className="flex h-11 items-center rounded-xl border border-line bg-slate-50 px-3.5 text-[15px] text-ink-600">
+            {payKindOf(roleNow) === "fixed" ? "Belgilangan" : "Foiz (o‘quvchilari)"}
+          </p>
+        </div>
       </div>
       {roleNow === "owner" ? (
         <div>
@@ -237,8 +219,8 @@ export function StaffEditForm({
             <span>
               <span className="block text-sm font-semibold text-ink-900">Dars ham beradi</span>
               <span className="mt-1 block text-xs leading-relaxed text-ink-500">
-                O‘qituvchilar ro‘yxatlarida ko‘rinadi: kursga va o‘quvchilarga o‘qituvchi sifatida biriktiriladi. Oyligi o‘quvchilari to‘lovlaridan
-                bo‘lsa, «Oylik foizi nimadan» — «O‘z o‘quvchilari to‘lovlaridan».
+                O‘qituvchilar ro‘yxatlarida ko‘rinadi: kursga va o‘quvchilarga o‘qituvchi sifatida biriktiriladi. O‘quvchilari to‘lovlaridan oylik
+                olsa — «Oylik» bo‘limida «Oylik hisoblash»ni yoqing.
               </span>
             </span>
           </label>

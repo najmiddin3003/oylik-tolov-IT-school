@@ -49,8 +49,12 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     o‘quvchi, Sheets’dan import va ro‘yxatdagi ommaviy «Kurs» amali ham uni o‘zi qo‘yadi; yagona o‘qituvchi almashsa, avvalgisining
     shu kursdagi o‘quvchilari yangisiga o‘tadi. **Bir nechta** o‘qituvchi bo‘lsa, avtomatik biriktirilmaydi — o‘quvchi qo‘shishda
     ustozi tanlanadi (ro‘yxatda «shu kurs» belgisi bilan). Boshqa o‘qituvchiga alohida biriktirilganlar o‘zgarmaydi.
-  - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — o‘qituvchida o‘z o‘quvchilari shu oy to‘lagan pul,
-    rahbarda butun markaz tushumi (har xodimga alohida tanlasa bo‘ladi). **Administratorda foiz yo‘q — belgilangan oylik**
+  - **«Oylik hisoblash» switch** — har bir xodimga («Xodimlar» ro‘yxatida o‘ng tomonda va xodim sahifasida). Yoqilgan bo‘lsa
+    oylik hisoblanadi, o‘chiq bo‘lsa — hisoblanmaydi (xodim kartasida, «Xodimlar oyligi» jamida, «Profilim» va Excel
+    hisobotida «oylik hisoblanmaydi»; olingan avans/oyliklar ro‘yxati qoladi). Standart: o‘qituvchi va administratorga
+    yoqilgan, rahbarga o‘chiq (rahbar dars bersa va o‘z o‘quvchilaridan oylik olsa — yoqadi).
+  - **Oylik** = foiz × asos − shu oy olingan oylik/avanslar. Asos — **xodimning o‘z o‘quvchilari** to‘lagan pul (rahbarda
+    ham — dars beradigan o‘quvchilari; butun markaz tushumidan hisoblanmaydi). **Administratorda foiz yo‘q — belgilangan oylik**
     (har oy bir xil summa). Foiz ham, belgilangan oylik ham «falon oydan boshlab» o‘zgaradi — o‘tgan oylar o‘zgarmaydi.
     Xodim sahifasida (va «Profilim»da) oylik kartasining o‘zida **oy tanlagich** (‹ oy ›) va **«Oylar bo‘yicha»** jadvali:
     oxirgi 12 oy — tushum, hisoblangan oylik, olingan oylik/avans, qolgani va jami; oy bosilsa, o‘sha oy tafsiloti ochiladi.

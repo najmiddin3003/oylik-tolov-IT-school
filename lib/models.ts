@@ -402,8 +402,10 @@ const staffSchema = new Schema(
     passwordHash: { type: String, default: null },
     /** Oylik: tushumdan foiz, "from" oyidan boshlab */
     shareHistory: { type: [{ from: String, percent: Number, _id: false }], default: [] },
-    /** Foiz nimadan olinadi: o'z o'quvchilari to'lovlaridan yoki butun markaz tushumidan */
-    shareBase: { type: String, enum: ["students", "center"], default: "students" },
+    /** Eski maydon (endi ishlatilmaydi): foiz har doim o'z o'quvchilari to'lovlaridan */
+    shareBase: { type: String, enum: ["students", "center"] },
+    /** Oylik hisoblash (switch): yoqilgan — o'z o'quvchilari to'lovlaridan foiz (administratorda — belgilangan oylik); maydon yo'q — rahbardan boshqasiga yoqilgan */
+    payEnabled: { type: Boolean },
     /** Belgilangan oylik (administrator): har oy shu summa, "from" oyidan boshlab */
     salaryHistory: { type: [{ from: String, amount: Number, _id: false }], default: [] },
     /** Rahbar o'zi ham dars beradi: o'qituvchilar ro'yxatlarida ko'rinadi, kurs va o'quvchilar unga biriktiriladi */
