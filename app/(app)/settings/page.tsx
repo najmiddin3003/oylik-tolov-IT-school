@@ -25,6 +25,7 @@ import { DiscountTypesEditor } from "@/components/Discounts";
 import { FeatureCheck } from "@/components/FeatureCheck";
 import {
   AdminPasswordForm,
+  AttendanceCheckButton,
   CenterNameForm,
   CoursesForm,
   FeeForm,
@@ -39,9 +40,11 @@ import { SettingsNav } from "@/components/SettingsNav";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { btn, Card, cx, IconTile, PageHeader, PageSkeleton, Tag, type Tone } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
+import { ATTENDANCE_SMS_STALE_MINUTES, type AttendanceSmsState } from "@/lib/attendance-sms-rules";
+import type { AttendanceSmsToday } from "@/lib/attendance-sms";
 import { getSettingsPageData } from "@/lib/data";
 import { formatUzPhone } from "@/lib/eskiz";
-import { currentMonth, formatDateTime, formatMoney, isValidMonth, monthLabel } from "@/lib/time";
+import { currentMonth, formatDateTime, formatMoney, isValidMonth, monthLabel, nowMs } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Sozlamalar" };
 
@@ -377,10 +380,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
             right={d.attendanceSms.enabled ? <Tag tone="emerald">Yoqilgan</Tag> : <Tag>O‘chiq</Tag>}
           >
             <AttendanceSmsForm settings={d.attendanceSms} />
-            <p className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-ink-500">
-              Tekshiruv har 5 daqiqada ishlaydi — cron-job.org dagi <code className="rounded bg-surface px-1">/api/ping</code> chaqiruvi bilan (README → «Tezlik»).
-              Shuning uchun SMS belgilangan vaqtdan 5 daqiqagacha kechikishi mumkin. Har bir guruh uchun kuniga bir marta yuboriladi.
-            </p>
+            <AttendanceSmsStatus today={d.attendanceToday} enabled={d.attendanceSms.enabled} now={nowMs()} />
             {d.attendanceLogs.length ? (
               <History title="Oxirgi davomat SMS’lari">
                 {d.attendanceLogs.map((l) => (
@@ -461,6 +461,94 @@ function Section({
       <SectionTitle icon={icon} tone={tone} title={title} subtitle={subtitle} right={right} />
       {children}
     </Card>
+  );
+}
+
+const ATT_STATE: Record<AttendanceSmsState, { label: string; tone: "slate" | "amber" | "rose" | "emerald" }> = {
+  done: { label: "davomat qilingan", tone: "emerald" },
+  waiting: { label: "kutilmoqda", tone: "slate" },
+  due: { label: "navbatda", tone: "amber" },
+  sent: { label: "yuborildi", tone: "emerald" },
+  failed: { label: "xato", tone: "rose" },
+  blocked: { label: "yuborilmaydi", tone: "rose" },
+  late: { label: "vaqti o‘tdi", tone: "slate" },
+};
+
+/**
+ * Davomat SMS holati: tekshiruv oxirgi marta qachon ishlagan (ishlamayotgan bo'lsa — ogohlantirish), «Hozir tekshirish»
+ * va bugungi har bir guruh — SMS yuborilganmi, qachon ketadi yoki nega yuborilmaydi.
+ */
+function AttendanceSmsStatus({ today, enabled, now }: { today: AttendanceSmsToday; enabled: boolean; now: number }) {
+  const ago = today.checkedAt ? Math.max(0, Math.round((now - new Date(today.checkedAt).getTime()) / 60_000)) : null;
+  const stale = ago === null || ago > ATTENDANCE_SMS_STALE_MINUTES;
+  const time = (iso: string) => formatDateTime(iso).slice(-5);
+  return (
+    <div className="mt-5 grid gap-4">
+      <div className="rounded-2xl border border-line p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="flex min-w-0 items-center gap-2.5 text-sm text-ink-700">
+            <span className={cx("size-2.5 shrink-0 rounded-full", !enabled ? "bg-ink-300" : stale ? "bg-amber-500" : "bg-emerald-500")} aria-hidden />
+            <span className="min-w-0">
+              <b className="font-semibold text-ink-900">Tekshiruv:</b>{" "}
+              {!enabled
+                ? "o‘chiq"
+                : ago === null
+                  ? "hali bir marta ham ishlamagan"
+                  : `oxirgi marta ${formatDateTime(today.checkedAt)} (${ago < 1 ? "hozirgina" : `${ago} daqiqa oldin`})`}
+              {enabled && today.checkNote ? <span className="block text-xs text-ink-500">Natija: {today.checkNote}</span> : null}
+            </span>
+          </p>
+          <AttendanceCheckButton disabled={!enabled} />
+        </div>
+        {enabled && !today.eskiz ? (
+          <p className="mt-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700">
+            Eskiz kalitlari kiritilmagan (Vercel: ESKIZ_EMAIL va ESKIZ_PASSWORD) — SMS yuborib bo‘lmaydi.
+          </p>
+        ) : null}
+        {enabled && stale ? (
+          <p className="mt-3 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm leading-relaxed text-amber-900">
+            Tekshiruv {ago === null ? "hali ishlamagan" : `${ago} daqiqadan beri ishlamagan`} — shu sabab SMS ketmasligi mumkin. U saytda kimdir sahifa ochganda va
+            cron-job.org <code className="rounded bg-surface px-1">/api/ping</code> ni har 5 daqiqada chaqirganda ishlaydi (README → «Tezlik»). Dars
+            vaqtlarida hech kim saytda bo‘lmasa — cron-job.org sozlanishi shart.
+          </p>
+        ) : null}
+        <p className="mt-3 text-xs leading-relaxed text-ink-500">
+          SMS belgilangan vaqtdan 5 daqiqagacha kechikishi mumkin. Har bir guruhga kuniga bir marta yuboriladi; Eskiz xato qaytarsa — yana 2 marta uriniladi.
+        </p>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-line">
+        <p className="flex items-center justify-between gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-sm font-semibold text-ink-700">
+          Bugungi guruhlar
+          <span className="num font-normal text-ink-500">{today.groups.length} ta</span>
+        </p>
+        {today.groups.length ? (
+          <ul className="divide-y divide-line-soft">
+            {today.groups.map((g) => {
+              const st = ATT_STATE[g.state];
+              return (
+                <li key={g.key} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <span className="num font-semibold text-ink-900">{g.start}</span> <span className="text-ink-800">{g.course || "Kurssiz"}</span>
+                    <span className="num block text-xs text-ink-500">
+                      {g.teacherName || "o‘qituvchi yo‘q"}
+                      {g.phone ? ` · ${formatUzPhone(g.phone)}` : ""} · belgilanmagan {g.missing}/{g.total}
+                    </span>
+                    {g.state === "blocked" || g.state === "failed" ? <span className="mt-0.5 block text-xs font-medium text-rose-700">{g.detail}</span> : null}
+                    {g.state === "late" ? <span className="mt-0.5 block text-xs text-ink-500">SMS vaqti ({g.dueAt}) da tekshiruv ishlamagan — yuborilmadi</span> : null}
+                  </span>
+                  <Tag tone={st.tone}>
+                    {g.state === "sent" && g.detail ? `yuborildi ${time(g.detail)}` : g.state === "waiting" ? `SMS ${g.dueAt} da` : g.state === "due" ? "navbatda — hozir ketadi" : st.label}
+                  </Tag>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="px-4 py-4 text-sm text-ink-500">Bugun dars jadvali bo‘yicha guruh yo‘q.</p>
+        )}
+      </div>
+    </div>
   );
 }
 

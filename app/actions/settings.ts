@@ -18,6 +18,7 @@ import { normalizeStartDay, templateHasCount } from "@/lib/reminders";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/passwords";
 import { createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
+import { runAttendanceSms } from "@/lib/attendance-sms";
 import { attendanceTemplateError, normalizeAttendanceSms } from "@/lib/attendance-sms-rules";
 import { sendParentTestSms } from "@/lib/parent-sms";
 import { normalizeParentSms, parentTemplateErrors } from "@/lib/parent-sms-rules";
@@ -284,6 +285,16 @@ export async function saveAttendanceSmsSettings(_prev: FormState, fd: FormData):
   await logActivity(session, "settings.sms", `Davomat SMS: ${cfg.enabled ? "yoqildi" : "o‘chirildi"}, davomat ochilgandan ${cfg.delayMinutes} daqiqa keyin`);
   await dataChanged();
   return { ok: true, message: "Davomat SMS sozlamalari saqlandi", nonce: Date.now() };
+}
+
+/** «Hozir tekshirish»: davomati kechikkan guruhlar o'qituvchisiga SMS'ni kutmasdan yuborish va natijasini ko'rsatish. */
+export async function checkAttendanceSmsNow(): Promise<FormState> {
+  const session = await requireOwner({ fresh: true });
+  const res = await runAttendanceSms("auto", { force: true });
+  if (res.sent) await logActivity(session, "settings.sms", `Davomat SMS qo‘lda tekshirildi: ${res.message}`);
+  await dataChanged();
+  if (res.status === "failed") return { error: res.message, nonce: Date.now() };
+  return { ok: true, message: res.message, nonce: Date.now() };
 }
 
 // ---------- Funksiyalar (yoqib-o'chiriladi) ----------

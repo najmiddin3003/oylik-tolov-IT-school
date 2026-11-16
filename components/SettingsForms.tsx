@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Check, Eye, EyeOff, HandCoins, KeyRound, MessageSquareText, Percent, Plus, Send, ShieldCheck, Tags, Trash2, Wallet, X } from "lucide-react";
+import { Check, Eye, EyeOff, HandCoins, KeyRound, MessageSquareText, Percent, Plus, RefreshCw, Send, ShieldCheck, Tags, Trash2, Wallet, X } from "lucide-react";
 import {
   applyFeeChange,
   changeOwnerPassword,
   saveCenterName,
   saveCourses,
+  checkAttendanceSmsNow,
   saveAttendanceSmsSettings,
   saveParentSmsSettings,
   saveSmsSettings,
@@ -848,6 +849,28 @@ export function ParentTestSms({ disabled, defaultPhone }: { disabled: boolean; d
 }
 
 // ---------- Davomat SMS ----------
+
+/** «Hozir tekshirish»: navbatni kutmasdan tekshiradi (davomati kechikkan guruh bo'lsa — SMS yuboriladi) va natijani ko'rsatadi. */
+export function AttendanceCheckButton({ disabled }: { disabled?: boolean }) {
+  const [state, onSubmit, pending] = useActionForm<FormState>(checkAttendanceSmsNow, {});
+  return (
+    <form onSubmit={onSubmit} className="flex flex-wrap items-center gap-3">
+      <button type="submit" disabled={pending || disabled} className={cx(btn.outline, "h-10")}>
+        <RefreshCw className={cx("size-4", pending && "animate-spin")} aria-hidden />
+        {pending ? "Tekshirilmoqda…" : "Hozir tekshirish"}
+      </button>
+      {state.error ? (
+        <p className="text-sm text-rose-700" role="alert">
+          {state.error}
+        </p>
+      ) : state.ok && state.message ? (
+        <p className="text-sm text-emerald-700" role="status">
+          ✓ {state.message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
 
 /** Davomat qilinmagan guruh o'qituvchisiga SMS: yoqish, davomat ochilgandan necha daqiqa keyin va shablon. */
 export function AttendanceSmsForm({ settings }: { settings: { enabled: boolean; delayMinutes: number; template: string } }) {

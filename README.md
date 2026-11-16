@@ -132,7 +132,12 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   daqiqa (standart 10) o‘tib ham qilinmasa, guruh o‘qituvchisi telefoniga bir marta SMS (faqat ro‘yxatdan o‘tgan, faol xodimga).
   Shablon: `{#guruh#}` (majburiy), `{#vaqt#}`, `{#soni#}`, `{#ism#}`. Tekshiruv `/api/ping` (cron-job.org, har 5 daqiqada) yoki
   `/api/cron/attendance` (CRON_SECRET bilan) chaqirilganda ishlaydi — kechki guruhlar bo‘lsa, ping jadvalini oxirgi dars
-  tugashigacha cho‘zing. Davomat sahifasidagi kurs filtri brauzerda eslab qolinadi.
+  tugashigacha cho‘zing. Bundan tashqari, **saytda kimdir sahifa ochganda** ham tekshiriladi (ping sozlanmagan yoki kechikkan
+  bo‘lsa ham); dars vaqtida hech kim saytda bo‘lmasa — ping shart. Eskiz xato qaytarsa — keyingi tekshiruvlarda yana uriniladi
+  (bir guruhga kuniga 3 martagacha). Sozlamalardagi bo‘limda: **tekshiruv oxirgi marta qachon ishlagani** (15 daqiqadan beri
+  ishlamasa — ogohlantirish), **«Hozir tekshirish»** tugmasi va **«Bugungi guruhlar»** — har guruh uchun: SMS yuborildi (vaqti),
+  qachon ketadi, davomat qilingan yoki nega yuborilmaydi (o‘qituvchi biriktirilmagan / ro‘yxatdan o‘tmagan / telefoni yo‘q,
+  Eskiz xatosi). Davomat sahifasidagi kurs filtri brauzerda eslab qolinadi.
 - **Ota-onalarga SMS** (Sozlamalar → «Ota-onalarga SMS») — qarzi bor o‘quvchining «Ota-ona telefoni»ga Eskiz orqali eslatma,
   har kuni kechqurun (kunlik SMS bilan birga). Hammasi sozlamalardan: yoqish/o‘chirish, **qaysi sanadan keyin** (har oyning
   1–28-sanasi; o‘tgan oylar qarzi — darhol), **qanchalik tez-tez** (oyiga bir marta yoki to‘laguncha har 3/5/7/10 kunda),
