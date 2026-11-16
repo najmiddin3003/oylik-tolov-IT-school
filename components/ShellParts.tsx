@@ -1,5 +1,7 @@
 // Ilova qobig'ining server qismlari (sessiya va ma'lumot o'qiydi — Suspense ichida ishlatiladi).
 import { Building2 } from "lucide-react";
+import { after } from "next/server";
+import { runAttendanceSms } from "@/lib/attendance-sms";
 import { pageGuard } from "@/lib/auth";
 import { getBellExtras, getNavCounts, getReminders, getSyncAlert } from "@/lib/data";
 import { getSettings } from "@/lib/settings";
@@ -55,6 +57,9 @@ export function SidebarSkeleton() {
 export async function HeaderTools() {
   const { role, name, staffId } = await pageGuard();
   const [reminders, sync, extras] = await Promise.all([getReminders(), getSyncAlert(), getBellExtras()]);
+  // Javobdan keyin: davomati kechikkan guruhlar o'qituvchisiga SMS. /api/ping (cron-job.org) sozlanmagan yoki kechikkan
+  // bo'lsa ham, saytda kimdir sahifa ochganda tekshiriladi (jarayon ichida daqiqada bir marta, bazada qulf bilan).
+  after(() => runAttendanceSms("auto").catch((err) => console.error("[shell] davomat SMS:", err)));
   const canSearch = role === "owner" || role === "teacher";
   return (
     <>

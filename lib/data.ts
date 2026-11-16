@@ -31,6 +31,7 @@ import { suggestedArchiveMonth } from "./sheet-archive";
 import { discountAt, netFee, type DiscountChange, type DiscountType } from "./discounts";
 import { parentSmsPreview } from "./parent-sms";
 import { attendanceDay, pendingAttendance, pendingFollowUps, type FollowUp, type PendingAttendance } from "./attendance";
+import { attendanceSmsToday } from "./attendance-sms";
 import { isAttendanceStatus, type AttendanceStatus } from "./attendance-rules";
 import { monthCollections, monthSalaries, staffPay, toSalaryRow, type SalaryRow, type StaffPay } from "./pay";
 import { normalizeText } from "./normalize";
@@ -963,6 +964,7 @@ export async function getSettingsPageData(month: string) {
     discounts: settings.discounts,
     discountUsage: await discountUsage(),
     attendanceSms: settings.attendanceSms,
+    attendanceToday: await attendanceSmsToday(settings.attendanceSms.delayMinutes),
     attendanceLogs: attLogs.map((l) => ({
       id: String(l._id),
       status: l.status as "sent" | "skipped" | "failed",

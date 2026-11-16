@@ -171,6 +171,9 @@ const settingSchema = new Schema(
       template: { type: String },
     },
     attendanceSmsLockUntil: { type: Date, default: null },
+    /** Davomat SMS tekshiruvi oxirgi marta qachon ishladi va natijasi (Sozlamalarda ko'rsatiladi) */
+    attendanceSmsCheckedAt: { type: Date, default: null },
+    attendanceSmsCheckNote: { type: String, default: "" },
     /** Chegirmalar: yoqilgan va turlari (nomi, foiz yoki summa) */
     discounts: {
       enabled: { type: Boolean },
