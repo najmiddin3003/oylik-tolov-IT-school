@@ -25,6 +25,7 @@ import { PaidCell } from "@/components/cells";
 import { NextLessonCell } from "@/components/Lessons";
 import { EditedMark, EditPaymentButton } from "@/components/PaymentEdit";
 import { ReceiptLink } from "@/components/ReceiptActions";
+import { AccordionCard } from "@/components/AccordionCard";
 import { StudentDiscountPanel } from "@/components/Discounts";
 import { PaymentForm } from "@/components/PaymentForm";
 import { ConfirmAction } from "@/components/SubmitButton";
@@ -46,6 +47,7 @@ import {
 } from "@/components/ui";
 import { roleGuard } from "@/lib/auth";
 import { canPickPaymentDate, getDiscountOptions, getStudent, getStudentAttendance, getStudentPayments, type StudentAttendanceRow } from "@/lib/data";
+import { ACCORDION_OPEN_MAX } from "@/lib/accordion";
 import { ATTENDANCE_LABEL } from "@/lib/attendance-rules";
 import { discountAt, discountLabel, netFee } from "@/lib/discounts";
 import { feeFor } from "@/lib/fees";
@@ -480,11 +482,22 @@ function AttendanceCard({ rows }: { rows: StudentAttendanceRow[] }) {
   const count = (st: StudentAttendanceRow["status"]) => rows.filter((r) => r.status === st).length;
   const misses = rows.filter((r) => r.status !== "present");
   const DOT = { present: "bg-emerald-500", absent: "bg-rose-500", excused: "bg-amber-400" } as const;
+  if (!rows.length) {
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader title="Davomat" />
+        <p className="border-t border-line-soft px-6 py-5 text-sm text-ink-400">Hali davomat qilinmagan.</p>
+      </Card>
+    );
+  }
   return (
-    <Card className="overflow-hidden">
-      <CardHeader title="Davomat" subtitle={rows.length ? `Oxirgi ${rows.length} ta dars` : undefined} />
-      {rows.length ? (
-        <div className="border-t border-line-soft px-5 py-4 sm:px-6">
+    <AccordionCard
+      title="Davomat"
+      subtitle={`Oxirgi ${rows.length} ta dars`}
+      preview={`Keldi ${count("present")} · Kelmadi ${count("absent")} · Sababli ${count("excused")}`}
+      defaultOpen={misses.length <= ACCORDION_OPEN_MAX}
+    >
+        <div className="px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center gap-1.5" aria-label="Oxirgi darslar">
             {[...rows].reverse().map((r) => (
               <span
@@ -513,9 +526,6 @@ function AttendanceCard({ rows }: { rows: StudentAttendanceRow[] }) {
             <p className="mt-3 text-sm text-emerald-700">Barcha darslarga kelgan ✓</p>
           )}
         </div>
-      ) : (
-        <p className="border-t border-line-soft px-6 py-5 text-sm text-ink-400">Hali davomat qilinmagan.</p>
-      )}
-    </Card>
+    </AccordionCard>
   );
 }

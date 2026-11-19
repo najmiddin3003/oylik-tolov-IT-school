@@ -21,6 +21,7 @@ import {
 import { changeMyPassword } from "@/app/actions/auth";
 import { setMySyncAlert } from "@/app/actions/me";
 import { disableAdmin, setFeature } from "@/app/actions/settings";
+import { AccordionCard } from "@/components/AccordionCard";
 import { DiscountTypesEditor } from "@/components/Discounts";
 import { FeatureCheck } from "@/components/FeatureCheck";
 import {
@@ -40,6 +41,7 @@ import { SettingsNav } from "@/components/SettingsNav";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { btn, Card, cx, IconTile, PageHeader, PageSkeleton, Tag, type Tone } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
+import { ACCORDION_OPEN_MAX, previewCounts } from "@/lib/accordion";
 import { ATTENDANCE_SMS_STALE_MINUTES, type AttendanceSmsState } from "@/lib/attendance-sms-rules";
 import type { AttendanceSmsToday } from "@/lib/attendance-sms";
 import { getSettingsPageData } from "@/lib/data";
@@ -118,7 +120,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
             ) : null}
             <FeeForm month={currentMonth()} groups={d.feeGroups} courses={d.courses.filter((c) => c.students > 0)} />
             {d.feeChanges.length ? (
-              <History title="Narx o‘zgarishlari">
+              <History title="Narx o‘zgarishlari" count={d.feeChanges.length} preview={`Oxirgisi: ${monthLabel(d.feeChanges[0].from)} dan — ${formatMoney(d.feeChanges[0].fee)}`}>
                 {d.feeChanges.map((c, i) => (
                   <li key={`${c.from}-${c.at}-${i}`} className="num flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                     <span className="text-ink-800">
@@ -279,7 +281,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
               </div>
               <TestSmsButton disabled={!d.eskizReady} />
               {d.smsLogs.length ? (
-                <History title="Oxirgi SMS’lar">
+                <History title="Oxirgi SMS’lar" count={d.smsLogs.length} preview={`Oxirgisi: ${d.smsLogs[0].at ? formatDateTime(d.smsLogs[0].at) : ""} · ${d.smsLogs[0].status === "sent" ? "yuborildi" : d.smsLogs[0].status === "failed" ? "xato" : "yuborilmadi"}`}>
                   {d.smsLogs.map((l) => (
                     <li key={l.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
                       <span className="min-w-0 flex-1">
@@ -351,7 +353,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
               </div>
               <ParentTestSms disabled={!d.eskizReady} defaultPhone={d.sms.phone} />
               {d.parentLogs.length ? (
-                <History title="Oxirgi ota-ona SMS’lari">
+                <History title="Oxirgi ota-ona SMS’lari" count={d.parentLogs.length} preview={`Oxirgisi: ${d.parentLogs[0].at ? formatDateTime(d.parentLogs[0].at) : ""} · ${d.parentLogs[0].status === "sent" ? "yuborildi" : d.parentLogs[0].status === "failed" ? "xato" : "yuborilmadi"}`}>
                   {d.parentLogs.map((l) => (
                     <li key={l.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
                       <span className="min-w-0 flex-1">
@@ -382,7 +384,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
             <AttendanceSmsForm settings={d.attendanceSms} />
             <AttendanceSmsStatus today={d.attendanceToday} enabled={d.attendanceSms.enabled} now={nowMs()} />
             {d.attendanceLogs.length ? (
-              <History title="Oxirgi davomat SMS’lari">
+              <History title="Oxirgi davomat SMS’lari" count={d.attendanceLogs.length} preview={`Oxirgisi: ${d.attendanceLogs[0].at ? formatDateTime(d.attendanceLogs[0].at) : ""} · ${d.attendanceLogs[0].status === "sent" ? "yuborildi" : d.attendanceLogs[0].status === "failed" ? "xato" : "yuborilmadi"}`}>
                 {d.attendanceLogs.map((l) => (
                   <li key={l.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
                     <span className="min-w-0 flex-1">
@@ -517,11 +519,17 @@ function AttendanceSmsStatus({ today, enabled, now }: { today: AttendanceSmsToda
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-line">
-        <p className="flex items-center justify-between gap-3 border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-sm font-semibold text-ink-700">
-          Bugungi guruhlar
-          <span className="num font-normal text-ink-500">{today.groups.length} ta</span>
-        </p>
+      <AccordionCard
+        inset
+        title="Bugungi guruhlar"
+        count={today.groups.length}
+        preview={previewCounts(
+          today.groups.map((g) => g.state),
+          (st) => ATT_STATE[st].label,
+        )}
+        // Muammo bo'lsa (yuborilmaydi / xato) — boshidan ochiq
+        defaultOpen={today.groups.length <= ACCORDION_OPEN_MAX || today.groups.some((g) => g.state === "blocked" || g.state === "failed")}
+      >
         {today.groups.length ? (
           <ul className="divide-y divide-line-soft">
             {today.groups.map((g) => {
@@ -547,16 +555,16 @@ function AttendanceSmsStatus({ today, enabled, now }: { today: AttendanceSmsToda
         ) : (
           <p className="px-4 py-4 text-sm text-ink-500">Bugun dars jadvali bo‘yicha guruh yo‘q.</p>
         )}
-      </div>
+      </AccordionCard>
     </div>
   );
 }
 
-function History({ title, children }: { title: string; children: ReactNode }) {
+/** Tarix ro'yxati (SMS'lar, narx o'zgarishlari): ochiladigan blok — yopiq holatda soni va oxirgi yozuv. */
+function History({ title, count, preview, children }: { title: string; count: number; preview?: ReactNode; children: ReactNode }) {
   return (
-    <div className="mt-6 overflow-hidden rounded-2xl border border-line">
-      <p className="border-b border-line-soft bg-slate-50/70 px-4 py-2.5 text-sm font-semibold text-ink-700">{title}</p>
+    <AccordionCard inset className="mt-6" title={title} count={count} preview={preview} defaultOpen={count <= ACCORDION_OPEN_MAX}>
       <ul className="divide-y divide-line-soft">{children}</ul>
-    </div>
+    </AccordionCard>
   );
 }

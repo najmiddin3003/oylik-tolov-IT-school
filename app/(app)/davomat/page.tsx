@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { CalendarX2, ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, GraduationCap, Info, MessageCircleQuestion, Users } from "lucide-react";
+import { AccordionCard } from "@/components/AccordionCard";
 import { AttendanceForm, GroupDetails } from "@/components/AttendanceForm";
 import { FilterForm } from "@/components/FilterForm";
 import { FollowUpList } from "@/components/FollowUps";
 import { PersistFilter } from "@/components/PersistFilter";
 import { DatePicker, Select } from "@/components/pickers";
-import { btn, Card, CardHeader, cx, EmptyState, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { btn, Card, cx, EmptyState, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { ACCORDION_OPEN_MAX, previewNames } from "@/lib/accordion";
 import { courseKey } from "@/lib/courses";
 import type { Role } from "@/lib/session";
 import { attendanceOpen, ATTENDANCE_LABEL } from "@/lib/attendance-rules";
@@ -142,21 +144,19 @@ async function AttendanceView({ searchParams }: { searchParams: PageProps<"/davo
       {courseOptions.length > 1 ? <PersistFilter param="kurs" storageKey={`tt-davomat-kurs:${staffId ?? role}`} /> : null}
 
       {followUps.length ? (
-        <Card id="sabab" className="mb-5 scroll-mt-24 border-rose-200/80">
-          <CardHeader
-            title={
-              <span className="inline-flex items-center gap-2">
-                <MessageCircleQuestion className="size-5 text-rose-600" aria-hidden />
-                Sababini o‘rganing
-              </span>
-            }
-            count={followUps.length}
-            subtitle="O‘tgan darsga kelmagan o‘quvchilar — keyingi darsi boshlandi. Gaplashib, izoh yozing."
-          />
-          <div className="border-t border-line-soft">
-            <FollowUpList items={followUps} role={role} />
-          </div>
-        </Card>
+        <AccordionCard
+          id="sabab"
+          className="mb-5 border-rose-200/80"
+          icon={<MessageCircleQuestion className="size-5 text-rose-600" aria-hidden />}
+          title="Sababini o‘rganing"
+          count={followUps.length}
+          tone="rose"
+          subtitle="O‘tgan darsga kelmagan o‘quvchilar — keyingi darsi boshlandi. Gaplashib, izoh yozing."
+          preview={previewNames(followUps.map((f) => f.name))}
+          defaultOpen={followUps.length <= ACCORDION_OPEN_MAX}
+        >
+          <FollowUpList items={followUps} role={role} />
+        </AccordionCard>
       ) : null}
 
       {groups.length === 0 ? (

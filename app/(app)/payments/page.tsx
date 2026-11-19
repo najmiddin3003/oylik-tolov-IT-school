@@ -28,10 +28,12 @@ import { UnpaidButton } from "@/components/Notifications";
 import { PaymentForm } from "@/components/PaymentForm";
 import { PaymentHistory } from "@/components/PaymentHistory";
 import { DatePicker, Select } from "@/components/pickers";
+import { AccordionCard } from "@/components/AccordionCard";
 import { QuickStudentButton } from "@/components/QuickStudent";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { CompleteTaskButton } from "@/components/TaskButtons";
 import { Avatar, btn, Card, CountBadge, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Progress, Tag, type Tone } from "@/components/ui";
+import { ACCORDION_OPEN_MAX } from "@/lib/accordion";
 import { pageGuard } from "@/lib/auth";
 import {
   canPickPaymentDate,
@@ -373,15 +375,24 @@ async function adminExtras() {
 
 /** Rahbardan kelgan topshiriqlar (administrator). */
 function TasksCard({ tasks, lists }: { tasks: Awaited<ReturnType<typeof getMyTasks>>; lists: Record<string, Awaited<ReturnType<typeof listUnpaid>>> }) {
+  const openCount = tasks.filter((t) => t.status === "open").length;
   return (
-    <Card id="topshiriqlar" className="mb-6 scroll-mt-24 overflow-hidden border-brand-200/80">
-      <div className="group flex items-center gap-3.5 border-b border-brand-100 bg-brand-50/60 px-5 py-4 sm:px-6">
-        <IconTile icon={ClipboardList} tone="brand" variant="solid" />
-        <div>
-          <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Rahbardan topshiriqlar</h2>
-          <p className="mt-0.5 text-sm text-ink-500">Bajarganingizdan keyin «Bajarildi» tugmasini bosing</p>
-        </div>
-      </div>
+    <AccordionCard
+      id="topshiriqlar"
+      className="mb-6 border-brand-200/80"
+      icon={
+        <span className="group">
+          <IconTile icon={ClipboardList} tone="brand" variant="solid" size="sm" />
+        </span>
+      }
+      title="Rahbardan topshiriqlar"
+      count={openCount || tasks.length}
+      tone={openCount ? "brand" : "slate"}
+      subtitle="Bajarganingizdan keyin «Bajarildi» tugmasini bosing"
+      preview={[openCount ? `${openCount} ta ochiq` : "", tasks.length - openCount ? `${tasks.length - openCount} ta bajarilgan` : ""].filter(Boolean).join(" · ")}
+      // Ochiq topshiriq bo'lsa (va ko'p bo'lmasa) — boshidan ochiq
+      defaultOpen={openCount > 0 && openCount <= ACCORDION_OPEN_MAX}
+    >
       <ul className="divide-y divide-line-soft">
         {tasks.map((t) => {
           const live = lists[t.month] ?? [];
@@ -415,7 +426,7 @@ function TasksCard({ tasks, lists }: { tasks: Awaited<ReturnType<typeof getMyTas
           );
         })}
       </ul>
-    </Card>
+    </AccordionCard>
   );
 }
 
