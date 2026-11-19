@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ArrowLeft, CalendarRange, Download, ExternalLink, FileSpreadsheet, History, Info, ListChecks, Wallet } from "lucide-react";
-import { btn, Card, CardHeader, cx, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { AccordionCard } from "@/components/AccordionCard";
+import { btn, Card, cx, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { ACCORDION_OPEN_MAX, previewNames } from "@/lib/accordion";
 import { ownerGuard } from "@/lib/auth";
 import { getSheetArchive } from "@/lib/data";
 import { columnLetter, sheetDocument } from "@/lib/sheet-archive-rules";
@@ -156,13 +158,16 @@ async function SheetArchiveView({
             <SheetGrid rows={a.rows} extra={{ title: "Saytda birinchi ko‘rilgan", values: a.rowSeen.map((d) => (d ? formatDateTime(d) : "")) }} />
           </Card>
           {a.removedRows.length ? (
-            <Card className="mb-6 overflow-hidden">
-              <CardHeader
-                title="O‘chirilgan yoki o‘zgartirilgan qatorlar"
-                count={a.removedRows.length}
-                subtitle="Ilgari Sheets’da ko‘rilgan, arxivlash paytida esa yo‘q edi. Qator o‘zgartirilsa — eski holati shu yerda, yangisi jadvalda."
-              />
-              <div className="border-t border-line-soft">
+            <AccordionCard
+              className="mb-6"
+              title="O‘chirilgan yoki o‘zgartirilgan qatorlar"
+              count={a.removedRows.length}
+              tone="amber"
+              subtitle="Ilgari Sheets’da ko‘rilgan, arxivlash paytida esa yo‘q edi. Qator o‘zgartirilsa — eski holati shu yerda, yangisi jadvalda."
+              preview={previewNames(a.removedRows.map((r) => `${r.row}-qator`))}
+              defaultOpen={a.removedRows.length <= ACCORDION_OPEN_MAX}
+            >
+              <div>
                 <SheetGrid
                   rows={a.removedRows.map((r) => r.cells)}
                   rowNumbers={a.removedRows.map((r) => r.row)}
@@ -172,7 +177,7 @@ async function SheetArchiveView({
                   }}
                 />
               </div>
-            </Card>
+            </AccordionCard>
           ) : null}
         </>
       )}

@@ -28,7 +28,9 @@ import {
 } from "@/app/actions/sync";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { ArchiveSheetForm, LinkStudentPicker, RunSyncButton, SheetSettingsForm } from "@/components/SyncForms";
+import { AccordionCard } from "@/components/AccordionCard";
 import { Avatar, btn, Card, CardHeader, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
+import { ACCORDION_OPEN_MAX, previewCounts, previewNames } from "@/lib/accordion";
 import { ownerGuard } from "@/lib/auth";
 import { courseLabel } from "@/lib/compare";
 import { sameCourse } from "@/lib/courses";
@@ -131,10 +133,20 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
             <ArchiveSheetForm month={archiveMonth} max={currentMonth()} />
           </Card>
         ) : null}
-        <Card>
-          <CardHeader title="Oxirgi tekshiruvlar" count={runs.length} />
-          {runs.length ? (
-            <ul className="divide-y divide-line-soft border-t border-line-soft">
+        {runs.length ? (
+          <AccordionCard
+            title="Oxirgi tekshiruvlar"
+            count={runs.length}
+            preview={`Oxirgisi: ${formatDateTime(runs[0].startedAt)} · ${
+              !runs[0].ok
+                ? "xato"
+                : runs[0].mismatches.some((m) => !m.resolved)
+                  ? `${runs[0].mismatches.filter((m) => !m.resolved).length} ta farq`
+                  : "bir xil ✓"
+            }`}
+            defaultOpen={runs.length <= ACCORDION_OPEN_MAX}
+          >
+            <ul className="divide-y divide-line-soft">
               {runs.map((r) => {
                 const open = r.mismatches.filter((m) => !m.resolved).length;
                 return (
@@ -150,10 +162,13 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
                 );
               })}
             </ul>
-          ) : (
+          </AccordionCard>
+        ) : (
+          <Card>
+            <CardHeader title="Oxirgi tekshiruvlar" />
             <p className="border-t border-line-soft px-6 py-5 text-sm text-ink-400">Hali tekshiruv bo‘lmagan.</p>
-          )}
-        </Card>
+          </Card>
+        )}
         </div>
       </div>
     </>
@@ -191,9 +206,15 @@ function ArchiveStateBanner({ latest }: { latest: SheetArchiveRow }) {
 /** Arxivdagi jadvallar: har oy jadvali havolasi va to'liq nusxasi (havola o'chsa ham shu yerda qoladi). */
 function ArchiveList({ archives, canRestore }: { archives: SheetArchiveRow[]; canRestore: boolean }) {
   return (
-    <Card className="mb-6">
-      <CardHeader title="Jadvallar arxivi" count={archives.length} subtitle="Har oy jadvalining havolasi va to‘liq nusxasi — jadval o‘chirilsa yoki o‘zgartirilsa ham shu yerda qoladi" />
-      <ul className="divide-y divide-line-soft border-t border-line-soft">
+    <AccordionCard
+      className="mb-6"
+      title="Jadvallar arxivi"
+      count={archives.length}
+      subtitle="Har oy jadvalining havolasi va to‘liq nusxasi — jadval o‘chirilsa yoki o‘zgartirilsa ham shu yerda qoladi"
+      preview={previewNames(archives.map((a) => monthLabel(a.month)))}
+      defaultOpen={archives.length <= ACCORDION_OPEN_MAX}
+    >
+      <ul className="divide-y divide-line-soft">
         {archives.map((a) => (
           <li key={a.id} className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-4">
             <div className="flex min-w-[240px] flex-1 items-start gap-3.5">
@@ -249,7 +270,7 @@ function ArchiveList({ archives, canRestore }: { archives: SheetArchiveRow[]; ca
           </li>
         ))}
       </ul>
-    </Card>
+    </AccordionCard>
   );
 }
 
@@ -337,11 +358,20 @@ function LastRun({
         </span>
       </p>
 
-      <Card className="mb-6">
-        <CardHeader
-          title={open.length ? "Mos kelmagan to‘lovlar" : "Natija"}
-          count={open.length || undefined}
-          right={
+      {open.length ? (
+        <AccordionCard
+          id="farqlar"
+          className="mb-6"
+          title="Mos kelmagan to‘lovlar"
+          count={open.length}
+          tone="amber"
+          subtitle="Sheets va saytdagi farqlar — har birini qo‘shing, bog‘lang yoki e’tiborsiz qoldiring"
+          preview={previewCounts(
+            open.map((m) => m.kind),
+            (k) => KIND[k].label.toLowerCase(),
+          )}
+          defaultOpen={open.length <= ACCORDION_OPEN_MAX}
+          toolbar={
             bulkCount && !selected ? (
               <ConfirmAction
                 action={importAllMismatches.bind(null, run.id)}
@@ -356,38 +386,41 @@ function LastRun({
               </ConfirmAction>
             ) : null
           }
-        />
-        {open.length === 0 ? (
+        >
+          <ul className="divide-y divide-line-soft">
+            {open.map((m) => (
+              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} students={students} paidIds={paidByMonth[m.month] ?? []} />
+            ))}
+          </ul>
+        </AccordionCard>
+      ) : (
+        <Card className="mb-6">
+          <CardHeader title="Natija" />
           <div className="border-t border-line-soft">
             <EmptyState title={selected ? `«${selected}»: farq yo‘q ✓` : "Sayt va Google Sheets bir xil ✓"} icon={CircleCheck}>
               {(stat ? stat.rows : run.sheetRowCount) ? `${periodLabel(run)} oralig‘idagi barcha to‘lovlar mos keldi.` : "Sheets’da solishtiriladigan to‘lov topilmadi."}
               {ignoredHere ? ` E’tiborsiz qoldirilgan ${ignoredHere} ta farq ko‘rsatilmadi.` : ""}
             </EmptyState>
           </div>
-        ) : (
-          <ul className="divide-y divide-line-soft border-t border-line-soft">
-            {open.map((m) => (
-              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} students={students} paidIds={paidByMonth[m.month] ?? []} />
-            ))}
-          </ul>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {run.skipped.length ? (
-        <Card className="mb-6">
-          <details>
-            <summary className="cursor-pointer px-6 py-4 text-sm font-medium text-ink-700">
-              O‘qib bo‘lmagan qatorlar: {run.skipped.length} ta <span className="text-ink-400">(ko‘rsatish)</span>
-            </summary>
-            <ul className="border-t border-line-soft px-6 py-3 text-sm text-ink-600">
-              {run.skipped.map((s) => (
-                <li key={s.row} className="py-0.5">
-                  <span className="num font-medium">{s.row}-qator:</span> {s.reason}
-                </li>
-              ))}
-            </ul>
-          </details>
-        </Card>
+        <AccordionCard
+          className="mb-6"
+          title="O‘qib bo‘lmagan qatorlar"
+          count={run.skipped.length}
+          subtitle="Sheets’dagi bu qatorlarda ism, summa yoki sana o‘qilmadi — solishtirilmadi"
+          preview={previewNames(run.skipped.map((s) => `${s.row}-qator`))}
+        >
+          <ul className="px-6 py-3 text-sm text-ink-600">
+            {run.skipped.map((s) => (
+              <li key={s.row} className="py-0.5">
+                <span className="num font-medium">{s.row}-qator:</span> {s.reason}
+              </li>
+            ))}
+          </ul>
+        </AccordionCard>
       ) : null}
     </>
   );
@@ -568,13 +601,14 @@ function MismatchItem({
 /** E'tiborsiz qoldirilgan farqlar: tekshiruvlarda ko'rsatilmaydi; «Qaytarish» — yana ko'rinadi. */
 function IgnoredList({ ignores }: { ignores: SyncIgnoreRow[] }) {
   return (
-    <Card className="mb-6">
-      <details>
-        <summary className="flex cursor-pointer flex-wrap items-center gap-2 px-6 py-4 text-sm font-medium text-ink-700">
-          <EyeOff className="size-4 text-ink-400" aria-hidden />
-          E’tiborsiz qoldirilganlar: {ignores.length} ta <span className="text-ink-400">(ko‘rsatish)</span>
-        </summary>
-        <p className="border-t border-line-soft bg-slate-50/70 px-6 py-2.5 text-[13px] leading-relaxed text-ink-500">
+    <AccordionCard
+      className="mb-6"
+      icon={<EyeOff className="size-5 text-ink-400" aria-hidden />}
+      title="E’tiborsiz qoldirilganlar"
+      count={ignores.length}
+      preview={previewNames(ignores.map((x) => x.studentName))}
+    >
+        <p className="bg-slate-50/70 px-6 py-2.5 text-[13px] leading-relaxed text-ink-500">
           Bu farqlar tekshiruvlarda (qo‘lda ham, avtomatik ham) ko‘rsatilmaydi va saytga avtomatik qo‘shilmaydi. Sheets’da yoki saytda shu yozuv
           o‘zgarsa (summa, sana) — farq yana chiqadi.
         </p>
@@ -621,8 +655,7 @@ function IgnoredList({ ignores }: { ignores: SyncIgnoreRow[] }) {
             );
           })}
         </ul>
-      </details>
-    </Card>
+    </AccordionCard>
   );
 }
 
