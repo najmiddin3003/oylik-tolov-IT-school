@@ -8,6 +8,12 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 ## Imkoniyatlar
 
 - **O'quvchilar** — qo'shish, tahrirlash, o'chirish (to'lovlari bilan birga), qidirish (ism / telefon / guruh), faol-nofaol holat.
+- **O‘qishni tugatish** — o‘quvchi profilida «O‘qishni tugatish» (yoki «Tahrirlash»dagi «O‘qishni tugatgan sana», yoki
+  ro‘yxatda bir nechtasini belgilab — butun guruh uchun). Tanlangan sanadan boshlab davomat olinmaydi, to‘lov esa shu sana
+  tushgan oydan keyin hisoblanmaydi (1-sanada tugatsa — o‘sha oy ham hisoblanmaydi). Undan oldingi to‘lanmagan oylar qarz bo‘lib
+  qoladi (qarzdorlar, hisobot, to‘lov formasi — «arxiv» belgisi bilan). Sana kelgach o‘quvchi «Arxiv» holatiga o‘tadi
+  (o‘quvchilar ro‘yxatida «Arxiv (tugatganlar)» filtri); kelgusi sana ham kiritsa bo‘ladi — shungacha o‘qiydi. Tugatgandan keyingi
+  oylarga to‘langan pul profilda ortiqcha deb ko‘rsatiladi. «Arxivdan qaytarish» — sana o‘chiriladi, o‘quvchi yana faol.
 - **To'lovlar** — qaysi oy uchun, summa, sana, usul (naqd / karta / o'tkazma), izoh. Bir oyga bir necha qisman to'lov mumkin.
   Oylik to'lovdan ortiq summa keyingi oylarga avtomatik taqsimlanadi (masalan 300 ming oylikda 700 ming → 300 + 300 + 100).
 - **Qarzdorlar** (yon menyuda; rahbar, administrator, o'qituvchi — o'qituvchiga faqat o'z o'quvchilari) — tanlangan oy uchun

@@ -58,7 +58,7 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
     : "naqd";
 
   await connectDB();
-  const found = await Student.findById(studentId, { fullName: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1 }).lean<StudentLean>();
+  const found = await Student.findById(studentId, { fullName: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1, endDate: 1 }).lean<StudentLean>();
   if (!found) return { error: "O‘quvchi topilmadi" };
   // Oldindan to'lov oylarga chegirmali narx bo'yicha bo'linadi
   const [student] = await withDiscounts([found]);

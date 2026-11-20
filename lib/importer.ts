@@ -156,7 +156,7 @@ export async function importFromRun(runId: string, ids: string[] | "all", opts: 
   // 2) O'quvchilarning oylik to'lovi, boshlanish oyi va hozirgacha to'langan summalari
   const studentIds = [...new Set(studentFor.values())];
   const [infos, paidAgg] = await Promise.all([
-    Student.find({ _id: { $in: studentIds } }, { monthlyFee: 1, feeHistory: 1, discountHistory: 1, startDate: 1 })
+    Student.find({ _id: { $in: studentIds } }, { monthlyFee: 1, feeHistory: 1, discountHistory: 1, startDate: 1, endDate: 1 })
       .lean<StudentLean[]>()
       .then(withDiscounts),
     Payment.aggregate<{ _id: { student: mongoose.Types.ObjectId; month: string }; total: number }>([

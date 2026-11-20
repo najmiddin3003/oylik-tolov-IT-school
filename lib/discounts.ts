@@ -1,5 +1,6 @@
 // Chegirmalar: turlari (foiz yoki summa) va o'quvchining chegirma tarixi — "falon oydan boshlab chegirma = X".
 // O'tgan oylar hisobi o'zgarmaydi. Sof funksiyalar — server, brauzer va testlarda.
+import { billedUntil } from "./enrollment";
 import { feeFor, type FeeInfo } from "./fees";
 import { compareMonths } from "./time";
 
@@ -49,8 +50,12 @@ export function applyDiscount(fee: number, d: Pick<DiscountChange, "kind" | "val
   return Math.max(0, fee - d.value);
 }
 
-/** Chegirma bilan oylik to'lov (to'lanishi kerak bo'lgan summa). */
-export function netFee(s: FeeInfo & { discountHistory?: DiscountChange[] | null }, month: string): number {
+/**
+ * Chegirma bilan oylik to'lov (to'lanishi kerak bo'lgan summa). O'qishni tugatgandan keyingi oylar — 0 (`endDate`,
+ * "YYYY-MM-DD"): ular uchun to'lov kutilmaydi va oldindan to'lov o'sha oylarga taqsimlanmaydi.
+ */
+export function netFee(s: FeeInfo & { discountHistory?: DiscountChange[] | null; endDate?: string | null }, month: string): number {
+  if (!billedUntil(month, s.endDate)) return 0;
   return applyDiscount(feeFor(s, month), discountAt(s.discountHistory, month));
 }
 

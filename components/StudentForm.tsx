@@ -188,6 +188,18 @@ export function StudentForm({
           />
           <FieldError msg={fe.startDate} />
         </div>
+        {student ? (
+          <div>
+            <span className={labelCls}>
+              O‘qishni tugatgan sana <span className="font-normal text-ink-400">(ixtiyoriy)</span>
+            </span>
+            <DatePicker name="endDate" defaultValue={student.endDate ?? ""} clearable invalid={!!fe.endDate} aria-label="O‘qishni tugatgan sana" placeholder="Hali o‘qiyapti" />
+            <FieldError msg={fe.endDate} />
+            <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
+              Shu kundan davomat, keyingi oydan to‘lov hisoblanmaydi va o‘quvchi «Arxiv»ga o‘tadi. To‘lanmagan oylari qarz bo‘lib qoladi.
+            </p>
+          </div>
+        ) : null}
         {teachers.length ? (
           <div>
             <span className={labelCls}>O‘qituvchisi</span>
@@ -268,7 +280,14 @@ export function TeacherStudentForm({ student }: { student: StudentDetail }) {
     ["Kurs", student.group || "Kurs tanlanmagan"],
     ["Oylik to‘lov", formatMoney(student.currentFee)],
     ["O‘qishni boshlagan sana", formatDate(student.startDate)],
-    ["Holati", student.active ? "Faol (o‘qiyapti)" : "Nofaol"],
+    [
+      "Holati",
+      student.status === "archived"
+        ? `Arxiv — o‘qishni tugatgan (${formatDate(student.endDate)})`
+        : student.status === "inactive"
+          ? "Nofaol"
+          : `Faol (o‘qiyapti)${student.endDate ? ` · tugatadi ${formatDate(student.endDate)}` : ""}`,
+    ],
   ];
 
   return (

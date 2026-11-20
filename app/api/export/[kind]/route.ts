@@ -15,7 +15,7 @@ import type { SalaryRow } from "@/lib/pay";
 import { parseDayFilter, scheduleLabel } from "@/lib/schedule";
 import { isTeaching } from "@/lib/staff-rules";
 import { blank, day, headerRow, int, money, text, totalRow, xlsxResponse, type XlsxSheet } from "@/lib/xlsx";
-import { currentMonth, dateToISO, formatNumber, isoToDate, isValidMonth, monthLabel } from "@/lib/time";
+import { currentMonth, dateToISO, formatDate, formatNumber, isoToDate, isValidMonth, monthLabel } from "@/lib/time";
 
 // Excel eksport: /api/export/hisobot | oquvchilar | tolovlar  (?month=YYYY-MM va filtrlar)
 // Administrator — faqat «tolovlar»; o'qituvchi — o'z o'quvchilari bo'yicha «tolovlar» va «oquvchilar»; «hisobot» — rahbar.
@@ -172,7 +172,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
   }
 
   if (kind === "oquvchilar") {
-    const status = p("status") === "inactive" || p("status") === "all" ? (p("status") as "inactive" | "all") : "active";
+    const status = ["inactive", "archived", "all"].includes(p("status")) ? (p("status") as "inactive" | "archived" | "all") : "active";
     const tab: StudentTab = parseStudentTab(p("tab"));
     const { rows } = await listStudents({
       q: p("q"),
@@ -199,8 +199,18 @@ export async function GET(request: Request, ctx: RouteContext<"/api/export/[kind
             text(scheduleLabel(r.lessons)),
             money(r.monthlyFee),
             money(r.paid),
-            money(r.active && r.started ? r.debt : 0),
-            text(!r.active ? "Nofaol" : !r.started ? "Hali boshlamagan" : STATUS[r.status]),
+            money(r.owing ? r.debt : 0),
+            text(
+              r.owing
+                ? `${STATUS[r.status]}${r.archived ? " · arxiv" : ""}`
+                : r.archived
+                  ? `Arxiv (tugatgan ${formatDate(r.endDate)})`
+                  : !r.started
+                    ? "Hali boshlamagan"
+                    : r.endDate
+                      ? `Tugatadi ${formatDate(r.endDate)}`
+                      : "Nofaol",
+            ),
           ]),
         ],
         columns: [{ width: 7 }, { width: 30 }, { width: 18 }, { width: 18 }, { width: 28 }, { width: 14 }, { width: 20 }, { width: 14 }, { width: 17 }],

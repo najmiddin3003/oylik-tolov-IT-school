@@ -9,6 +9,8 @@ const studentSchema = new Schema(
     group: { type: String, trim: true, default: "", maxlength: 80 },
     monthlyFee: { type: Number, required: true, min: 0 },
     startDate: { type: Date, required: true },
+    /** O'qishni tugatgan sana (Toshkent yarim tuni): shu kundan davomat, keyingi oydan to'lov hisoblanmaydi; kelgach — «Arxiv» */
+    endDate: { type: Date, default: null },
     active: { type: Boolean, default: true },
     note: { type: String, trim: true, default: "", maxlength: 1000 },
     /** Tartib raqami (#001) — o'chirilgan o'quvchining raqami qayta berilmaydi */

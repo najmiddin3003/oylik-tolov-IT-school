@@ -145,15 +145,24 @@ function PaymentFields({
         .map((s) => {
           const f = netFee(s, month);
           const p = s.paid[month] ?? 0;
+          const state =
+            f > 0 && p >= f ? (
+              <span className="font-medium text-emerald-600">to‘lagan ✓</span>
+            ) : p > 0 ? (
+              <span className="num text-brand-600">qoldi {formatNumber(f - p)}</span>
+            ) : null;
           return {
             value: s.id,
             label: s.name,
-            hint:
-              f > 0 && p >= f ? (
-                <span className="font-medium text-emerald-600">to‘lagan ✓</span>
-              ) : p > 0 ? (
-                <span className="num text-brand-600">qoldi {formatNumber(f - p)}</span>
-              ) : undefined,
+            // O'qishni tugatgan (arxivdagi) — faqat qarzini to'lash uchun ro'yxatda
+            hint: s.archived ? (
+              <span className="text-ink-400">
+                arxiv{state ? " · " : ""}
+                {state}
+              </span>
+            ) : (
+              (state ?? undefined)
+            ),
           };
         }),
     [inCourse, month, studentId],

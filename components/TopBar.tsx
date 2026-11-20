@@ -183,7 +183,7 @@ export function HeaderSearch() {
                     <span className="min-w-0 flex-1">
                       <span className={cx("block truncate text-[15px] font-medium", r.active ? "text-ink-900" : "text-ink-400")}>{r.fullName}</span>
                       <span className="num block truncate text-xs text-ink-400">
-                        {[studentCode(r.seq), r.phone, r.active ? "" : "nofaol"].filter(Boolean).join(" · ") || "—"}
+                        {[studentCode(r.seq), r.phone, r.status === "archived" ? "arxiv" : r.status === "inactive" ? "nofaol" : ""].filter(Boolean).join(" · ") || "—"}
                       </span>
                     </span>
                     {i === active ? <CornerDownLeft className="size-4 shrink-0 text-brand-500" aria-hidden /> : null}

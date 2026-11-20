@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import {
+  Archive,
   BadgePercent,
   Banknote,
   ChevronDown,
@@ -20,13 +21,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { archivePayment } from "@/app/actions/payments";
-import { deleteStudent } from "@/app/actions/students";
+import { deleteStudent, restoreStudent } from "@/app/actions/students";
 import { PaidCell } from "@/components/cells";
 import { NextLessonCell } from "@/components/Lessons";
 import { EditedMark, EditPaymentButton } from "@/components/PaymentEdit";
 import { ReceiptLink } from "@/components/ReceiptActions";
 import { AccordionCard } from "@/components/AccordionCard";
 import { StudentDiscountPanel } from "@/components/Discounts";
+import { FinishStudentButton } from "@/components/FinishStudent";
 import { PaymentForm } from "@/components/PaymentForm";
 import { ConfirmAction } from "@/components/SubmitButton";
 import {
@@ -50,6 +52,7 @@ import { canPickPaymentDate, getDiscountOptions, getStudent, getStudentAttendanc
 import { ACCORDION_OPEN_MAX } from "@/lib/accordion";
 import { ATTENDANCE_LABEL } from "@/lib/attendance-rules";
 import { discountAt, discountLabel, netFee } from "@/lib/discounts";
+import { lastBilledMonth } from "@/lib/enrollment";
 import { feeFor } from "@/lib/fees";
 import type { PaymentMethod } from "@/lib/models";
 import { compareMonths, currentMonth, formatDate, formatMoney, formatNumber, isValidMonth, monthLabel, monthOfDate, nowMs, todayISO } from "@/lib/time";
@@ -83,7 +86,7 @@ async function StudentView({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const student = await getStudent(id);
   if (!student) notFound();
-  const [{ payments, months, totalDebt, totalPaid }, pickDate, attendance, discountOpts] = await Promise.all([
+  const [{ payments, months, totalDebt, totalPaid, paidAfterEnd }, pickDate, attendance, discountOpts] = await Promise.all([
     getStudentPayments(student),
     canPickPaymentDate(role),
     getStudentAttendance(student.id),
@@ -94,7 +97,10 @@ async function StudentView({
   const currentDiscount = discountAt(student.discountHistory, now);
   // To'lov formasi uchun standart oy: URL dagi oy, bo'lmasa eng eski qarzdor oy, bo'lmasa joriy oy
   const oldestDebt = [...months].reverse().find((m) => m.status !== "paid" && compareMonths(m.month, now) <= 0);
-  const formMonth = isValidMonth(sp.month) ? sp.month : oldestDebt?.month ?? now;
+  // O'qishni tugatgan bo'lsa — keyingi oylar (to'lov hisoblanmaydi) tanlanmaydi: eng eski qarz yoki oxirgi to'lanadigan oy
+  const lastBilled = student.endDate ? lastBilledMonth(student.endDate) : null;
+  const urlMonth = isValidMonth(sp.month) && !(lastBilled && compareMonths(sp.month, lastBilled) > 0) ? sp.month : null;
+  const formMonth = urlMonth ?? oldestDebt?.month ?? (lastBilled && compareMonths(lastBilled, now) < 0 ? lastBilled : now);
   const option = {
     id: student.id,
     name: student.fullName,
@@ -103,6 +109,8 @@ async function StudentView({
     feeHistory: student.feeHistory,
     discountHistory: student.discountHistory,
     paid: Object.fromEntries(months.map((m) => [m.month, m.paid])),
+    endDate: student.endDate,
+    archived: student.status === "archived",
   };
   const feeSteps = [
     { from: monthOfDate(new Date(student.startDate)), fee: student.monthlyFee },
@@ -135,7 +143,13 @@ async function StudentView({
                   <span className="truncate">{student.teacherName}</span>
                 </span>
               ) : null}
-              {student.active ? <Tag tone="emerald">Faol</Tag> : <Tag>Nofaol</Tag>}
+              {student.status === "archived" ? (
+                <Tag>Arxiv · {formatDate(student.endDate)}</Tag>
+              ) : student.status === "inactive" ? (
+                <Tag>Nofaol</Tag>
+              ) : (
+                <Tag tone="emerald">Faol</Tag>
+              )}
             </div>
           </div>
         </div>
@@ -156,6 +170,16 @@ async function StudentView({
             <Pencil className="size-4" strokeWidth={1.8} aria-hidden />
             Tahrirlash
           </Link>
+          {readOnly || student.endDate ? null : (
+            <FinishStudentButton
+              studentId={student.id}
+              name={student.fullName}
+              endDate={null}
+              today={todayISO()}
+              label="O‘qishni tugatish"
+              className={cx(btn.outline, "px-3")}
+            />
+          )}
           {readOnly ? null : (
             <>
               <a href="#tolov" className={cx(btn.primary, "px-4 xl:hidden")}>
@@ -176,15 +200,64 @@ async function StudentView({
         </div>
       </div>
 
+      {/* O'qishni tugatgan (yoki tugatadigan): nima hisoblanadi va qarz */}
+      {student.endDate ? (
+        <div className="mb-6 flex flex-wrap items-start gap-x-4 gap-y-3 rounded-2xl border border-line bg-slate-50/80 px-5 py-4" role="status">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface text-ink-500 ring-1 ring-inset ring-line">
+            <Archive className="size-5" aria-hidden />
+          </span>
+          <div className="min-w-[220px] flex-1 text-sm leading-relaxed">
+            <p className="font-semibold text-ink-900">
+              {student.status === "archived" ? `Arxiv — o‘qishni ${formatDate(student.endDate)} da tugatgan` : `O‘qishni ${formatDate(student.endDate)} da tugatadi`}
+            </p>
+            <p className="mt-0.5 text-ink-600">
+              To‘lov {monthLabel(lastBilledMonth(student.endDate))} gacha hisoblanadi, {formatDate(student.endDate)} dan davomat olinmaydi.{" "}
+              {totalDebt ? (
+                <b className="font-semibold text-amber-800">To‘lanmagan qarz: {formatMoney(totalDebt)} — joyida qoladi.</b>
+              ) : (
+                <span className="text-emerald-700">Qarz yo‘q ✓</span>
+              )}
+            </p>
+            {paidAfterEnd ? (
+              <p className="mt-1 text-amber-800">
+                Tugatgandan keyingi oylarga to‘langan: {formatMoney(paidAfterEnd)} — ortiqcha (qaytarish yoki to‘lov oyini o‘zgartirish mumkin).
+              </p>
+            ) : null}
+          </div>
+          {readOnly ? null : (
+            <div className="flex flex-wrap gap-2">
+              <FinishStudentButton
+                studentId={student.id}
+                name={student.fullName}
+                endDate={student.endDate}
+                today={todayISO()}
+                label="Sanani o‘zgartirish"
+                className={btn.sm}
+              />
+              <ConfirmAction
+                action={restoreStudent.bind(null, student.id)}
+                confirmText={`${student.fullName} arxivdan qaytarilsinmi? Tugatish sanasi o‘chiriladi — o‘quvchi yana faol, to‘lov va davomat avvalgidek hisoblanadi.`}
+                className={btn.sm}
+                pendingText="…"
+              >
+                Arxivdan qaytarish
+              </ConfirmAction>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {/* Asosiy ko'rsatkichlar: telefonda 2×2 */}
       <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-5">
         <Stat
           icon={Wallet}
           tone="violet"
           label="Oylik to‘lov"
-          value={formatNumber(student.currentFee)}
+          value={student.status === "archived" ? "—" : formatNumber(student.currentFee)}
           hint={
-            currentDiscount ? (
+            student.status === "archived" ? (
+              `tugatgan: ${formatDate(student.endDate)}`
+            ) : currentDiscount ? (
               <>
                 <span className="line-through">{formatNumber(listFeeNow)}</span> · {currentDiscount.name} {discountLabel(currentDiscount)}
               </>

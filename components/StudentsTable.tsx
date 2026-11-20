@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState, useTransition } from "react";
-import { BookOpen, CalendarClock, Check, Eye, GraduationCap, Pencil, Trash2, UserCheck, UserX, X, type LucideIcon } from "lucide-react";
-import { bulkStudents, deleteStudent, setCourseBulk, setLessonsBulk, setTeacherBulk } from "@/app/actions/students";
+import { Archive, BookOpen, CalendarClock, Check, Eye, GraduationCap, Pencil, Trash2, UserCheck, UserX, X, type LucideIcon } from "lucide-react";
+import { bulkStudents, deleteStudent, finishStudentsBulk, setCourseBulk, setLessonsBulk, setTeacherBulk } from "@/app/actions/students";
 import { sameCourse } from "@/lib/courses";
 import type { StudentRow } from "@/lib/data";
 import { lessonsKey, type Lesson } from "@/lib/schedule";
-import { formatMoney } from "@/lib/time";
+import { formatDate, formatMoney, todayISO } from "@/lib/time";
 import { StudentCell } from "./cells";
 import { ColumnResizer, useColumnWidths } from "./ColumnWidths";
+import { FinishDialog } from "./FinishStudent";
 import { NextLessonCell } from "./Lessons";
 import { useDialog } from "./Modal";
 import { Select } from "./pickers";
@@ -57,6 +58,7 @@ export function StudentsTable({
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [teacherOpen, setTeacherOpen] = useState(false);
   const [courseOpen, setCourseOpen] = useState(false);
+  const [finishOpen, setFinishOpen] = useState(false);
   const ids = useMemo(() => rows.map((r) => r.id), [rows]);
   const visibleSelected = ids.filter((id) => selected.has(id));
   const allChecked = ids.length > 0 && visibleSelected.length === ids.length;
@@ -132,6 +134,10 @@ export function StudentsTable({
             <CalendarClock className="size-4" aria-hidden />
             Dars vaqti
           </button>
+          <button type="button" disabled={pending} onClick={() => setFinishOpen(true)} className={btn.sm} title="O‘qishni tugatish: sanadan keyin to‘lov va davomat hisoblanmaydi, qarzlar qoladi">
+            <Archive className="size-4" aria-hidden />
+            O‘qishni tugatish
+          </button>
           <button type="button" disabled={pending} onClick={() => run("deactivate")} className={btn.sm}>
             <UserX className="size-4" aria-hidden />
             Nofaol qilish
@@ -162,6 +168,21 @@ export function StudentsTable({
               const res = await setLessonsBulk(visibleSelected, JSON.stringify(lessons));
               if (res.error) return res.error;
               setSelected(new Set());
+              return null;
+            }}
+          />
+          <FinishDialog
+            open={finishOpen}
+            onClose={() => setFinishOpen(false)}
+            title="O‘qishni tugatish"
+            subtitle={`${visibleSelected.length} ta o‘quvchi`}
+            initial={todayISO()}
+            today={todayISO()}
+            onSave={async (endIso) => {
+              const res = await finishStudentsBulk(visibleSelected, endIso);
+              if (res.error) return res.error;
+              setSelected(new Set());
+              if (res.skipped) window.alert(`${res.count} ta o‘quvchi tugatildi. ${res.skipped} tasi o‘tkazib yuborildi — o‘qishni shu sanadan keyin boshlagan.`);
               return null;
             }}
           />
@@ -286,18 +307,35 @@ export function StudentsTable({
                   <td className={cx(td, "overflow-hidden")}>
                     <NextLessonCell lessons={r.lessons} serverNow={serverNow} muted={!r.active} fluid={custom} away={r.away} />
                   </td>
-                  <td className={cx(td, "num overflow-hidden text-ellipsis whitespace-nowrap text-right text-[15px] font-medium text-ink-900")}>{formatMoney(r.monthlyFee)}</td>
+                  <td className={cx(td, "num overflow-hidden text-ellipsis whitespace-nowrap text-right text-[15px] font-medium", r.owing || !r.endDate ? "text-ink-900" : "text-ink-300")}>
+                    {r.monthlyFee || !r.endDate ? formatMoney(r.monthlyFee) : "—"}
+                  </td>
                   <td
                     className={cx(
                       td,
                       "num overflow-hidden text-ellipsis whitespace-nowrap text-right text-[15px] font-medium",
-                      r.active && r.started && r.debt ? "text-ink-900" : "text-ink-300",
+                      r.owing && r.debt ? "text-ink-900" : "text-ink-300",
                     )}
                   >
-                    {r.active && r.started ? formatMoney(r.debt) : "—"}
+                    {r.owing ? formatMoney(r.debt) : "—"}
                   </td>
                   <td className={cx(td, "overflow-hidden")}>
-                    {!r.active ? <Tag>Nofaol</Tag> : !r.started ? <Tag tone="brand">Hali boshlamagan</Tag> : <StatusBadge status={r.status} />}
+                    {r.owing ? (
+                      <span className="flex flex-wrap items-center gap-1">
+                        <StatusBadge status={r.status} />
+                        {r.archived ? <span title={`O‘qishni tugatgan: ${formatDate(r.endDate)}`}><Tag>Arxiv</Tag></span> : null}
+                      </span>
+                    ) : r.archived ? (
+                      <span title={`O‘qishni tugatgan: ${formatDate(r.endDate)}`}>
+                        <Tag>Arxiv</Tag>
+                      </span>
+                    ) : !r.started ? (
+                      <Tag tone="brand">Hali boshlamagan</Tag>
+                    ) : r.endDate ? (
+                      <Tag>Tugatadi {formatDate(r.endDate)}</Tag>
+                    ) : (
+                      <Tag>Nofaol</Tag>
+                    )}
                   </td>
                   <td aria-hidden className="p-0" />
                   <td className={cx(td, "pl-2 text-right")}>
