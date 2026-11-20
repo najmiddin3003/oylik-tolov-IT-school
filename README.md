@@ -128,13 +128,14 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   Chegirma **umumiy rejaga va tushumga qo‘shilmaydi**, o‘qituvchi oyligi ham chegirmali to‘lovdan hisoblanadi — ya’ni chegirma
   o‘qituvchi oyligidan ham, markaz hisobidan ham kamayadi. Rahbar panelida (reja kartasi va xodim kartasi), «Bu oy rejasi»da va
   Excel hisobotida chegirmalar jami alohida ko‘rinadi.
-- **Imtihon** (`/imtihon`, rahbar va o‘qituvchi) — tanlangan kuni dars jadvali bo‘yicha keladigan o‘quvchilar (davomat
-  guruhlari bilan bir xil; o‘qituvchiga — faqat o‘ziniki, «Kelmadi»/«Sababli» belgisi bilan). Mavzular galochka bilan:
-  HTML, CSS, JavaScript, React, Next.js, Tailwind CSS va daraja (oson / o‘rta / qiyin) — brauzerda eslab qolinadi, o‘quvchiga
-  alohida mavzu ham tanlasa bo‘ladi. **ChatGPT** har o‘quvchiga 10 ta savolni javoblari bilan tuzadi (mavzular bo‘yicha teng;
-  shu kuni boshqalarga berilgan savollar takrorlanmaydi), «Hammaga savol tuzish» — guruhdagi qolganlarga ketma-ket.
-  «Javoblarni yashirish» — o‘quvchiga ekranni ko‘rsatganda. Ball (0–100, yarim ball bilan) va izoh saqlanadi. Kalit Vercel’da:
-  `OPENAI_API_KEY` (ixtiyoriy: `OPENAI_MODEL`, standart `gpt-4o-mini`).
+- **Imtihon** (`/imtihon`, rahbar va o‘qituvchi) — tanlangan kuni dars jadvali bo‘yicha keladigan barcha o‘quvchilar bitta
+  ro‘yxatda (dars vaqti bo‘yicha tartiblangan, har birida dars vaqti va kursi; o‘qituvchiga — faqat o‘ziniki). Ro‘yxat tepasida
+  qidiruv (ism, kod, kurs, vaqt) va kurs filtri (brauzerda eslab qolinadi). O‘quvchi tanlansa — o‘ng tomonda (telefonda — alohida
+  ko‘rinishda) uning imtihoni: mavzular (HTML, CSS, JavaScript, React, Next.js, Tailwind CSS) va daraja tanlanadi, **ChatGPT**
+  10 ta savolni javoblari bilan tuzadi (mavzular bo‘yicha teng; shu kuni boshqalarga berilgan savollar takrorlanmaydi), har
+  savolga «Topdi / Yarim / Topolmadi» — ball avtomatik (1 / 0,5 / 0), kerak bo‘lsa qo‘lda o‘zgartiriladi, izoh. «Keyingi
+  o‘quvchi», «Javoblarni yashirish» (eslab qolinadi), «Hammaga tuzish» — savoli yo‘q o‘quvchilarga ketma-ket. Kun almashganda
+  sahifa qayta yuklanmaydi. Kalit Vercel’da: `OPENAI_API_KEY` (ixtiyoriy: `OPENAI_MODEL`, standart `gpt-4o-mini`).
 - **Davomat SMS** (Sozlamalar → «Davomat SMS») — guruh davomati ochilgandan (dars boshlanib 30 daqiqa) keyin sozlamadagi
   daqiqa (standart 10) o‘tib ham qilinmasa, guruh o‘qituvchisi telefoniga bir marta SMS (faqat ro‘yxatdan o‘tgan, faol xodimga).
   Shablon: `{#guruh#}` (majburiy), `{#vaqt#}`, `{#soni#}`, `{#ism#}`. Tekshiruv `/api/ping` (cron-job.org, har 5 daqiqada) yoki
