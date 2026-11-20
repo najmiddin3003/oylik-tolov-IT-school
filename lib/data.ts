@@ -9,7 +9,10 @@ import { connectDB } from "./db";
 import { eskizConfigured } from "./eskiz";
 import { changesAfter, type FeeChange } from "./fees";
 import {
+  currentStudentQuery,
+  endIsoOf,
   feeHistoryOf,
+  isCurrent,
   LIVE,
   loadStudents,
   monthRows,
@@ -28,6 +31,7 @@ import {
 } from "./ledger";
 import { Attendance, Payment, Salary, SheetArchive, SmsLog, Staff, Student, SyncIgnore, SyncRun, Task, type MismatchKind, type PaymentMethod } from "./models";
 import { suggestedArchiveMonth } from "./sheet-archive";
+import { lastBilledMonth, studentStatus, type StudentStatus } from "./enrollment";
 import { discountAt, netFee, type DiscountChange, type DiscountType } from "./discounts";
 import { parentSmsPreview } from "./parent-sms";
 import { attendanceDay, pendingAttendance, pendingFollowUps, type FollowUp, type PendingAttendance } from "./attendance";
@@ -80,6 +84,10 @@ export type StudentDetail = {
   /** Bugun davomatda «Kelmadi» / «Sababli» */
   away: AwayStatus | null;
   startDate: string; // ISO
+  /** O'qishni tugatgan sana ("YYYY-MM-DD"; yo'q — null) va hozirgi holat (Faol / Nofaol / Arxiv) */
+  endDate: string | null;
+  status: StudentStatus;
+  /** «Faol / Nofaol» belgisi (tahrirlash formasi uchun; arxiv holati — `status`) */
   active: boolean;
   note: string;
   /** Dars jadvali (kunlar va vaqt) */
@@ -122,6 +130,9 @@ export type StudentOption = {
   paid: Record<string, number>;
   /** Chegirma tarixi (formada to'lanadigan summa chegirma bilan) */
   discountHistory: DiscountChange[];
+  /** O'qishni tugatgan sana — keyingi oylar uchun to'lov kutilmaydi; arxivdagi (faqat qarzi bor bo'lsa ro'yxatda) */
+  endDate: string | null;
+  archived: boolean;
 };
 
 export type UnpaidStudent = {
@@ -334,10 +345,10 @@ export const getNavCounts = cache(async (): Promise<NavCounts> => {
       unpaidCount(mine),
       attendanceCount(),
     ]);
-    return { role, students: mine.filter((s) => s.active ?? true).length, payments, debtors, attendance };
+    return { role, students: mine.filter((s) => isCurrent(s)).length, payments, debtors, attendance };
   }
   const [students, payments, settings, last, staff, debtors, attendance] = await Promise.all([
-    Student.countDocuments({ active: true }),
+    Student.countDocuments(currentStudentQuery()),
     Payment.countDocuments({ ...LIVE, month }),
     getSettings(),
     SyncRun.findOne({}).select("ok mismatches.resolved").sort({ startedAt: -1 }).lean(),
@@ -392,7 +403,7 @@ export const getMonthOverview = cache(async (month: string, group = "", teacher 
   const rows = students
     .filter((s) => inGroup.has(String(s._id)))
     .map((s) => toRow(s, paidMap, month))
-    .filter((r) => r.active && r.started);
+    .filter((r) => r.owing);
   const debtors = sortDebtors(rows);
 
   return {
@@ -573,7 +584,7 @@ export async function listDebtors(opts: {
   ]);
   const paidMap = new Map(agg.map((a) => [String(a._id), a.total]));
   const lastMap = new Map(agg.map((a) => [String(a._id), a.last]));
-  const owing = students.map((s) => toRow(s, paidMap, opts.month)).filter((r) => r.active && r.started);
+  const owing = students.map((s) => toRow(s, paidMap, opts.month)).filter((r) => r.owing);
   // Kurs tanlagichi uchun — shu oy to'lashi kerak bo'lgan o'quvchilar kurslari
   const groups = [...new Set(owing.map((r) => r.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const base = owing.filter((r) => (!opts.group || sameCourse(r.group, opts.group)) && matchesQuery(r, opts.q));
@@ -637,7 +648,7 @@ export async function listStudents(opts: {
   group: string;
   /** Dars kuni: bugun / hafta kuni / jadvalsiz */
   day: DayFilter;
-  status: "active" | "inactive" | "all";
+  status: "active" | "inactive" | "archived" | "all";
   month: string;
   tab: StudentTab;
   sort: StudentSort;
@@ -667,7 +678,7 @@ export async function listStudents(opts: {
 
   const filtered = all.filter(
     (r) =>
-      (opts.status === "all" || (opts.status === "active" ? r.active : !r.active)) &&
+      (opts.status === "all" || (opts.status === "active" ? r.active : opts.status === "archived" ? r.archived : !r.active && !r.archived)) &&
       (!opts.group || r.group === opts.group) &&
       matchesDayFilter(r.lessons, opts.day, today) &&
       matchesQuery(r, opts.q),
@@ -678,7 +689,7 @@ export async function listStudents(opts: {
     const l = weekday ? lessonOn(r.lessons, weekday) : undefined;
     return l ? toMinutes(l.start) : Number.POSITIVE_INFINITY;
   };
-  const owing = (r: StudentRow) => r.active && r.started;
+  const owing = (r: StudentRow) => r.owing;
   const tabTest: Record<StudentTab, (r: StudentRow) => boolean> = {
     all: () => true,
     debt: (r) => owing(r) && r.status !== "paid",
@@ -721,6 +732,7 @@ export async function searchStudents(q: string, limit = 8) {
   if (!q.trim()) return [];
   await connectDB();
   const students = await visibleStudents(v);
+  const today = todayISO();
   return students
     .map((s) => ({
       id: String(s._id),
@@ -728,7 +740,8 @@ export async function searchStudents(q: string, limit = 8) {
       phone: s.phone ?? "",
       group: s.group ?? "",
       seq: s.seq ?? null,
-      active: s.active ?? true,
+      status: studentStatus(s.active, endIsoOf(s), today),
+      active: isCurrent(s, today),
     }))
     .filter((s) => matchesQuery(s, q))
     .sort((a, b) => Number(b.active) - Number(a.active) || a.fullName.localeCompare(b.fullName))
@@ -760,6 +773,8 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
     currentFee: studentFee(s, currentMonth()),
     discounts: (await getSettings()).discounts.enabled,
     startDate: s.startDate.toISOString(),
+    endDate: endIsoOf(s),
+    status: studentStatus(s.active, endIsoOf(s), todayISO()),
     active: s.active ?? true,
     note: s.note ?? "",
     lessons: normalizeLessons(s.lessons),
@@ -773,7 +788,7 @@ export async function listScheduleTemplates(): Promise<Lesson[][]> {
   await connectDB();
   // O'qituvchiga — faqat o'z o'quvchilarining jadvallaridan
   const students = await visibleStudents(await viewer());
-  return popularSchedules(students.filter((s) => s.active ?? true).map((s) => normalizeLessons(s.lessons))).map((t) => t.lessons);
+  return popularSchedules(students.filter((s) => isCurrent(s)).map((s) => normalizeLessons(s.lessons))).map((t) => t.lessons);
 }
 
 /** O'quvchining barcha to'lovlari va boshlagan oyidan joriy oygacha har oy holati. */
@@ -790,10 +805,13 @@ export async function getStudentPayments(student: StudentDetail) {
 
   const start = monthOfDate(new Date(student.startDate));
   const now = currentMonth();
+  // O'qishni tugatgan bo'lsa — oxirgi to'lanadigan oygacha (keyingi oylar narxi 0)
+  const lastBilled = student.endDate ? lastBilledMonth(student.endDate) : null;
+  const last = lastBilled && compareMonths(lastBilled, now) < 0 ? lastBilled : now;
   const feeOf = (m: string) => netFee(student, m);
-  // boshlanish oyidan joriy oygacha (ko'pi bilan 36 oy) + oldindan to'langan oylar
+  // boshlanish oyidan oxirgi oygacha (ko'pi bilan 36 oy) + oldindan to'langan oylar
   const all = new Set(byMonth.keys());
-  for (let i = 0, m = now; i < 36 && compareMonths(m, start) >= 0; i++, m = shiftMonth(m, -1)) all.add(m);
+  for (let i = 0, m = last; i < 36 && compareMonths(m, start) >= 0; i++, m = shiftMonth(m, -1)) all.add(m);
   const months = [...all]
     .sort((a, b) => compareMonths(b, a))
     .map((month) => {
@@ -803,11 +821,13 @@ export async function getStudentPayments(student: StudentDetail) {
     });
 
   const totalDebt = months
-    .filter((x) => compareMonths(x.month, now) <= 0 && compareMonths(x.month, start) >= 0)
+    .filter((x) => compareMonths(x.month, last) <= 0 && compareMonths(x.month, start) >= 0)
     .reduce((sum, x) => sum + Math.max(0, x.fee - x.paid), 0);
   const totalPaid = rows.reduce((s, r) => s + r.amount, 0);
+  // Tugatgandan keyingi oylarga to'langan (oldindan to'lov) — ortiqcha, qaytarish yoki qarzga o'tkazish kerak
+  const paidAfterEnd = lastBilled ? months.filter((x) => compareMonths(x.month, lastBilled) > 0).reduce((s, x) => s + x.paid, 0) : 0;
 
-  return { payments: rows, months, totalDebt, totalPaid };
+  return { payments: rows, months, totalDebt, totalPaid, paidAfterEnd };
 }
 
 // ---------- To'lovlar ----------
@@ -864,8 +884,10 @@ export async function countArchivedPayments(): Promise<number> {
 export async function listStudentOptions(month: string): Promise<StudentOption[]> {
   await requireRole(["owner", "admin"]);
   await connectDB();
+  const today = todayISO();
   const [students, agg] = await Promise.all([
-    Student.find({ active: true }, { fullName: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1, group: 1 })
+    // Hozir o'qiyotganlar va tugatish sanasi borlar (arxivdagilardan — faqat qarzi borlari, pastda)
+    Student.find({ $or: [currentStudentQuery(today), { endDate: { $ne: null } }] }, { fullName: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1, group: 1, active: 1, startDate: 1, endDate: 1 })
       .sort({ fullName: 1 })
       .lean<StudentLean[]>()
       .then(withDiscounts),
@@ -879,15 +901,36 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
     const id = String(a._id.student);
     paid.set(id, { ...(paid.get(id) ?? {}), [a._id.month]: a.total });
   }
-  return students.map((s) => ({
-    id: String(s._id),
-    name: s.fullName,
-    group: s.group ?? "",
-    monthlyFee: s.monthlyFee,
-    feeHistory: feeHistoryOf(s),
-    discountHistory: discountHistoryOf(s),
-    paid: paid.get(String(s._id)) ?? {},
-  }));
+  const out: StudentOption[] = [];
+  for (const s of students) {
+    const id = String(s._id);
+    const p = paid.get(id) ?? {};
+    const endDate = endIsoOf(s);
+    const current = isCurrent(s, today);
+    if (!current) {
+      // O'qishni tugatgan: to'lanmagan oyi bo'lsa (tanlangan oy atrofida) — to'lov qabul qilinadi
+      const startMonth = monthOfDate(s.startDate);
+      const lastM = endDate ? lastBilledMonth(endDate) : startMonth;
+      const from = compareMonths(startMonth, shiftMonth(month, -12)) > 0 ? startMonth : shiftMonth(month, -12);
+      let owes = false;
+      for (let m = from; !owes && compareMonths(m, lastM) <= 0 && compareMonths(m, shiftMonth(month, 12)) <= 0; m = shiftMonth(m, 1)) {
+        owes = (p[m] ?? 0) < studentFee(s, m);
+      }
+      if (!owes) continue;
+    }
+    out.push({
+      id,
+      name: s.fullName,
+      group: s.group ?? "",
+      monthlyFee: s.monthlyFee,
+      feeHistory: feeHistoryOf(s),
+      discountHistory: discountHistoryOf(s),
+      paid: p,
+      endDate,
+      archived: !current,
+    });
+  }
+  return out;
 }
 
 // ---------- Sozlamalar ----------
@@ -900,13 +943,13 @@ export async function getSettingsPageData(month: string) {
     SmsLog.find({ kind: { $nin: ["parent", "attendance"] } }).sort({ createdAt: -1 }).limit(8).lean(),
     SmsLog.find({ kind: "parent" }).sort({ createdAt: -1 }).limit(15).lean(),
     SmsLog.find({ kind: "attendance" }).sort({ createdAt: -1 }).limit(15).lean(),
-    Student.find({}, { monthlyFee: 1, feeHistory: 1, group: 1, active: 1, teacher: 1 }).lean<StudentLean[]>(),
+    Student.find({}, { monthlyFee: 1, feeHistory: 1, group: 1, active: 1, endDate: 1, teacher: 1 }).lean<StudentLean[]>(),
     activeStaffRoles(),
     syncAlertOn(session),
     listTeachers(),
     teacherNames(),
   ]);
-  const active = students.filter((s) => s.active !== false);
+  const active = students.filter((s) => isCurrent(s));
 
   // Joriy oy narxlari: qaysi narxda nechta o'quvchi
   const now = currentMonth();
@@ -1201,14 +1244,14 @@ export async function getSyncPageData() {
       const ids = await Payment.distinct("student", { ...LIVE, $or: [{ month }, { paidAt: { $gte: from, $lt: to } }] });
       paidByMonth[month] = ids.map(String);
     }
-    const docs = await Student.find({}, { fullName: 1, group: 1, sheetNames: 1, active: 1, seq: 1 }).sort({ fullName: 1, seq: 1 }).lean();
+    const docs = await Student.find({}, { fullName: 1, group: 1, sheetNames: 1, active: 1, endDate: 1, seq: 1 }).sort({ fullName: 1, seq: 1 }).lean();
     const candidates = docs.map((d) => ({
       id: String(d._id),
       seq: d.seq ?? null,
       fullName: d.fullName,
       group: d.group ?? "",
       aliases: d.sheetNames ?? [],
-      active: d.active !== false,
+      active: isCurrent(d),
     }));
     const pick = (c: (typeof candidates)[number]): StudentPick => ({ id: c.id, seq: c.seq, name: c.fullName, group: c.group, active: c.active });
     for (const m of unknown) {
@@ -1280,7 +1323,7 @@ export async function getStaffPageData() {
   const counts = new Map<string, number>();
   let unassigned = 0;
   for (const st of students) {
-    if (st.active === false) continue;
+    if (!isCurrent(st)) continue;
     if (st.teacher) counts.set(String(st.teacher), (counts.get(String(st.teacher)) ?? 0) + 1);
     else unassigned++;
   }
@@ -1341,7 +1384,7 @@ export async function getStaffDetail(id: string, month: string) {
   const doc = await getStaffById(id);
   if (!doc) return null;
   const [pay, salaries, students, history] = await Promise.all([staffPay(doc, month), monthSalaries(month), loadStudents(), payHistory(doc, month)]);
-  const mine = students.filter((st) => String(st.teacher ?? "") === id && st.active !== false);
+  const mine = students.filter((st) => String(st.teacher ?? "") === id && isCurrent(st));
   return {
     staff: toStaffView(doc),
     pay,
@@ -1369,7 +1412,7 @@ export async function getMyProfile(month: string) {
     plan: await staffPlan(doc, pay, month),
     salaries: salaries.get(v.staffId) ?? [],
     history,
-    students: students.filter((st) => String(st.teacher ?? "") === v.staffId && st.active !== false).length,
+    students: students.filter((st) => String(st.teacher ?? "") === v.staffId && isCurrent(st)).length,
   };
 }
 
@@ -1415,7 +1458,7 @@ export async function listCourses(): Promise<CourseOption[]> {
   const session = await requireRole(["owner", "admin", "teacher"]);
   await connectDB();
   const [settings, students, teachers] = await Promise.all([getSettings(), loadStudents(), session.role === "teacher" ? [] : listTeachers()]);
-  const active = students.filter((s) => s.active !== false);
+  const active = students.filter((s) => isCurrent(s));
   const usable = new Set(teachers.map((t) => t.id));
   return courseNames(settings.courses, active.map((s) => s.group ?? "")).map((name) => {
     const teacher = courseTeacher(settings.courses, name);
@@ -1540,7 +1583,7 @@ export async function getAttendancePage(date: string) {
     pendingFollowUps(v.teacherId, clock.iso, clock.minutes),
   ]);
   // Faol, lekin dars vaqti kiritilmagan o'quvchilar — davomatda ko'rinmaydi
-  const unscheduled = students.filter((s) => s.active !== false && !(s.lessons ?? []).length).length;
+  const unscheduled = students.filter((s) => isCurrent(s) && !(s.lessons ?? []).length).length;
   return { role: v.role, groups, unscheduled, followUps };
 }
 
@@ -1621,7 +1664,7 @@ export async function getDiscountsPage() {
   await connectDB();
   const [settings, docs] = await Promise.all([
     getSettings({ fresh: true }),
-    Student.find({ active: true }, { fullName: 1, seq: 1, group: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1 }).sort({ fullName: 1 }).lean<StudentLean[]>(),
+    Student.find(currentStudentQuery(), { fullName: 1, seq: 1, group: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1 }).sort({ fullName: 1 }).lean<StudentLean[]>(),
   ]);
   const month = currentMonth();
   const rows: DiscountStudentRow[] = docs.map((s) => {
@@ -1650,7 +1693,7 @@ export async function getDiscountOptions(): Promise<{ enabled: boolean; types: D
 /** Har bir chegirma turi joriy oyda nechta faol o'quvchida. */
 async function discountUsage(): Promise<Record<string, number>> {
   const month = currentMonth();
-  const docs = await Student.find({ active: true, "discountHistory.0": { $exists: true } }, { discountHistory: 1 }).lean<StudentLean[]>();
+  const docs = await Student.find({ ...currentStudentQuery(), "discountHistory.0": { $exists: true } }, { discountHistory: 1 }).lean<StudentLean[]>();
   const out: Record<string, number> = {};
   for (const s of docs) {
     const d = discountAt(discountHistoryOf(s), month);

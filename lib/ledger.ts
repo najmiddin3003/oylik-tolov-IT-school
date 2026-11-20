@@ -3,12 +3,13 @@
 import mongoose from "mongoose";
 import { cache } from "react";
 import { applyDiscount, discountAt, isDiscountKind, type DiscountChange } from "./discounts";
+import { billedUntil, isArchived, isCurrentStudent, owesFor } from "./enrollment";
 import { feeFor, type FeeChange } from "./fees";
 import { Attendance, Payment, Student } from "./models";
 import { normalizeLessons, type Lesson } from "./schedule";
 import { ensureStudentSeqs } from "./seq";
 import { getSettings } from "./settings";
-import { compareMonths, monthOfDate, todayISO } from "./time";
+import { compareMonths, dateToISO, isoToDate, monthOfDate, todayISO } from "./time";
 
 export type PayStatus = "paid" | "partial" | "unpaid";
 
@@ -25,6 +26,8 @@ export type StudentLean = {
   feeHistory?: { from?: string | null; fee?: number | null }[] | null;
   active?: boolean | null;
   startDate: Date;
+  /** O'qishni tugatgan sana (lib/enrollment.ts) */
+  endDate?: Date | null;
   lessons?: { day?: number | null; start?: string | null; end?: string | null }[] | null;
   /** O'qituvchisi (xodim ID) */
   teacher?: mongoose.Types.ObjectId | null;
@@ -44,6 +47,11 @@ export type StudentRow = {
   group: string;
   /** Tanlangan oy uchun oylik to'lov (narx tarixi va chegirma hisobga olingan) */
   monthlyFee: number;
+  /** O'qishni tugatgan sana ("YYYY-MM-DD") va u kelgan-kelmagani (kelgan bo'lsa — «Arxiv») */
+  endDate: string | null;
+  archived: boolean;
+  /** Shu oy uchun to'lashi kerak: o'qishni boshlagan, tugatish sanasigacha (tugatish sanasi yo'q bo'lsa — faol) */
+  owing: boolean;
   /** Shu oy chegirmasi (ro'yxat narxi − to'lanadigan summa): rejaga, tushumga va o'qituvchi oyligiga kirmaydi */
   discount: number;
   active: boolean;
@@ -66,6 +74,23 @@ export function feeHistoryOf(s: { feeHistory?: StudentLean["feeHistory"] }): Fee
     .map((h) => ({ from: h.from!, fee: h.fee! }));
 }
 
+/** O'qishni tugatgan sana "YYYY-MM-DD" (yo'q — null). */
+export function endIsoOf(s: { endDate?: Date | string | null }): string | null {
+  if (!s.endDate) return null;
+  return typeof s.endDate === "string" ? s.endDate.slice(0, 10) : dateToISO(s.endDate);
+}
+
+/** Hozir o'qiyotgan o'quvchi (nofaol ham, arxivda ham emas) — ro'yxatlar va hisoblagichlar uchun. */
+export function isCurrent(s: { active?: boolean | null; endDate?: Date | string | null }, today = todayISO()): boolean {
+  return isCurrentStudent(s, endIsoOf(s), today);
+}
+
+/** MongoDB sharti: hozir o'qiyotganlar (faol va tugatish sanasi kelmagan). */
+export function currentStudentQuery(today = todayISO()) {
+  // Toshkent yarim tuni — saqlangan tugatish sanalari bilan bir xil
+  return { active: true, $or: [{ endDate: null }, { endDate: { $gt: isoToDate(today)! } }] };
+}
+
 /** Ro'yxat narxi (chegirmasiz) — narx o'zgartirish va narx guruhlari uchun. */
 export function listFee(s: Pick<StudentLean, "monthlyFee" | "feeHistory">, month: string): number {
   return feeFor({ monthlyFee: s.monthlyFee, feeHistory: feeHistoryOf(s) }, month);
@@ -82,7 +107,9 @@ export function discountHistoryOf(s: { discountHistory?: StudentLean["discountHi
  * To'lanishi kerak bo'lgan oylik summa: narx tarixi va chegirma bilan. Chegirmalar o'chiq bo'lsa — o'quvchi
  * `discountHistory` siz yuklanadi (`withDiscounts`), shunda chegirma hisoblanmaydi.
  */
-export function studentFee(s: Pick<StudentLean, "monthlyFee" | "feeHistory" | "discountHistory">, month: string): number {
+export function studentFee(s: Pick<StudentLean, "monthlyFee" | "feeHistory" | "discountHistory" | "endDate">, month: string): number {
+  // O'qishni tugatgandan keyingi oylar — 0 (to'lov kutilmaydi, oldindan to'lov o'sha oylarga taqsimlanmaydi)
+  if (!billedUntil(month, endIsoOf(s))) return 0;
   return applyDiscount(listFee(s, month), discountAt(discountHistoryOf(s), month));
 }
 
@@ -102,7 +129,7 @@ export const loadStudents = cache(async (): Promise<StudentLean[]> => {
   await ensureStudentSeqs();
   const list = await Student.find(
     {},
-    { fullName: 1, phone: 1, group: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1, active: 1, startDate: 1, seq: 1, lessons: 1, teacher: 1 },
+    { fullName: 1, phone: 1, group: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1, active: 1, startDate: 1, endDate: 1, seq: 1, lessons: 1, teacher: 1 },
   )
     .sort({ fullName: 1 })
     .limit(5000)
@@ -121,9 +148,12 @@ export const paidByStudent = cache(async (month: string): Promise<Map<string, nu
   return new Map(agg.map((a) => [String(a._id), a.total]));
 });
 
-export function toRow(s: StudentLean, paidMap: Map<string, number>, month: string): StudentRow {
+export function toRow(s: StudentLean, paidMap: Map<string, number>, month: string, today = todayISO()): StudentRow {
   const fee = studentFee(s, month);
   const paid = paidMap.get(String(s._id)) ?? 0;
+  const endDate = endIsoOf(s);
+  const startMonth = monthOfDate(s.startDate);
+  const owing = owesFor(month, { startMonth, active: s.active, endIso: endDate });
   return {
     id: String(s._id),
     seq: s.seq ?? null,
@@ -131,12 +161,16 @@ export function toRow(s: StudentLean, paidMap: Map<string, number>, month: strin
     phone: s.phone ?? "",
     group: s.group ?? "",
     monthlyFee: fee,
-    discount: Math.max(0, listFee(s, month) - fee),
-    active: s.active ?? true,
+    endDate,
+    archived: isArchived(endDate, today),
+    owing,
+    discount: owing ? Math.max(0, listFee(s, month) - fee) : 0,
+    // «Faol» — hozir o'qiyotgan: nofaol ham, arxivda ham emas
+    active: isCurrentStudent(s, endDate, today),
     paid,
     debt: Math.max(0, fee - paid),
     status: statusOf(fee, paid),
-    started: compareMonths(monthOfDate(s.startDate), month) <= 0,
+    started: compareMonths(startMonth, month) <= 0,
     lessons: normalizeLessons(s.lessons),
     away: s.away ?? null,
     teacherId: s.teacher ? String(s.teacher) : null,
@@ -157,8 +191,12 @@ export function sortDebtors(rows: StudentRow[]): StudentRow[] {
     .sort((a, b) => byStatus[a.status] - byStatus[b.status] || a.fullName.localeCompare(b.fullName));
 }
 
-/** Shu oyda to'lashi kerak bo'lgan (faol, o'qishni boshlagan) o'quvchilar holati. */
+/**
+ * Shu oyda to'lashi kerak bo'lgan o'quvchilar holati: o'qishni boshlagan va tugatish sanasigacha (o'qishni tugatganlar —
+ * to'lanmagan oylari qarz bo'lib qoladi), tugatish sanasi yo'qlar — faqat faollari.
+ */
 export async function monthRows(month: string, students?: StudentLean[]): Promise<StudentRow[]> {
   const [list, paidMap] = await Promise.all([students ? Promise.resolve(students) : loadStudents(), paidByStudent(month)]);
-  return list.map((s) => toRow(s, paidMap, month)).filter((r) => r.active && r.started);
+  const today = todayISO();
+  return list.map((s) => toRow(s, paidMap, month, today)).filter((r) => r.owing);
 }

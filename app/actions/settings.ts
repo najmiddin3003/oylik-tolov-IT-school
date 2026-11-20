@@ -10,7 +10,7 @@ import { connectDB } from "@/lib/db";
 import { normalizeUzPhone } from "@/lib/eskiz";
 import { applyFeeFrom, feeFor, type FeeChange } from "@/lib/fees";
 import { isId } from "@/lib/ids";
-import { feeHistoryOf, listFee, type StudentLean } from "@/lib/ledger";
+import { feeHistoryOf, isCurrent, listFee, type StudentLean } from "@/lib/ledger";
 import { Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { DEFAULT_OTP_TEMPLATE, templateHasCode } from "@/lib/otp-text";
@@ -73,7 +73,7 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
 
   await connectDB();
   const [students, settings] = await Promise.all([
-    Student.find({}, { monthlyFee: 1, feeHistory: 1, startDate: 1, active: 1, group: 1 }).lean<StudentLean[]>(),
+    Student.find({}, { monthlyFee: 1, feeHistory: 1, startDate: 1, endDate: 1, active: 1, group: 1 }).lean<StudentLean[]>(),
     getSettings({ fresh: true }),
   ]);
   // Narxi shu oyda allaqachon shunday bo'lsa ham, keyingi rejalashtirilgan o'zgarishlar bekor bo'lishi mumkin
@@ -93,7 +93,7 @@ export async function applyFeeChange(_prev: FormState, fd: FormData): Promise<Fo
   let base = settings.defaultFee;
   if (base === null) {
     const counts = new Map<number, number>();
-    for (const s of students) if (s.active !== false) counts.set(listFee(s, now), (counts.get(listFee(s, now)) ?? 0) + 1);
+    for (const s of students) if (isCurrent(s)) counts.set(listFee(s, now), (counts.get(listFee(s, now)) ?? 0) + 1);
     base = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? fee!;
   }
   let schedule = settings.feeSchedule;

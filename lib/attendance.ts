@@ -16,7 +16,8 @@ import {
   addDays,
   followUpDue,
 } from "./attendance-rules";
-import { loadStudents, monthRows, type StudentLean } from "./ledger";
+import { studiesOn } from "./enrollment";
+import { endIsoOf, isCurrent, loadStudents, monthRows, type StudentLean } from "./ledger";
 import { Attendance } from "./models";
 import { normalizeLessons, toMinutes, weekdayOfIso, type Clock } from "./schedule";
 import { teacherNames } from "./staff";
@@ -61,7 +62,8 @@ const dayCached = cache(async (teacherId: string | null, date: string): Promise<
   const all = await loadStudents();
   const visible = who.teacherId ? all.filter((s) => String(s.teacher ?? "") === who.teacherId) : all;
   const byId = new Map(visible.map((s) => [String(s._id), s]));
-  const scheduled = visible.filter((s) => s.active !== false && dateToISO(s.startDate) <= date).map(toAttendanceStudent);
+  // O'qiyotganlar: faol, boshlagan va tugatish sanasi kelmagan (o'qishni tugatgan kundan boshlab davomat olinmaydi)
+  const scheduled = visible.filter((s) => s.active !== false && studiesOn(date, dateToISO(s.startDate), endIsoOf(s))).map(toAttendanceStudent);
   const groups = attendanceGroups(scheduled, weekdayOfIso(date));
 
   const records = await Attendance.find({ date, student: { $in: visible.map((s) => s._id) } }).lean();
@@ -158,7 +160,8 @@ export const pendingFollowUps = cache(async (teacherId: string | null, iso: stri
     .lean();
   const due = docs.filter((d) => {
     const s = byId.get(String(d.student));
-    return s && s.active !== false && followUpDue(d.date, normalizeLessons(s.lessons ?? []), clock);
+    // O'qishni tugatgan (arxivdagi) o'quvchi bilan gaplashish shart emas
+    return s && isCurrent(s, clock.iso) && followUpDue(d.date, normalizeLessons(s.lessons ?? []), clock);
   });
   if (!due.length) return [];
   const rows = new Map((await monthRows(currentMonth(), visible)).map((r) => [r.id, r]));

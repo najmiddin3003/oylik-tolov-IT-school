@@ -9,8 +9,9 @@ import { cleanCourseName, courseTeacher, courseTeachers, sameCourse, teacherCour
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
 import { discountLabel, type DiscountChange } from "@/lib/discounts";
+import { endDateError, lastBilledMonth } from "@/lib/enrollment";
 import { applyFeeFrom, changesAfter } from "@/lib/fees";
-import { feeHistoryOf, listFee, type StudentLean } from "@/lib/ledger";
+import { currentStudentQuery, feeHistoryOf, listFee, type StudentLean } from "@/lib/ledger";
 import { Payment, Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
@@ -18,7 +19,7 @@ import { parseLessons } from "@/lib/schedule";
 import { nextStudentSeq } from "@/lib/seq";
 import { getSettings, standardFee, type AppSettings } from "@/lib/settings";
 import { TEACHING_FILTER } from "@/lib/staff-rules";
-import { currentMonth, formatMoney, isoToDate, isValidMonth, monthOfDate } from "@/lib/time";
+import { currentMonth, dateToISO, formatDate, formatMoney, isoToDate, isValidMonth, monthLabel, monthOfDate, todayISO } from "@/lib/time";
 import type { FormState } from "./types";
 
 function str(formData: FormData, key: string): string {
@@ -62,6 +63,9 @@ export async function saveStudent(
   const feeRaw = str(formData, "monthlyFee");
   const feeFromRaw = str(formData, "feeFrom");
   const startRaw = str(formData, "startDate");
+  // O'qishni tugatgan sana (faqat tahrirlashda; bo'sh — hali o'qiyapti)
+  const hasEnd = id !== null && formData.has("endDate");
+  const endRaw = str(formData, "endDate");
   const note = str(formData, "note").slice(0, 1000);
   const active = str(formData, "active") !== "false";
   // Jadval maydoni yo'q bo'lsa (masalan, eski ochiq sahifadan yuborilgan forma) — mavjud jadvalga tegilmaydi
@@ -82,6 +86,10 @@ export async function saveStudent(
   const startDate = isoToDate(startRaw);
   if (!startDate) fieldErrors.startDate = "Boshlagan sanani tanlang";
   const feeFrom = isValidMonth(feeFromRaw) ? feeFromRaw : currentMonth();
+  if (hasEnd && endRaw && startDate) {
+    const e = endDateError(endRaw, startRaw, todayISO());
+    if (e) fieldErrors.endDate = e;
+  }
   if ("error" in schedule) fieldErrors.schedule = schedule.error;
   if (Object.keys(fieldErrors).length) return { fieldErrors };
   const lessons = "lessons" in schedule ? schedule.lessons : [];
@@ -105,11 +113,12 @@ export async function saveStudent(
     active,
     ...(hasSchedule ? { lessons } : {}),
     ...(setTeacher ? { teacher } : {}),
+    ...(hasEnd ? { endDate: endRaw ? isoToDate(endRaw) : null } : {}),
   };
 
   let savedId: string;
   if (id) {
-    const existing = await Student.findById(id, { monthlyFee: 1, feeHistory: 1 }).lean<StudentLean>();
+    const existing = await Student.findById(id, { monthlyFee: 1, feeHistory: 1, endDate: 1 }).lean<StudentLean>();
     if (!existing) return { error: "O‘quvchi topilmadi" };
     // Narx o'zgargan bo'lsa — tanlangan oydan boshlab (o'tgan oylar hisobi o'zgarmaydi)
     let fees = { monthlyFee: existing.monthlyFee, feeHistory: feeHistoryOf(existing) };
@@ -119,6 +128,10 @@ export async function saveStudent(
     await Student.updateOne({ _id: id }, { $set: { ...base, ...fees } }, { runValidators: true });
     savedId = id;
     await logActivity(session, "student.edit", `O‘quvchi ma’lumotlari o‘zgartirildi: ${fullName}`);
+    const before = existing.endDate ? dateToISO(existing.endDate) : "";
+    if (hasEnd && before !== endRaw) {
+      await logActivity(session, endRaw ? "student.finish" : "student.restore", `${fullName}: ${endRaw ? finishText(endRaw) : "tugatish sanasi o‘chirildi (arxivdan qaytarildi)"}`);
+    }
   } else {
     // Standart narx bilan qo'shilsa — rejalashtirilgan o'zgarishlar (masalan, "dekabrdan 350 000") unga ham qo'llanadi
     const settings = await getSettings({ fresh: true });
@@ -171,6 +184,58 @@ export async function saveStudentByTeacher(id: string, _prev: FormState, formDat
   if (!res.matchedCount) return { error: "Bu o‘quvchi sizga biriktirilmagan" };
   await logActivity(session, "student.edit", `O‘quvchi ma’lumotlari o‘zgartirildi: ${fullName}`);
   redirect(`/students/${id}`);
+}
+
+/** «Tugatgan sana: …, oxirgi to'lov oyi: …» */
+function finishText(endIso: string): string {
+  return `o‘qishni tugatgan sana ${formatDate(endIso)} (oxirgi to‘lov oyi: ${monthLabel(lastBilledMonth(endIso))})`;
+}
+
+/**
+ * O'qishni tugatish: sana kiritiladi — shu kundan davomat, keyingi oydan to'lov hisoblanmaydi, sana kelgach o'quvchi
+ * «Arxiv» holatiga o'tadi. Undan oldingi to'lanmagan oylar qarz bo'lib qoladi. Sanani o'zgartirish ham shu bilan.
+ */
+export async function finishStudent(studentId: string, endIso: string): Promise<{ error?: string; message?: string }> {
+  const session = await requireOwner({ fresh: true });
+  if (!isId(studentId)) return { error: "O‘quvchi topilmadi" };
+  await connectDB();
+  const s = await Student.findById(studentId, { fullName: 1, startDate: 1, endDate: 1 }).lean();
+  if (!s) return { error: "O‘quvchi topilmadi" };
+  const err = endDateError(String(endIso ?? ""), dateToISO(s.startDate), todayISO());
+  if (err) return { error: err };
+  await Student.updateOne({ _id: studentId }, { $set: { endDate: isoToDate(endIso)! } });
+  await logActivity(session, "student.finish", `${s.fullName}: ${finishText(endIso)}${s.endDate ? ` (avval: ${formatDate(s.endDate)})` : ""}`);
+  await dataChanged();
+  return { message: `${s.fullName}: ${finishText(endIso)}` };
+}
+
+/** Arxivdan qaytarish: tugatish sanasi o'chiriladi va o'quvchi yana faol (to'lov va davomat avvalgidek hisoblanadi). */
+export async function restoreStudent(studentId: string): Promise<void> {
+  const session = await requireOwner({ fresh: true });
+  if (!isId(studentId)) return;
+  await connectDB();
+  const s = await Student.findOneAndUpdate({ _id: studentId }, { $set: { endDate: null, active: true } }, { projection: { fullName: 1, endDate: 1 } }).lean();
+  if (s) await logActivity(session, "student.restore", `${s.fullName}: arxivdan qaytarildi${s.endDate ? ` (tugatish sanasi ${formatDate(s.endDate)} bekor qilindi)` : ""}`);
+  await dataChanged();
+}
+
+/** Tanlangan o'quvchilar o'qishni tugatdi (masalan, butun guruh): sana boshlagan kunidan oldin bo'lganlari o'tkazib yuboriladi. */
+export async function finishStudentsBulk(ids: string[], endIso: string): Promise<{ error?: string; count?: number; skipped?: number }> {
+  const session = await requireOwner({ fresh: true });
+  if (!Array.isArray(ids) || typeof endIso !== "string") return { error: "Noto‘g‘ri so‘rov" };
+  const valid = ids.filter(isId).slice(0, 1000);
+  if (!valid.length) return { error: "O‘quvchi tanlanmagan" };
+  await connectDB();
+  const today = todayISO();
+  const docs = await Student.find({ _id: { $in: valid } }, { startDate: 1 }).lean();
+  // Sana noto'g'ri bo'lsa (masalan, juda uzoq) — hammasiga bir xil xato
+  const first = docs.map((d) => endDateError(endIso, dateToISO(d.startDate), today)).find((e) => e && !e.startsWith("O‘qishni boshlagan"));
+  if (first) return { error: first };
+  const ok = docs.filter((d) => !endDateError(endIso, dateToISO(d.startDate), today)).map((d) => d._id);
+  if (ok.length) await Student.updateMany({ _id: { $in: ok } }, { $set: { endDate: isoToDate(endIso)! } });
+  await logActivity(session, "student.finish", `${ok.length} ta o‘quvchi: ${finishText(endIso)}`);
+  await dataChanged();
+  return { count: ok.length, skipped: docs.length - ok.length };
 }
 
 /** O'quvchini va uning barcha to'lovlarini (arxivdagilari bilan) o'chiradi. */
@@ -306,7 +371,7 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
   // O'qituvchi tanlanmagan bo'lsa — kurs o'qituvchisi biriktiriladi
   if (!teacher) teacher = (await courseTeacherResolver())(group);
   // Bir xil ismli faol o'quvchi bo'lsa — ogohlantirish (ikki marta qo'shilmasin)
-  const dup = await Student.exists({ fullName: exactName(fullName), active: true });
+  const dup = await Student.exists({ fullName: exactName(fullName), ...currentStudentQuery() });
   if (dup && str(formData, "confirmDuplicate") !== "1") {
     return { error: `«${fullName}» ismli faol o‘quvchi allaqachon bor. Baribir qo‘shish uchun yana bir marta «Saqlash»ni bosing.`, fieldErrors: { confirmDuplicate: "1" } };
   }
@@ -368,7 +433,7 @@ export async function addStudentByTeacher(_prev: FormState, formData: FormData):
   if (Object.keys(fieldErrors).length || !course || monthlyFee === null || !startDate) return { fieldErrors };
 
   // Bir xil ismli faol o'quvchi bo'lsa — ogohlantirish (ikki marta qo'shilmasin)
-  const dup = await Student.findOne({ fullName: exactName(fullName), active: true }, { teacher: 1 }).lean();
+  const dup = await Student.findOne({ fullName: exactName(fullName), ...currentStudentQuery() }, { teacher: 1 }).lean();
   if (dup && str(formData, "confirmDuplicate") !== "1") {
     const mine = String(dup.teacher ?? "") === staffId;
     return {

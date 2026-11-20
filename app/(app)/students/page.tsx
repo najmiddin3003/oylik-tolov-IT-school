@@ -42,7 +42,7 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
   const dayRaw = parseDayFilter(str("day"));
   const day = isOwner || dayRaw === "toq" || dayRaw === "juft" || dayRaw === "har" ? dayRaw : "";
   const teacher = isOwner && /^([a-f0-9]{24}|none)$/i.test(str("teacher")) ? str("teacher") : "";
-  const status = str("status") === "inactive" || str("status") === "all" ? (str("status") as "inactive" | "all") : "active";
+  const status = ["inactive", "archived", "all"].includes(str("status")) ? (str("status") as "inactive" | "archived" | "all") : "active";
   const tab: StudentTab = parseStudentTab(str("tab"));
   const sort: StudentSort = SORTS.some((s) => s.key === str("sort")) ? (str("sort") as StudentSort) : "name";
   const page = Math.max(1, Number(str("page")) || 1);
@@ -205,6 +205,7 @@ async function Students({ searchParams }: { searchParams: PageProps<"/students">
             options={[
               { value: "active", label: "Faol o‘quvchilar" },
               { value: "inactive", label: "Nofaol" },
+              { value: "archived", label: "Arxiv (tugatganlar)" },
               { value: "all", label: "Hammasi" },
             ]}
           />
