@@ -3,12 +3,26 @@
 // Imtihon sahifasi: mavzular (galochka) va daraja, har bir o'quvchiga ChatGPT bilan 10 ta savol (javoblari bilan)
 // va ball. Mavzu/daraja tanlovi brauzerda eslab qolinadi; o'quvchiga alohida mavzu tanlash ham mumkin.
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Check, ChevronDown, Clock, Eye, EyeOff, GraduationCap, Loader2, RefreshCw, Sparkles, Users } from "lucide-react";
-import { generateExamQuestions, saveExamScore } from "@/app/actions/exam";
+import { generateExamQuestions, saveExamMarks, saveExamScore } from "@/app/actions/exam";
 import { courseKey } from "@/lib/courses";
 import type { ExamGroup, ExamStudentRow } from "@/lib/exam";
-import { cleanTopics, EXAM_LEVELS, EXAM_QUESTION_COUNT, EXAM_TOPICS, isExamLevel, topicLabel, type ExamLevel, type ExamQuestion, type ExamTopic } from "@/lib/exam-rules";
+import {
+  cleanTopics,
+  EXAM_LEVELS,
+  EXAM_MARKS,
+  EXAM_QUESTION_COUNT,
+  EXAM_TOPICS,
+  isExamLevel,
+  marksScore,
+  marksSummary,
+  topicLabel,
+  type ExamLevel,
+  type ExamMark,
+  type ExamQuestion,
+  type ExamTopic,
+} from "@/lib/exam-rules";
 import type { Role } from "@/lib/session";
 import { formatDateTime } from "@/lib/time";
 import { studentHref } from "./FollowUps";
@@ -69,6 +83,7 @@ export function ExamBoard({ date, groups: allGroups, course, aiReady, role }: { 
             topics,
             level,
             questions: res.questions,
+            marks: res.questions.map(() => null),
             generatedAt: res.generatedAt,
             score: prev?.score ?? null,
             note: prev?.note ?? "",
@@ -202,9 +217,10 @@ export function ExamBoard({ date, groups: allGroups, course, aiReady, role }: { 
                   onScored={(score, note, scoredAt) =>
                     setExams((x) => ({
                       ...x,
-                      [s.id]: { ...(x[s.id] ?? { topics: [], level: setup.level, questions: [], generatedAt: null, scoredByName: "" }), score, note, scoredAt },
+                      [s.id]: { ...(x[s.id] ?? { topics: [], level: setup.level, questions: [], marks: [], generatedAt: null, scoredByName: "" }), score, note, scoredAt },
                     }))
                   }
+                  onMarked={(marks, score, scoredAt) => setExams((x) => (x[s.id] ? { ...x, [s.id]: { ...x[s.id]!, marks, score, scoredAt } } : x))}
                 />
               ))}
             </ul>
@@ -251,6 +267,7 @@ function StudentExam({
   showAnswers,
   onGenerate,
   onScored,
+  onMarked,
 }: {
   s: ExamStudentRow;
   exam: Exam | null;
@@ -263,6 +280,7 @@ function StudentExam({
   showAnswers: boolean;
   onGenerate: (topics: ExamTopic[], level: ExamLevel) => Promise<boolean>;
   onScored: (score: number | null, note: string, scoredAt: string | null) => void;
+  onMarked: (marks: ExamMark[], score: number | null, scoredAt: string | null) => void;
 }) {
   // O'quvchiga alohida mavzular (null — umumiy sozlama)
   // Savol tuzilgan bo'lsa — o'sha mavzular (qayta tuzishda shular ishlatiladi)
@@ -272,6 +290,23 @@ function StudentExam({
   const questions = exam?.questions ?? [];
   const href = studentHref(role, s.id);
   const away = s.attendance === "absent" || s.attendance === "excused";
+  const marks = exam?.marks?.length === questions.length ? exam.marks : questions.map(() => null);
+  const [markError, setMarkError] = useState("");
+  const [saving, setSaving] = useState(0);
+  // Belgilar ketma-ket saqlanadi (tez bosilsa ham oxirgi holat yoziladi)
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const mark = (i: number, v: ExamMark) => {
+    const next = marks.map((m, j) => (j === i ? (m === v ? null : v) : m));
+    const score = marksScore(next);
+    onMarked(next, score, score === null ? null : new Date().toISOString());
+    setMarkError("");
+    setSaving((n) => n + 1);
+    queue.current = queue.current.then(async () => {
+      const res = await saveExamMarks({ date, studentId: s.id, marks: next }).catch(() => ({ ok: false as const, error: "Tarmoq xatosi — qayta bosing" }));
+      if (!res.ok) setMarkError(res.error);
+      setSaving((n) => n - 1);
+    });
+  };
 
   return (
     <li className={cx(away && "bg-slate-50/50")}>
@@ -339,7 +374,12 @@ function StudentExam({
             </p>
           ) : null}
 
-          {questions.length ? <QuestionList questions={questions} showAnswers={showAnswers} /> : null}
+          {questions.length ? (
+            <>
+              <QuestionList questions={questions} showAnswers={showAnswers} marks={marks} onMark={mark} />
+              <MarksTotal marks={marks} saving={saving > 0} error={markError} />
+            </>
+          ) : null}
           {exam?.generatedAt && questions.length ? (
             <p className="num text-xs text-ink-400">
               Tuzilgan: {formatDateTime(exam.generatedAt)} · {EXAM_LEVELS.find((l) => l.key === exam.level)?.label} daraja
@@ -358,11 +398,33 @@ function StudentExam({
   );
 }
 
-function QuestionList({ questions, showAnswers }: { questions: ExamQuestion[]; showAnswers: boolean }) {
+const MARK_ON = {
+  emerald: "bg-emerald-600 text-white ring-emerald-600",
+  amber: "bg-amber-500 text-white ring-amber-500",
+  rose: "bg-rose-600 text-white ring-rose-600",
+} as const;
+const MARK_OFF = {
+  emerald: "text-emerald-700 ring-emerald-200 hover:bg-emerald-50",
+  amber: "text-amber-800 ring-amber-200 hover:bg-amber-50",
+  rose: "text-rose-700 ring-rose-200 hover:bg-rose-50",
+} as const;
+const MARK_CARD = { 1: "border-emerald-300 bg-emerald-50/30", 0.5: "border-amber-300 bg-amber-50/30", 0: "border-rose-300 bg-rose-50/30" } as const;
+
+function QuestionList({
+  questions,
+  showAnswers,
+  marks,
+  onMark,
+}: {
+  questions: ExamQuestion[];
+  showAnswers: boolean;
+  marks: ExamMark[];
+  onMark: (i: number, v: ExamMark) => void;
+}) {
   return (
     <ol className="grid gap-2.5">
       {questions.map((q, i) => (
-        <li key={i} className="rounded-xl border border-line bg-surface px-4 py-3">
+        <li key={i} className={cx("rounded-xl border bg-surface px-4 py-3 transition-colors", marks[i] === null || marks[i] === undefined ? "border-line" : MARK_CARD[marks[i]!])}>
           <div className="flex items-start gap-3">
             <span className="num inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">{i + 1}</span>
             <div className="min-w-0 flex-1">
@@ -376,11 +438,50 @@ function QuestionList({ questions, showAnswers }: { questions: ExamQuestion[]; s
                   {q.answer}
                 </p>
               ) : null}
+              <div className="mt-2.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label={`${i + 1}-savol bahosi`}>
+                {EXAM_MARKS.map((m) => {
+                  const on = marks[i] === m.value;
+                  return (
+                    <button
+                      key={m.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => onMark(i, m.value)}
+                      title={on ? "Qayta bosilsa — belgi olib tashlanadi" : undefined}
+                      className={cx("h-9 min-w-24 rounded-xl px-3 text-sm font-semibold ring-1 ring-inset transition", on ? MARK_ON[m.tone] : cx("bg-surface", MARK_OFF[m.tone]))}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Avtomatik natija: belgilar yig'indisi (topdi — 1, yarim — 0.5). */
+function MarksTotal({ marks, saving, error }: { marks: ExamMark[]; saving: boolean; error: string }) {
+  const sum = marksSummary(marks);
+  const score = marksScore(marks);
+  return (
+    <div className="num flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-ink-900 px-4 py-3 text-white">
+      <span className="text-sm text-white/70">Natija (avtomatik):</span>
+      <span className="text-2xl font-bold">
+        {score ?? "—"} <span className="text-base font-medium text-white/60">/ {marks.length}</span>
+      </span>
+      <span className="flex flex-wrap gap-1.5 text-xs">
+        <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-emerald-200">topdi {sum.right}</span>
+        <span className="rounded-md bg-amber-400/20 px-2 py-0.5 text-amber-200">yarim {sum.half}</span>
+        <span className="rounded-md bg-rose-500/20 px-2 py-0.5 text-rose-200">topolmadi {sum.wrong}</span>
+        {sum.left ? <span className="rounded-md bg-white/10 px-2 py-0.5 text-white/70">belgilanmagan {sum.left}</span> : null}
+      </span>
+      <span className="ml-auto text-xs text-white/60">{error ? <span className="text-rose-300">{error}</span> : saving ? "Saqlanmoqda…" : score !== null ? "✓ Saqlandi" : ""}</span>
+    </div>
   );
 }
 
@@ -396,6 +497,12 @@ function ScoreForm({
   onSaved: (score: number | null, note: string, scoredAt: string | null) => void;
 }) {
   const [score, setScore] = useState(typeof exam?.score === "number" ? String(exam.score) : "");
+  // Ball belgilardan avtomatik o'zgarsa — maydon ham yangilanadi
+  const [seen, setSeen] = useState(exam?.score ?? null);
+  if (seen !== (exam?.score ?? null)) {
+    setSeen(exam?.score ?? null);
+    setScore(typeof exam?.score === "number" ? String(exam.score) : "");
+  }
   const [note, setNote] = useState(exam?.note ?? "");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, start] = useTransition();

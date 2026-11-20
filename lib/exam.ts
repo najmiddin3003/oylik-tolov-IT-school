@@ -4,7 +4,7 @@ import "server-only";
 import { attendanceDay } from "./attendance";
 import type { AttendanceStatus } from "./attendance-rules";
 import { connectDB } from "./db";
-import { isExamLevel, type ExamLevel, type ExamQuestion } from "./exam-rules";
+import { isExamLevel, normalizeMarks, type ExamLevel, type ExamMark, type ExamQuestion } from "./exam-rules";
 import { Exam } from "./models";
 
 export type ExamStudentRow = {
@@ -17,6 +17,7 @@ export type ExamStudentRow = {
     topics: string[];
     level: ExamLevel;
     questions: ExamQuestion[];
+    marks: ExamMark[];
     generatedAt: string | null;
     score: number | null;
     note: string;
@@ -59,6 +60,7 @@ export async function examDay(teacherId: string | null, date: string): Promise<E
               topics: d.topics ?? [],
               level: isExamLevel(d.level) ? d.level : "medium",
               questions: (d.questions ?? []).map((q) => ({ topic: q.topic ?? "", question: q.question ?? "", answer: q.answer ?? "" })),
+              marks: normalizeMarks(d.marks, (d.questions ?? []).length),
               generatedAt: d.generatedAt ? d.generatedAt.toISOString() : null,
               score: typeof d.score === "number" ? d.score : null,
               note: d.note ?? "",

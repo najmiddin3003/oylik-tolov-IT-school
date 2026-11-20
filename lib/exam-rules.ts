@@ -26,6 +26,40 @@ export const EXAM_SCORE_MAX = 100;
 
 export type ExamQuestion = { topic: string; question: string; answer: string };
 
+/** Savol bahosi: topdi — 1, yarim — 0.5, topolmadi — 0; belgilanmagan — null */
+export type ExamMark = 1 | 0.5 | 0 | null;
+export const EXAM_MARKS = [
+  { value: 1, label: "Topdi", tone: "emerald" },
+  { value: 0.5, label: "Yarim", tone: "amber" },
+  { value: 0, label: "Topolmadi", tone: "rose" },
+] as const;
+
+export function isExamMark(v: unknown): v is ExamMark {
+  return v === null || v === 1 || v === 0.5 || v === 0;
+}
+
+/** Belgilar savollar soniga moslanadi (yetmasa — null, ortig'i tashlanadi; noto'g'ri qiymat — null). */
+export function normalizeMarks(raw: unknown, count: number): ExamMark[] {
+  const list = Array.isArray(raw) ? raw : [];
+  return Array.from({ length: count }, (_, i) => (isExamMark(list[i]) ? (list[i] as ExamMark) : null));
+}
+
+/** Avtomatik ball: belgilangan savollar yig'indisi; hech biri belgilanmagan bo'lsa — null. */
+export function marksScore(marks: ExamMark[]): number | null {
+  const set = marks.filter((m): m is 1 | 0.5 | 0 => m !== null);
+  return set.length ? set.reduce<number>((s, m) => s + m, 0) : null;
+}
+
+/** "topdi 7 · yarim 1 · topolmadi 1 · belgilanmagan 1" uchun sonlar */
+export function marksSummary(marks: ExamMark[]): { right: number; half: number; wrong: number; left: number } {
+  return {
+    right: marks.filter((m) => m === 1).length,
+    half: marks.filter((m) => m === 0.5).length,
+    wrong: marks.filter((m) => m === 0).length,
+    left: marks.filter((m) => m === null).length,
+  };
+}
+
 export function isExamTopic(v: unknown): v is ExamTopic {
   return typeof v === "string" && EXAM_TOPICS.some((t) => t.key === v);
 }

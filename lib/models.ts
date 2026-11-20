@@ -354,6 +354,8 @@ const examSchema = new Schema(
     topics: { type: [String], default: [] },
     level: { type: String, enum: ["easy", "medium", "hard"], default: "medium" },
     questions: { type: [{ topic: String, question: String, answer: String, _id: false }], default: [] },
+    /** Har bir savol bahosi (questions bilan bir xil tartibda): 1 — topdi, 0.5 — yarim, 0 — topolmadi, null — belgilanmagan */
+    marks: { type: [Schema.Types.Mixed], default: [] },
     model: { type: String, default: "" },
     generatedAt: { type: Date, default: null },
     /** Ball (bo'sh — hali qo'yilmagan) va izoh */
