@@ -76,6 +76,8 @@ export function canAccess(role: Role, pathname: string): boolean {
   // O'zi olgan avans/oylik — o'qituvchi va administrator
   if (under(pathname, "/olinganlar")) return true;
   if (role === "teacher") {
+    // Imtihon — o'z o'quvchilari (savollar va ball)
+    if (under(pathname, "/imtihon")) return true;
     if (pathname === "/" || pathname === "/students" || pathname === "/api/export/oquvchilar") return true;
     // O'quvchi profili va o'z o'quvchisini tahrirlash (cheklangan maydonlar; yangi qo'shish — rahbarda)
     return /^\/students\/[a-f0-9]{24}(\/edit)?$/i.test(pathname);

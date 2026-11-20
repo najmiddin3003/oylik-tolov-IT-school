@@ -9,6 +9,7 @@ import {
   GraduationCap,
   HandCoins,
   LayoutDashboard,
+  NotebookPen,
   Rocket,
   Settings2,
   UsersRound,
@@ -20,7 +21,7 @@ import {
 import type { Role } from "@/lib/session";
 import type { Tone } from "./ui";
 
-export type NavKey = "home" | "students" | "attendance" | "debtors" | "payments" | "salary" | "discounts" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
+export type NavKey = "home" | "students" | "attendance" | "exam" | "debtors" | "payments" | "salary" | "discounts" | "staff" | "sync" | "settings" | "speed" | "roadmap" | "me";
 
 export type NavItem = {
   key: NavKey;
@@ -71,6 +72,8 @@ export const NAV: NavItem[] = [
     monthAware: false,
     roles: ["owner", "admin", "teacher"],
   },
+  // Imtihon — rahbar va o'qituvchi (ChatGPT bilan savollar va ball)
+  { key: "exam", href: "/imtihon", label: "Imtihon", short: "Imtihon", icon: NotebookPen, tone: "violet", monthAware: false, roles: ["owner", "teacher"], mobile: false },
   { key: "debtors", href: "/qarzdorlar", label: "Qarzdorlar", short: "Qarzdorlar", icon: UserX, tone: "rose", monthAware: true, roles: ["owner", "admin", "teacher"] },
   { key: "payments", href: "/payments", label: "To‘lovlar", short: "To‘lovlar", icon: Wallet, tone: "emerald", monthAware: true, roles: ["owner", "admin", "teacher"] },
   {
