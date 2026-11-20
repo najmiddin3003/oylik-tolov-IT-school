@@ -10,6 +10,7 @@ export const PERF_ROUTES: Record<string, string> = {
   "/students/[id]/edit": "O‘quvchini tahrirlash",
   "/qarzdorlar": "Qarzdorlar",
   "/davomat": "Davomat",
+  "/imtihon": "Imtihon",
   "/chegirmalar": "Chegirmalar",
   "/payments": "To‘lovlar",
   "/olinganlar": "Olingan avans/oylik",

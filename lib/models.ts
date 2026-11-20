@@ -341,6 +341,32 @@ const sheetRowSchema = new Schema(
 sheetRowSchema.index({ source: 1, key: 1 }, { unique: true });
 
 // ---------- Davomat: har bir o'quvchi har dars kuni — keldi / kelmadi / sababli ----------
+// ---------- Imtihon: o'quvchiga AI yaratgan 10 ta savol (javoblari bilan) va qo'yilgan ball ----------
+const examSchema = new Schema(
+  {
+    /** Imtihon kuni (Toshkent) "YYYY-MM-DD" */
+    date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
+    student: { type: Schema.Types.ObjectId, ref: "Student", required: true },
+    /** O'sha paytdagi ism, kurs va o'qituvchi (keyin o'zgarsa ham tarix to'g'ri qoladi) */
+    studentName: { type: String, default: "" },
+    group: { type: String, default: "" },
+    teacher: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
+    topics: { type: [String], default: [] },
+    level: { type: String, enum: ["easy", "medium", "hard"], default: "medium" },
+    questions: { type: [{ topic: String, question: String, answer: String, _id: false }], default: [] },
+    model: { type: String, default: "" },
+    generatedAt: { type: Date, default: null },
+    /** Ball (bo'sh — hali qo'yilmagan) va izoh */
+    score: { type: Number, default: null },
+    note: { type: String, default: "", maxlength: 500 },
+    scoredAt: { type: Date, default: null },
+    scoredByName: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+examSchema.index({ date: 1, student: 1 }, { unique: true });
+examSchema.index({ student: 1, date: -1 });
+
 const attendanceSchema = new Schema(
   {
     student: { type: Schema.Types.ObjectId, ref: "Student", required: true },
@@ -570,6 +596,7 @@ export const SyncIgnore: Model<InferSchemaType<typeof syncIgnoreSchema>> =
 export const SheetArchive: Model<InferSchemaType<typeof sheetArchiveSchema>> =
   models.SheetArchive || model("SheetArchive", sheetArchiveSchema);
 export const SheetRow: Model<InferSchemaType<typeof sheetRowSchema>> = models.SheetRow || model("SheetRow", sheetRowSchema);
+export const Exam: Model<InferSchemaType<typeof examSchema>> = models.Exam || model("Exam", examSchema);
 export const Attendance: Model<InferSchemaType<typeof attendanceSchema>> =
   models.Attendance || model("Attendance", attendanceSchema);
 export const Salary: Model<InferSchemaType<typeof salarySchema>> =
