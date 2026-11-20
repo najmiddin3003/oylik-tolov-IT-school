@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { Check, ChevronDown, Clock, Eye, EyeOff, GraduationCap, Loader2, RefreshCw, Sparkles, Users } from "lucide-react";
 import { generateExamQuestions, saveExamScore } from "@/app/actions/exam";
+import { courseKey } from "@/lib/courses";
 import type { ExamGroup, ExamStudentRow } from "@/lib/exam";
 import { cleanTopics, EXAM_LEVELS, EXAM_QUESTION_COUNT, EXAM_TOPICS, isExamLevel, topicLabel, type ExamLevel, type ExamQuestion, type ExamTopic } from "@/lib/exam-rules";
 import type { Role } from "@/lib/session";
@@ -21,12 +22,14 @@ type Setup = { topics: ExamTopic[]; level: ExamLevel };
 
 const ATT = { present: { label: "Keldi", tone: "emerald" }, absent: { label: "Kelmadi", tone: "rose" }, excused: { label: "Sababli", tone: "amber" } } as const;
 
-export function ExamBoard({ date, groups, aiReady, role }: { date: string; groups: ExamGroup[]; aiReady: boolean; role: Role }) {
+export function ExamBoard({ date, groups: allGroups, course, aiReady, role }: { date: string; groups: ExamGroup[]; course: string | null; aiReady: boolean; role: Role }) {
+  // Kurs filtri (null — hammasi); savollar va ballar holati barcha guruhlar uchun saqlanadi
+  const groups = course ? allGroups.filter((g) => courseKey(g.course) === course) : allGroups;
   const [setup, setSetup] = useState<Setup>({ topics: DEFAULT_TOPICS, level: "medium" });
   const [showAnswers, setShowAnswers] = useState(true);
   // Har bir o'quvchi imtihoni (yaratilgan savollar va ball) — server ma'lumotidan, keyin shu yerda yangilanadi
   const [exams, setExams] = useState<Record<string, Exam | null>>(() =>
-    Object.fromEntries(groups.flatMap((g) => g.students.map((s) => [s.id, s.exam]))),
+    Object.fromEntries(allGroups.flatMap((g) => g.students.map((s) => [s.id, s.exam]))),
   );
   // Guruhga ketma-ket yaratish: navbatdagi o'quvchi
   const [busy, setBusy] = useState<Record<string, boolean>>({});
