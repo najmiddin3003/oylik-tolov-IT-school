@@ -5,7 +5,7 @@
 import { logActivity } from "@/lib/activity";
 import { requireRole } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
-import { buildExamPrompt, cleanTopics, EXAM_JSON_SCHEMA, isExamLevel, normalizeQuestions, parseScore, topicLabel, type ExamQuestion } from "@/lib/exam-rules";
+import { buildExamPrompt, cleanTopics, EXAM_JSON_SCHEMA, isExamLevel, isExamMark, marksScore, normalizeQuestions, parseScore, topicLabel, type ExamMark, type ExamQuestion } from "@/lib/exam-rules";
 import { isId } from "@/lib/ids";
 import { examDay, type ExamGroup } from "@/lib/exam";
 import { Exam, Student } from "@/lib/models";
@@ -66,13 +66,34 @@ export async function generateExamQuestions(input: { date: string; studentId: st
   await Exam.updateOne(
     { date: input.date, student: s._id },
     {
-      $set: { studentName: s.fullName, group: s.group ?? "", teacher: s.teacher ?? null, topics, level, questions, model: openaiModel(), generatedAt },
+      // Yangi savollar — eski belgilar o'chadi (ball qo'lda qo'yilgan bo'lsa saqlanadi)
+      $set: { studentName: s.fullName, group: s.group ?? "", teacher: s.teacher ?? null, topics, level, questions, marks: [], model: openaiModel(), generatedAt },
       $setOnInsert: { score: null, note: "" },
     },
     { upsert: true },
   );
   await logActivity(session, "exam.generate", `Imtihon savollari: ${s.fullName} — ${topics.map(topicLabel).join(", ")}`);
   return { ok: true, questions, generatedAt: generatedAt.toISOString() };
+}
+
+export type SaveMarksResult = { ok: true; score: number | null; scoredAt: string | null } | { ok: false; error: string };
+
+/** Savollar bahosi (topdi / yarim / topolmadi): ball avtomatik — yig'indisi. */
+export async function saveExamMarks(input: { date: string; studentId: string; marks: unknown[] }): Promise<SaveMarksResult> {
+  const session = await requireRole(["owner", "teacher"], { fresh: true });
+  if (!isoToDate(input.date)) return { ok: false, error: "Sana noto‘g‘ri" };
+  const s = await studentFor(session, input.studentId);
+  if (!s) return { ok: false, error: "O‘quvchi topilmadi" };
+  const doc = await Exam.findOne({ date: input.date, student: s._id }, { questions: 1 }).lean();
+  const count = doc?.questions?.length ?? 0;
+  if (!count) return { ok: false, error: "Avval savollarni tuzing" };
+  const raw = Array.isArray(input.marks) ? input.marks : [];
+  if (raw.length !== count || !raw.every(isExamMark)) return { ok: false, error: "Belgilar noto‘g‘ri — sahifani yangilang" };
+  const marks = raw as ExamMark[];
+  const score = marksScore(marks);
+  const scoredAt = score === null ? null : new Date();
+  await Exam.updateOne({ _id: doc!._id }, { $set: { marks, score, scoredAt, scoredByName: session.name ?? "" } });
+  return { ok: true, score, scoredAt: scoredAt?.toISOString() ?? null };
 }
 
 export type SaveScoreResult = { ok: true; score: number | null; scoredAt: string | null } | { ok: false; error: string };

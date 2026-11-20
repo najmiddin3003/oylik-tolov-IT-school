@@ -38,3 +38,13 @@ test("imtihon: AI javobini tekshirish va so'rov", () => {
   assert.match(p.user, /Qiyin/);
   assert.match(p.user, /Eski savol\?/);
 });
+
+test("imtihon: savol belgilari va avtomatik ball", async () => {
+  const { marksScore, marksSummary, normalizeMarks } = await import("../lib/exam-rules");
+  assert.deepEqual(normalizeMarks([1, 0.5, "x", 0], 5), [1, 0.5, null, 0, null]);
+  assert.deepEqual(normalizeMarks(null, 2), [null, null]);
+  assert.equal(marksScore([1, 1, 0.5, 0, null]), 2.5);
+  assert.equal(marksScore([null, null]), null, "hech biri belgilanmagan — ball yo'q");
+  assert.equal(marksScore([0, 0]), 0);
+  assert.deepEqual(marksSummary([1, 0.5, 0, null, 1]), { right: 2, half: 1, wrong: 1, left: 1 });
+});
