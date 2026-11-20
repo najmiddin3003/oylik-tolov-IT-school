@@ -1,7 +1,7 @@
 "use client";
 
-// Imtihon sahifasi qobig'i: sarlavha, kun almashtirish va kurs filtri. Kun almashganda sahifa qayta yuklanmaydi —
-// ro'yxat joyida almashadi (manzil ham yangilanadi, yangilansa o'sha kun ochiladi). Kurs filtri brauzerda eslab qolinadi.
+// Imtihon sahifasi qobig'i: sarlavha va kun almashtirish (sahifa qayta yuklanmaydi — ro'yxat joyida almashadi, manzil
+// ham yangilanadi). Kurs filtri (ro'yxat tepasida) brauzerda eslab qolinadi.
 import { useEffect, useState, useTransition } from "react";
 import { CalendarX2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { loadExamDay } from "@/app/actions/exam";
@@ -11,7 +11,7 @@ import { weekdayOfIso, WEEKDAY_NAMES } from "@/lib/schedule";
 import type { Role } from "@/lib/session";
 import { formatDate } from "@/lib/time";
 import { ExamBoard } from "./ExamBoard";
-import { DatePicker, Select } from "./pickers";
+import { DatePicker } from "./pickers";
 import { btn, Card, cx, EmptyState, PageHeader } from "./ui";
 
 const ALL = "hammasi";
@@ -95,24 +95,14 @@ export function ExamScreen({
   return (
     <>
       <PageHeader
-        eyebrow="Imtihon"
-        title={`${date === today ? "Bugungi imtihon" : "Imtihon"} — ${day}, ${formatDate(date)}`}
-        subtitle={`${day} kuni darsga keladigan o‘quvchilar (dars jadvali bo‘yicha). Mavzularni tanlang — ChatGPT har biriga 10 ta savolni javoblari bilan tuzadi, oxirida ball qo‘ying.`}
+        eyebrow={date === today ? "Bugungi imtihon" : "Imtihon"}
+        title={`${day}, ${formatDate(date)}`}
+        subtitle="Dars jadvali bo‘yicha shu kuni keladigan o‘quvchilar"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => go(shiftDay(date, -1))} disabled={pending} className={cx(btn.outline, "px-3")} aria-label="Oldingi kun">
               <ChevronLeft className="size-4" aria-hidden />
             </button>
-            {courses.length > 1 ? (
-              <Select
-                value={active}
-                onChange={pickCourse}
-                searchable={false}
-                aria-label="Kurs"
-                wrapperClassName="w-full sm:w-56"
-                options={[{ value: ALL, label: "Barcha kurslar" }, ...courses.map(([value, label]) => ({ value, label }))]}
-              />
-            ) : null}
             <DatePicker value={date} onChange={go} aria-label="Sana" wrapperClassName="w-60" />
             <button type="button" onClick={() => go(shiftDay(date, 1))} disabled={pending} className={cx(btn.outline, "px-3")} aria-label="Keyingi kun">
               <ChevronRight className="size-4" aria-hidden />
@@ -133,7 +123,16 @@ export function ExamScreen({
       ) : null}
       <div className={cx("transition-opacity", pending && "pointer-events-none opacity-50")}>
         {groups.length ? (
-          <ExamBoard key={date} date={date} groups={groups} course={active === ALL ? null : active} aiReady={aiReady} role={role} />
+          <ExamBoard
+            key={date}
+            date={date}
+            groups={groups}
+            course={active === ALL ? null : active}
+            courses={courses}
+            onCourse={(k) => pickCourse(k ?? ALL)}
+            aiReady={aiReady}
+            role={role}
+          />
         ) : (
           <Card>
             <EmptyState title={`${day} kuni dars yo‘q`} icon={CalendarX2}>
