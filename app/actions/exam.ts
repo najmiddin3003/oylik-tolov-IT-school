@@ -7,11 +7,19 @@ import { requireRole } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { buildExamPrompt, cleanTopics, EXAM_JSON_SCHEMA, isExamLevel, normalizeQuestions, parseScore, topicLabel, type ExamQuestion } from "@/lib/exam-rules";
 import { isId } from "@/lib/ids";
+import { examDay, type ExamGroup } from "@/lib/exam";
 import { Exam, Student } from "@/lib/models";
 import { openaiJson, OpenAIError, openaiModel } from "@/lib/openai";
 import { isoToDate } from "@/lib/time";
 
 type Who = Awaited<ReturnType<typeof requireRole>>;
+
+/** Boshqa kun ro'yxati (sahifa yangilanmasdan almashadi). O'qituvchiga — faqat o'z o'quvchilari. */
+export async function loadExamDay(date: string): Promise<{ ok: true; groups: ExamGroup[] } | { ok: false; error: string }> {
+  const session = await requireRole(["owner", "teacher"]);
+  if (!isoToDate(date)) return { ok: false, error: "Sana noto‘g‘ri" };
+  return { ok: true, groups: await examDay(session.role === "teacher" ? session.staffId : null, date) };
+}
 
 /** O'quvchi (o'qituvchiga — faqat o'ziniki). */
 async function studentFor(session: Who, studentId: string) {
