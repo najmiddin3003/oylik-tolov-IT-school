@@ -186,6 +186,13 @@ export async function saveStudentByTeacher(id: string, _prev: FormState, formDat
   redirect(`/students/${id}`);
 }
 
+/** Kim qaysi o'quvchini boshqaradi: rahbar — hammasini, o'qituvchi — faqat o'ziga biriktirilganini (o'chirish, tugatish). */
+async function managerScope() {
+  const session = await requireRole(["owner", "teacher"], { fresh: true });
+  const own = session.role === "teacher" ? { teacher: session.staffId } : {};
+  return { session, own };
+}
+
 /** «Tugatgan sana: …, oxirgi to'lov oyi: …» */
 function finishText(endIso: string): string {
   return `o‘qishni tugatgan sana ${formatDate(endIso)} (oxirgi to‘lov oyi: ${monthLabel(lastBilledMonth(endIso))})`;
@@ -196,10 +203,10 @@ function finishText(endIso: string): string {
  * «Arxiv» holatiga o'tadi. Undan oldingi to'lanmagan oylar qarz bo'lib qoladi. Sanani o'zgartirish ham shu bilan.
  */
 export async function finishStudent(studentId: string, endIso: string): Promise<{ error?: string; message?: string }> {
-  const session = await requireOwner({ fresh: true });
+  const { session, own } = await managerScope();
   if (!isId(studentId)) return { error: "O‘quvchi topilmadi" };
   await connectDB();
-  const s = await Student.findById(studentId, { fullName: 1, startDate: 1, endDate: 1 }).lean();
+  const s = await Student.findOne({ _id: studentId, ...own }, { fullName: 1, startDate: 1, endDate: 1 }).lean();
   if (!s) return { error: "O‘quvchi topilmadi" };
   const err = endDateError(String(endIso ?? ""), dateToISO(s.startDate), todayISO());
   if (err) return { error: err };
@@ -211,10 +218,10 @@ export async function finishStudent(studentId: string, endIso: string): Promise<
 
 /** Arxivdan qaytarish: tugatish sanasi o'chiriladi va o'quvchi yana faol (to'lov va davomat avvalgidek hisoblanadi). */
 export async function restoreStudent(studentId: string): Promise<void> {
-  const session = await requireOwner({ fresh: true });
+  const { session, own } = await managerScope();
   if (!isId(studentId)) return;
   await connectDB();
-  const s = await Student.findOneAndUpdate({ _id: studentId }, { $set: { endDate: null, active: true } }, { projection: { fullName: 1, endDate: 1 } }).lean();
+  const s = await Student.findOneAndUpdate({ _id: studentId, ...own }, { $set: { endDate: null, active: true } }, { projection: { fullName: 1, endDate: 1 } }).lean();
   if (s) await logActivity(session, "student.restore", `${s.fullName}: arxivdan qaytarildi${s.endDate ? ` (tugatish sanasi ${formatDate(s.endDate)} bekor qilindi)` : ""}`);
   await dataChanged();
 }
@@ -240,12 +247,14 @@ export async function finishStudentsBulk(ids: string[], endIso: string): Promise
 
 /** O'quvchini va uning barcha to'lovlarini (arxivdagilari bilan) o'chiradi. */
 export async function deleteStudent(id: string, redirectTo: string | null): Promise<void> {
-  const session = await requireOwner({ fresh: true });
+  // Rahbar — istalgan o'quvchini, o'qituvchi — faqat o'ziga biriktirilganini (to'lovlari bilan)
+  const { session, own } = await managerScope();
   if (!isId(id)) return;
   await connectDB();
-  const removed = await Student.findByIdAndDelete(id).lean();
+  const removed = await Student.findOneAndDelete({ _id: id, ...own }).lean();
+  if (!removed) return;
   const payments = await Payment.deleteMany({ student: id });
-  if (removed) await logActivity(session, "student.delete", `O‘chirildi: ${removed.fullName} (${payments.deletedCount} ta to‘lovi bilan)`);
+  await logActivity(session, "student.delete", `O‘chirildi: ${removed.fullName} (${payments.deletedCount} ta to‘lovi bilan)`);
   // Faqat o'quvchilar ro'yxatiga qaytariladi (boshqa manzilga yo'naltirib bo'lmaydi)
   if (redirectTo === "/students") redirect("/students");
   await dataChanged();

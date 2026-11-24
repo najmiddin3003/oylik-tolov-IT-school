@@ -133,6 +133,8 @@ export type StudentOption = {
   /** O'qishni tugatgan sana — keyingi oylar uchun to'lov kutilmaydi; arxivdagi (faqat qarzi bor bo'lsa ro'yxatda) */
   endDate: string | null;
   archived: boolean;
+  /** O'qishni boshlagan oy (ortiqcha to'lov undan oldingi oylarga yozilmaydi) */
+  startMonth: string;
 };
 
 export type UnpaidStudent = {
@@ -928,6 +930,7 @@ export async function listStudentOptions(month: string): Promise<StudentOption[]
       paid: p,
       endDate,
       archived: !current,
+      startMonth: monthOfDate(s.startDate),
     });
   }
   return out;
@@ -1175,11 +1178,64 @@ function toArchiveRow(d: ArchiveListDoc): SheetArchiveRow {
   };
 }
 
+/**
+ * Google Sheets bo'limi kimga nima ko'rsatadi: rahbar va administrator — hamma kurslar; o'qituvchi — faqat o'z kurslari
+ * (Sozlamalar → Kurslar'da biriktirilganlari va o'z o'quvchilarining kurslari) va o'z o'quvchilari.
+ */
+async function syncScope() {
+  const v = await viewer();
+  if (v.role !== "teacher" || !v.staffId) return { role: v.role, courses: null as string[] | null, studentIds: null as Set<string> | null };
+  const [settings, students] = await Promise.all([getSettings(), loadStudents()]);
+  const mine = students.filter((s) => String(s.teacher ?? "") === v.staffId);
+  const courses = [...new Set([...teacherCourses(settings.courses, v.staffId).map((c) => c.name), ...mine.map((s) => s.group ?? "").filter(Boolean)])];
+  return { role: v.role, courses, studentIds: new Set(mine.map((s) => String(s._id))) };
+}
+
+/** O'qituvchiga: Sheets jadvali qatorlaridan faqat o'z kurslari (sarlavha qatori — kurs ustuni nomi bo'yicha topiladi). */
+function filterSheetRows(rows: string[][], courseColumn: string, courses: string[]): { keep: (row: string[]) => boolean; header: number; col: number } {
+  const want = courseColumn.trim().toLowerCase();
+  let header = -1;
+  let col = -1;
+  for (let i = 0; i < Math.min(rows.length, 15) && header < 0; i++) {
+    const j = rows[i].findIndex((c) => String(c ?? "").trim().toLowerCase() === want);
+    if (j >= 0) {
+      header = i;
+      col = j;
+    }
+  }
+  return { keep: (row) => col >= 0 && courses.some((c) => sameCourse(String(row[col] ?? ""), c)), header, col };
+}
+
 /** Arxivdagi jadval to'liq (ko'rish sahifasi): qiymatlar, kuzatuv, varaqlar ko'rinishi. Asl .xlsx — alohida yuklab olinadi. */
 export async function getSheetArchive(id: string) {
-  await requireOwner();
+  await requireRole(["owner", "admin", "teacher"]);
   if (!mongoose.isValidObjectId(id)) return null;
   await connectDB();
+  const scope = await syncScope();
+  const full = await sheetArchiveFull(id);
+  if (!full || !scope.courses) return full ? { ...full, limited: false } : null;
+  // O'qituvchi: faqat o'z kurslari qatorlari (Google ko'rinishi, havola va fayl yuklash — yo'q)
+  const { columns } = await getSettings();
+  const f = filterSheetRows(full.rows, columns.course, scope.courses);
+  const idx = full.rows.map((_, i) => i).filter((i) => i <= f.header || f.keep(full.rows[i]));
+  const courses = full.courses.filter((c) => scope.courses!.some((x) => sameCourse(c.course, x)));
+  return {
+    ...full,
+    url: "",
+    rows: idx.map((i) => full.rows[i]),
+    rowSeen: idx.map((i) => full.rowSeen[i] ?? null),
+    removedRows: full.removedRows.filter((r) => f.keep(r.cells)),
+    courses,
+    records: courses.reduce((s, c) => s + c.rows, 0),
+    total: courses.reduce((s, c) => s + c.total, 0),
+    tabs: [],
+    css: "",
+    hasXlsx: false,
+    limited: true,
+  };
+}
+
+async function sheetArchiveFull(id: string) {
   const [doc, hasXlsx] = await Promise.all([
     SheetArchive.findById(id, { xlsx: 0 }).lean(),
     SheetArchive.exists({ _id: id, xlsx: { $ne: null } }),
@@ -1203,8 +1259,9 @@ export async function getSheetArchive(id: string) {
 }
 
 export async function getSyncPageData() {
-  await requireOwner();
+  await requireRole(["owner", "admin", "teacher"]);
   await connectDB();
+  const scope = await syncScope();
   const [settings, runs, ignoreDocs, archiveDocs, archiveMonth] = await Promise.all([
     getSettings({ fresh: true }),
     findRuns(10),
@@ -1212,11 +1269,26 @@ export async function getSyncPageData() {
     SheetArchive.aggregate<ArchiveListDoc>([{ $sort: { month: -1, capturedAt: -1 } }, { $limit: 200 }, { $project: ARCHIVE_LIST_FIELDS }]),
     suggestedArchiveMonth(),
   ]);
-  const views = runs.map(toRunView);
+  // O'qituvchi: faqat o'z kurslari va o'z o'quvchilari farqlari; ko'rsatkichlar ham shular bo'yicha
+  const mineCourse = (g: string) => !scope.courses || scope.courses.some((c) => sameCourse(g, c));
+  const views = runs.map(toRunView).map((r) => {
+    if (!scope.courses) return r;
+    const courseStats = r.courseStats.filter((c) => mineCourse(c.course));
+    return {
+      ...r,
+      courseStats,
+      mismatches: r.mismatches.filter((m) => (m.studentId && scope.studentIds!.has(m.studentId)) || mineCourse(m.group)),
+      sheetRowCount: courseStats.reduce((s, c) => s + c.rows, 0),
+      matchedCount: courseStats.reduce((s, c) => s + c.matched, 0),
+      courseFilter: "",
+      filteredOut: 0,
+      skipped: [],
+    };
+  });
   const lastIgnored = new Set(
     (runs[0]?.mismatches ?? []).filter((m) => m.ignored).map((m) => mismatchKey(m, runs[0]!.basis === "date" ? "date" : "month")),
   );
-  const ignores: SyncIgnoreRow[] = ignoreDocs.map((d) => ({
+  const ignores: SyncIgnoreRow[] = ignoreDocs.filter((d) => !scope.courses || (d.studentId && scope.studentIds!.has(String(d.studentId))) || mineCourse(d.group ?? "")).map((d) => ({
     id: String(d._id),
     kind: d.kind as MismatchKind,
     studentId: d.studentId ? String(d.studentId) : null,
@@ -1232,7 +1304,8 @@ export async function getSyncPageData() {
   }));
   // Oxirgi tekshiruvdagi «saytda yo'q o'quvchi»lar: saytda hozir shu ismli yoki o'xshash ismli o'quvchi bormi
   // (ism tekshiruvdan keyin to'g'rilangan bo'lishi yoki Sheets'da boshqacha yozilgan bo'lishi mumkin)
-  const unknown = (views[0]?.mismatches ?? []).filter((m) => m.kind === "unknown_student" && !m.resolved);
+  // Biriktirish tanlovi — faqat amal qila oladiganlarga (rahbar, administrator)
+  const unknown = scope.courses ? [] : (views[0]?.mismatches ?? []).filter((m) => m.kind === "unknown_student" && !m.resolved);
   let students: StudentPick[] = [];
   // Shu oyda saytda to'lovi bor o'quvchilar: ularga bog'langan Sheets yozuvi qayta yozilmaydi (o'sha to'lovning o'zi)
   const paidByMonth: Record<string, string[]> = {};
@@ -1262,8 +1335,11 @@ export async function getSyncPageData() {
     students = candidates.map(pick);
   }
   return {
+    role: scope.role,
+    /** O'qituvchiga ko'rinadigan kurslar (null — hammasi) */
+    courses: scope.courses,
     settings: {
-      sheetUrl: settings.sheetUrl,
+      sheetUrl: scope.courses ? (settings.sheetUrl ? "hidden" : "") : settings.sheetUrl,
       sheetArchived: settings.sheetArchived,
       columns: settings.columns,
       courseFilter: settings.courseFilter,
@@ -1278,7 +1354,8 @@ export async function getSyncPageData() {
     /** Oy -> shu oyda saytda to'lovi bor o'quvchilar */
     paidByMonth,
     /** Arxivdagi jadvallar (eng yangi oy tepada) */
-    archives: archiveDocs.map(toArchiveRow),
+    // O'qituvchiga — havola va butun jadval summalari ko'rsatilmaydi (faqat o'z kursi qatorlari — ko'rish sahifasida)
+    archives: archiveDocs.map(toArchiveRow).map((x) => (scope.courses ? { ...x, url: "", records: 0, total: 0, removed: 0 } : x)),
     /** Arxivlash formasi uchun taklif qilinadigan oy */
     archiveMonth,
   };

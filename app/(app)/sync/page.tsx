@@ -31,7 +31,7 @@ import { ArchiveSheetForm, LinkStudentPicker, RunSyncButton, SheetSettingsForm }
 import { AccordionCard } from "@/components/AccordionCard";
 import { Avatar, btn, Card, CardHeader, cx, EmptyState, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ACCORDION_OPEN_MAX, previewCounts, previewNames } from "@/lib/accordion";
-import { ownerGuard } from "@/lib/auth";
+import { roleGuard } from "@/lib/auth";
 import { courseLabel } from "@/lib/compare";
 import { sameCourse } from "@/lib/courses";
 import { getSyncPageData, type MismatchRow, type SheetArchiveRow, type StudentPick, type SyncIgnoreRow, type SyncRunView } from "@/lib/data";
@@ -65,10 +65,13 @@ export default function SyncPage({ searchParams }: PageProps<"/sync">) {
 }
 
 async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["searchParams"] }) {
-  await ownerGuard();
+  const { role } = await roleGuard(["owner", "admin", "teacher"]);
+  // Rahbar — hammasi; administrator — farqlar bilan ishlaydi (sozlama va arxivlashsiz); o'qituvchi — o'z kurslarini ko'radi
+  const isOwner = role === "owner";
+  const canAct = role !== "teacher";
   const sp = await searchParams;
   const course = typeof sp.kurs === "string" ? sp.kurs.slice(0, 80) : "";
-  const { settings, runs, ignores, students, paidByMonth, archives, archiveMonth } = await getSyncPageData();
+  const { settings, runs, ignores, students, paidByMonth, archives, archiveMonth, courses: myCourses } = await getSyncPageData();
   const last = runs[0];
   // Havola bo'sh, arxiv bor — oxirgi tekshiruv natijasi eski (arxivlangan) jadval bo'yicha, ko'rsatilmaydi
   const archiveState = !settings.sheetUrl && archives.length > 0;
@@ -79,15 +82,19 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
       <PageHeader
         eyebrow="Integratsiya"
         title="Google Sheets"
-        subtitle={`Tizim har kuni soat ${hour}:00 da (Toshkent vaqti) Sheets’dagi to‘lovlar jadvalini saytdagi ma’lumotlar bilan solishtiradi.${
-          settings.autoImport ? " Sheets’da bor, saytda yo‘q to‘lovlar avtomatik qo‘shiladi." : ""
-        }`}
+        subtitle={
+          myCourses
+            ? `Sizning kurslaringiz bo‘yicha: ${myCourses.join(", ") || "kurs biriktirilmagan"}. Tizim har kuni soat ${hour}:00 da Sheets’dagi to‘lovlarni saytdagi bilan solishtiradi.`
+            : `Tizim har kuni soat ${hour}:00 da (Toshkent vaqti) Sheets’dagi to‘lovlar jadvalini saytdagi ma’lumotlar bilan solishtiradi.${
+                settings.autoImport ? " Sheets’da bor, saytda yo‘q to‘lovlar avtomatik qo‘shiladi." : ""
+              }`
+        }
         actions={<RunSyncButton disabled={!settings.sheetUrl} />}
       />
 
       {archiveState ? (
         <ArchiveStateBanner latest={archives[0]} />
-      ) : !settings.sheetUrl ? (
+      ) : !settings.sheetUrl && isOwner ? (
         <div className="mb-6 flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50/70 px-5 py-4 text-sm text-brand-800">
           <Info className="size-[18px] shrink-0" aria-hidden />
           Boshlash uchun pastdagi sozlamalarga Google Sheets havolasini kiriting va saqlang.
@@ -95,7 +102,7 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
       ) : null}
 
       {archiveState ? null : last ? (
-        <LastRun run={last} course={course} students={students} paidByMonth={paidByMonth} />
+        <LastRun run={last} course={course} students={students} paidByMonth={paidByMonth} canAct={canAct} />
       ) : settings.sheetUrl ? (
         <Card className="mb-6">
           <EmptyState title="Hali tekshiruv o‘tkazilmagan" icon={FileSpreadsheet}>
@@ -104,11 +111,12 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
         </Card>
       ) : null}
 
-      {ignores.length && !archiveState ? <IgnoredList ignores={ignores} /> : null}
+      {ignores.length && !archiveState ? <IgnoredList ignores={ignores} canAct={canAct} /> : null}
 
-      {archives.length ? <ArchiveList archives={archives} canRestore={!settings.sheetUrl} /> : null}
+      {archives.length ? <ArchiveList archives={archives} canRestore={isOwner && !settings.sheetUrl} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        {isOwner ? (
         <Card id="sozlamalar" className="scroll-mt-24 p-6">
           <h2 className="mb-5 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">Sozlamalar</h2>
           <SheetSettingsForm
@@ -119,9 +127,10 @@ async function SyncView({ searchParams }: { searchParams: PageProps<"/sync">["se
             courses={settings.courses}
           />
         </Card>
+        ) : null}
 
         <div className="grid gap-6 self-start">
-        {settings.sheetUrl ? (
+        {isOwner && settings.sheetUrl ? (
           <Card className="p-6">
             <h2 className="flex items-center gap-2 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">
               <Archive className="size-[18px] text-ink-400" aria-hidden />
@@ -229,7 +238,7 @@ function ArchiveList({ archives, canRestore }: { archives: SheetArchiveRow[]; ca
                   <span className="text-sm text-ink-500">{[a.title, a.tab].filter(Boolean).join(" · ")}</span>
                 </p>
                 <p className="num mt-0.5 text-[13px] text-ink-500">
-                  {a.records} ta to‘lov · {formatMoney(a.total)}
+                  {a.url ? `${a.records} ta to‘lov · ${formatMoney(a.total)}` : "Sizning kurslaringiz qatorlari"}
                   {a.dateFrom ? ` · ${formatDate(a.dateFrom)} – ${formatDate(a.dateTo)}` : ""}
                   {a.removed ? ` · ${a.removed} ta o‘chirilgan/o‘zgargan qator` : ""}
                 </p>
@@ -237,6 +246,7 @@ function ArchiveList({ archives, canRestore }: { archives: SheetArchiveRow[]; ca
                   Saqlangan: {formatDateTime(a.capturedAt)} · {ARCHIVE_TRIGGER[a.trigger]}
                   {a.capturedByName ? ` · ${a.capturedByName}` : ""}
                 </p>
+                {a.url ? (
                 <a
                   href={a.url}
                   target="_blank"
@@ -247,6 +257,7 @@ function ArchiveList({ archives, canRestore }: { archives: SheetArchiveRow[]; ca
                   <ExternalLink className="size-3.5 shrink-0" aria-hidden />
                   <span className="truncate">{a.url}</span>
                 </a>
+                ) : null}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -285,11 +296,14 @@ function LastRun({
   course,
   students,
   paidByMonth,
+  canAct,
 }: {
   run: SyncRunView;
   course: string;
   students: StudentPick[];
   paidByMonth: Record<string, string[]>;
+  /** Farqlar bilan ishlash (qo'shish, bog'lash, e'tiborsiz qoldirish) — rahbar va administrator */
+  canAct: boolean;
 }) {
   // Kurs bo'yicha filtr (?kurs=): ko'rsatkichlar va farqlar shu kurs bo'yicha
   const stat = course ? run.courseStats.find((c) => sameCourse(c.course, course)) : undefined;
@@ -372,7 +386,7 @@ function LastRun({
           )}
           defaultOpen={open.length <= ACCORDION_OPEN_MAX}
           toolbar={
-            bulkCount && !selected ? (
+            bulkCount && !selected && canAct ? (
               <ConfirmAction
                 action={importAllMismatches.bind(null, run.id)}
                 confirmText={`Sheets’dan saytga qo‘shiladi: ${newStudents ? `${newStudents} ta yangi o‘quvchi va ` : ""}${bulkCount} ta yozuvdagi to‘lovlar.${
@@ -389,7 +403,7 @@ function LastRun({
         >
           <ul className="divide-y divide-line-soft">
             {open.map((m) => (
-              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} students={students} paidIds={paidByMonth[m.month] ?? []} />
+              <MismatchItem key={m.id} m={m} runId={run.id} basis={run.basis} students={students} paidIds={paidByMonth[m.month] ?? []} canAct={canAct} />
             ))}
           </ul>
         </AccordionCard>
@@ -432,7 +446,9 @@ function MismatchItem({
   basis,
   students,
   paidIds,
+  canAct,
 }: {
+  canAct: boolean;
   m: MismatchRow;
   runId: string;
   basis: "month" | "date";
@@ -539,6 +555,16 @@ function MismatchItem({
           </div>
         </dl>
 
+        {!canAct ? (
+          m.studentId ? (
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <Link href={`/students/${m.studentId}?month=${m.month}`} className={btn.sm}>
+                <Eye className="size-4" aria-hidden />
+                Ko‘rish
+              </Link>
+            </div>
+          ) : null
+        ) : (
         <div className="flex flex-wrap gap-2 sm:justify-end">
           {m.kind === "missing_on_site" ? (
             <ConfirmAction
@@ -593,13 +619,14 @@ function MismatchItem({
             E’tiborsiz qoldirish
           </ConfirmAction>
         </div>
+        )}
       </div>
     </li>
   );
 }
 
 /** E'tiborsiz qoldirilgan farqlar: tekshiruvlarda ko'rsatilmaydi; «Qaytarish» — yana ko'rinadi. */
-function IgnoredList({ ignores }: { ignores: SyncIgnoreRow[] }) {
+function IgnoredList({ ignores, canAct }: { ignores: SyncIgnoreRow[]; canAct: boolean }) {
   return (
     <AccordionCard
       className="mb-6"
@@ -642,6 +669,7 @@ function IgnoredList({ ignores }: { ignores: SyncIgnoreRow[] }) {
                   </p>
                   <p className="num mt-0.5 text-xs text-ink-400">E’tiborsiz qoldirilgan: {formatDateTime(x.createdAt)}</p>
                 </div>
+                {canAct ? (
                 <ConfirmAction
                   action={unignoreMismatch.bind(null, x.id)}
                   confirmText={`${x.studentName}: bu farq yana ko‘rsatilsinmi? Oxirgi tekshiruvda bo‘lsa — darhol, aks holda keyingi tekshiruvda chiqadi.`}
@@ -651,6 +679,7 @@ function IgnoredList({ ignores }: { ignores: SyncIgnoreRow[] }) {
                   <Undo2 className="size-4" aria-hidden />
                   Qaytarish
                 </ConfirmAction>
+                ) : null}
               </li>
             );
           })}

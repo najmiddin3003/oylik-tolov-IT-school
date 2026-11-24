@@ -8,7 +8,7 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
 ## Imkoniyatlar
 
 - **O'quvchilar** — qo'shish, tahrirlash, o'chirish (to'lovlari bilan birga), qidirish (ism / telefon / guruh), faol-nofaol holat.
-- **O‘qishni tugatish** — o‘quvchi profilida «O‘qishni tugatish» (yoki «Tahrirlash»dagi «O‘qishni tugatgan sana», yoki
+- **O‘qishni tugatish** (rahbar va o‘z o‘quvchisiga o‘qituvchi; o‘chirish ham) — o‘quvchi profilida «O‘qishni tugatish» (yoki «Tahrirlash»dagi «O‘qishni tugatgan sana», yoki
   ro‘yxatda bir nechtasini belgilab — butun guruh uchun). Tanlangan sanadan boshlab davomat olinmaydi, to‘lov esa shu sana
   tushgan oydan keyin hisoblanmaydi (1-sanada tugatsa — o‘sha oy ham hisoblanmaydi). Undan oldingi to‘lanmagan oylar qarz bo‘lib
   qoladi (qarzdorlar, hisobot, to‘lov formasi — «arxiv» belgisi bilan). Sana kelgach o‘quvchi «Arxiv» holatiga o‘tadi
@@ -25,7 +25,8 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
   oxirgi to'lov sanasi; rahbar va administratorda «To'lov» tugmasi. Menyudagi son — shu oy umuman to'lamaganlar.
 - **Bosh sahifa** — tanlangan oy bo'yicha: to'lamaganlar ro'yxati (qarzi bilan), to'laganlar, yig'ilgan summa, reja bajarilishi, guruh bo'yicha filtr.
 - **O'quvchi sahifasi** — boshlagan oyidan beri har oy holati, umumiy qarz, to'lovlar tarixi.
-- **Google Sheets bilan solishtirish** — har kuni bir marta (standart: 06:00, Toshkent) avtomatik, yoki «Hozir tekshirish» tugmasi bilan.
+- **Google Sheets bilan solishtirish** — har kuni bir marta (standart: 06:00, Toshkent) avtomatik, yoki «Hozir tekshirish» tugmasi bilan. Bo‘lim hamma xodimga ochiq: administrator — barcha kurslar va farqlar bilan ishlaydi (sozlamalar va arxivlash —
+  faqat rahbarda), o‘qituvchi — faqat o‘z kurslari farqlarini ko‘radi (arxiv jadvalida ham faqat o‘z kursi qatorlari, havolasiz).
   Farq topilsa, yuqoridagi qo'ng'iroqchada bildirishnoma chiqadi. Farq turlari:
   - **Saytda yo'q** — Sheets'da to'lov bor, saytda yo'q;
   - **Sheets'da yo'q** — saytda bor, Sheets'da yozilmagan;
@@ -69,6 +70,14 @@ Google Sheets'dagi to'lovlar jadvali bilan solishtiradigan tizim.
     nazar); **hali to‘lanmagan** — o‘quvchilarning shu oy uchun qarzi (to‘lamaganlar ro‘yxatiga havola bilan); **rejadagi
     oylik** — hamma to‘lasa (yig‘ilgan + to‘lanmagan) × foiz, oylik olingan oyda — yakuniy summa (keyingi to‘lovlar keyingi
     oy oyligiga). Markaz tushumidan oladigan xodimda — barcha o‘quvchilar.
+  - **Umumiy oylik kuni** («Xodimlar» → «Oylik berilgan kunlar»): oylik hamma xodimga bitta kunda beriladi — shu kungacha
+    (shu kun ham) tushgan to‘lovlar o‘sha oy oyligiga, keyingilari keyingi oyga, **barcha xodimlar uchun**. Rahbar biror xodimga
+    (yoki o‘ziga) «oylik» yozganda o‘sha sana o‘zi qo‘yiladi; bu yerda aniq kunga o‘zgartiriladi. Shu oyda xodimning o‘zi
+    yozgan «oylik» oyni yopmaydi. Belgilanmagan oylarda — avvalgidek (har xodimning o‘z «oylik» yozuvi).
+  - **Ortiqcha to‘lov** — summa tanlangan oyning to‘lovidan ko‘p bo‘lsa, avval oldingi to‘lanmagan oylar (eng eskisidan),
+    keyin tanlangan va keyingi oylar: oktabr-noyabr uchun 500 000 (oylik 300 000) — oktabr 300 000, noyabr 200 000. Formada
+    saqlashdan oldin «Taqsimlanadi: …» ko‘rinadi. «To‘lovlar» sahifasidagi «Ortiqcha to‘lovlar» bloki mavjud yozuvlarni
+    topadi (bir oyga ko‘p yozilgan, oldingi oy to‘lanmagan) va «To‘g‘irlash» bilan qayta taqsimlaydi (chek, sana, usul o‘zgarmaydi).
   - **Oylik davri** (foizli oylik, oktabr 2026 dan): oy **«Oylik» olindi deb yozilmaguncha yopilmaydi**. Masalan, oktabr
     oyligi hali olinmagan bo‘lsa, noyabrda tushgan to‘lovlar ham oktabr oyligiga qo‘shiladi. Xodim «Olingan avans/oylik»
     bo‘limida (yoki rahbar xodim sahifasida) «Oylik — Oktabr» deb yozgach, olingan sanadan keyin tushgan to‘lovlar noyabr

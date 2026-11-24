@@ -117,3 +117,36 @@ test("yil almashishi", () => {
   assert.deepEqual(base(c), { "2026-12": 600_000 });
   assert.equal(c.current, "2026-12");
 });
+
+test("umumiy oylik kuni: rahbar belgilagan kun hamma xodim uchun oyni yopadi", async () => {
+  const { mergeCloses, paydaysOf } = await import("../lib/salary-cycle");
+  const { dateToISO } = await import("../lib/time");
+  // Rahbar o'z oyligini 8-noyabr deb yozgan; o'qituvchi o'zi oylik yozmagan
+  const records = [{ ...oylik("2026-10", "2026-11-08", 9), selfReported: false }];
+  const payments = [
+    pay("2026-10", 300_000, "2026-10-10"),
+    pay("2026-11", 300_000, "2026-11-07", 18), // 7-noyabr kechqurun
+    pay("2026-11", 250_000, "2026-11-08", 15), // 8-noyabr — oylik yozilgandan keyin
+  ];
+  // Avtomatik: rahbar yozuvi (8-noyabr, 9:00) — 7-noyabrdagi to'lov oktabrga, 8-noyabr 15:00 — noyabrga
+  let pd = paydaysOf([], records, dateToISO);
+  assert.equal(pd.get("2026-10")?.date, "2026-11-08");
+  assert.equal(pd.get("2026-10")?.exact, false);
+  let c = salaryCycles(payments, mergeCloses([], pd), at("2026-11-20"));
+  assert.deepEqual(base(c), { "2026-10": 600_000, "2026-11": 250_000 });
+
+  // Rahbar aniq 7-noyabr deb belgiladi: 7-noyabrdagi hamma to'lovlar oktabrga, 8-noyabrdan — noyabrga
+  pd = paydaysOf([{ month: "2026-10", date: "2026-11-07" }], records, dateToISO);
+  assert.equal(pd.get("2026-10")?.exact, true);
+  c = salaryCycles(payments, mergeCloses([], pd), at("2026-11-20"));
+  assert.deepEqual(base(c), { "2026-10": 600_000, "2026-11": 250_000 });
+  assert.equal(c.closedOn("2026-10"), "2026-11-07");
+  assert.equal(c.current, "2026-11");
+
+  // Xodimning o'zi yozgan «oylik» (11-noyabr) umumiy kun bor oyda hisobga olinmaydi
+  const own = [oylik("2026-10", "2026-11-11")];
+  c = salaryCycles(payments, mergeCloses(own, pd), at("2026-11-20"));
+  assert.equal(c.closedOn("2026-10"), "2026-11-07");
+  // O'zi yozgan yozuv paydaysOf ga kirmaydi (faqat rahbar yozganlari)
+  assert.equal(paydaysOf([], [{ ...oylik("2026-10", "2026-11-05"), selfReported: true }], dateToISO).size, 0);
+});

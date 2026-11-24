@@ -52,12 +52,18 @@ test("rollar bo'yicha kirish huquqi", async () => {
   assert.equal(canAccess("owner", "/tezlik"), true);
   assert.equal(canAccess("admin", "/tezlik"), false);
   assert.equal(canAccess("teacher", "/tezlik"), false);
-  for (const p of ["/", "/students", "/staff", "/settings", "/sync", "/api/export/oquvchilar"]) assert.equal(canAccess("admin", p), false, p);
+  for (const p of ["/", "/students", "/staff", "/settings", "/api/export/oquvchilar"]) assert.equal(canAccess("admin", p), false, p);
+  // Google Sheets solishtiruvi — hamma xodimga (o'qituvchiga faqat o'z kurslari — ma'lumot qatlamida)
+  for (const role of ["owner", "admin", "teacher"] as const) {
+    assert.equal(canAccess(role, "/sync"), true, role);
+    assert.equal(canAccess(role, "/sync/arxiv/6ac9dcf90698aca8bd508d6c"), true, role);
+  }
+  assert.equal(canAccess("teacher", "/syncx"), false);
   // o'qituvchi — o'z sahifasi, o'quvchilari (ko'rish va o'z o'quvchisini tahrirlash), to'lovlar, profil
   for (const p of ["/", "/students", "/students/6ac9dcf90698aca8bd508d6c", "/students/6ac9dcf90698aca8bd508d6c/edit", "/payments", "/me", "/api/export/oquvchilar", "/api/export/tolovlar"]) {
     assert.equal(canAccess("teacher", p), true, p);
   }
-  for (const p of ["/students/new", "/students/abc/edit", "/students/6ac9dcf90698aca8bd508d6c/edit/x", "/staff", "/settings", "/sync", "/api/export/hisobot"]) {
+  for (const p of ["/students/new", "/students/abc/edit", "/students/6ac9dcf90698aca8bd508d6c/edit/x", "/staff", "/settings", "/api/export/hisobot"]) {
     assert.equal(canAccess("teacher", p), false, p);
   }
   assert.equal(homeFor("owner"), "/");

@@ -116,3 +116,43 @@ export function salaryCycles(payments: CyclePayment[], closes: CycleClose[], now
     current: target([dateToISO(now), now.getTime()]),
   };
 }
+
+// ---------- Umumiy oylik kuni (hamma xodim uchun) ----------
+
+/** Oylik berilgan kun: qaysi oy oyligi, qaysi kuni ("YYYY-MM-DD"); `exact` — rahbar aniq belgilagan (butun kun kiradi). */
+export type Payday = { month: string; date: string; exact: boolean };
+
+/** Kun oxiri (shu kuni kiritilgan barcha to'lovlar oldingi oyga kiradi) */
+const END_OF_DAY = new Date(8.64e15);
+
+/**
+ * Har oy uchun umumiy oylik kuni: rahbar aniq belgilagani, bo'lmasa — rahbar yozgan (xodimning o'zi yozmagan) eng birinchi
+ * «oylik» yozuvi sanasi. Rahbar oylikni bir kuni bersa — u kun hamma xodim uchun oyni yopadi.
+ */
+export function paydaysOf(
+  explicit: { month: string; date: string }[],
+  records: (CycleClose & { selfReported?: boolean | null })[],
+  toIso: (d: Date) => string,
+): Map<string, Payday & { close: CycleClose }> {
+  const out = new Map<string, Payday & { close: CycleClose }>();
+  for (const r of records) {
+    if (r.selfReported) continue;
+    const prev = out.get(r.month);
+    if (!prev || compareKeys(closeKey(r), closeKey(prev.close)) < 0) out.set(r.month, { month: r.month, date: toIso(r.date), exact: false, close: r });
+  }
+  for (const e of explicit) {
+    const [y, m, d] = e.date.split("-").map(Number);
+    // Toshkent kuni — `toIso` bilan bir xil kunga tushadigan vaqt (kun o'rtasi)
+    const date = new Date(Date.UTC(y, m - 1, d, 7));
+    out.set(e.month, { month: e.month, date: e.date, exact: true, close: { month: e.month, date, createdAt: END_OF_DAY } });
+  }
+  return out;
+}
+
+/**
+ * Xodim oyining yopilishlari: umumiy oylik kuni bor oylar — o'sha kun (xodimning o'z yozuvi hisobga olinmaydi), qolganlari —
+ * xodimning o'z «oylik» yozuvlari (avvalgidek).
+ */
+export function mergeCloses(own: CycleClose[], paydays: Map<string, { close: CycleClose }>): CycleClose[] {
+  return [...own.filter((c) => !paydays.has(c.month)), ...[...paydays.values()].map((p) => p.close)];
+}

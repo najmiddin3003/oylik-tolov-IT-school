@@ -111,6 +111,7 @@ async function StudentView({
     paid: Object.fromEntries(months.map((m) => [m.month, m.paid])),
     endDate: student.endDate,
     archived: student.status === "archived",
+    startMonth: monthOfDate(new Date(student.startDate)),
   };
   const feeSteps = [
     { from: monthOfDate(new Date(student.startDate)), fee: student.monthlyFee },
@@ -170,7 +171,7 @@ async function StudentView({
             <Pencil className="size-4" strokeWidth={1.8} aria-hidden />
             Tahrirlash
           </Link>
-          {readOnly || student.endDate ? null : (
+          {student.endDate ? null : (
             <FinishStudentButton
               studentId={student.id}
               name={student.fullName}
@@ -181,11 +182,13 @@ async function StudentView({
             />
           )}
           {readOnly ? null : (
-            <>
-              <a href="#tolov" className={cx(btn.primary, "px-4 xl:hidden")}>
-                <Plus className="size-4" aria-hidden />
-                To‘lov
-              </a>
+            <a href="#tolov" className={cx(btn.primary, "px-4 xl:hidden")}>
+              <Plus className="size-4" aria-hidden />
+              To‘lov
+            </a>
+          )}
+          {/* O'chirish — rahbar va o'z o'quvchisiga o'qituvchi */}
+          <>
               <ConfirmAction
                 action={deleteStudent.bind(null, student.id, "/students")}
                 confirmText={`${student.fullName} va uning barcha to‘lovlari o‘chirib yuborilsinmi? Bu amalni qaytarib bo‘lmaydi.`}
@@ -195,8 +198,7 @@ async function StudentView({
               >
                 <Trash2 className="size-[18px]" strokeWidth={1.8} aria-hidden />
               </ConfirmAction>
-            </>
-          )}
+          </>
         </div>
       </div>
 
@@ -224,7 +226,6 @@ async function StudentView({
               </p>
             ) : null}
           </div>
-          {readOnly ? null : (
             <div className="flex flex-wrap gap-2">
               <FinishStudentButton
                 studentId={student.id}
@@ -243,7 +244,6 @@ async function StudentView({
                 Arxivdan qaytarish
               </ConfirmAction>
             </div>
-          )}
         </div>
       ) : null}
 

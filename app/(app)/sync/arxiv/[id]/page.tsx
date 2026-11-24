@@ -6,7 +6,7 @@ import { ArrowLeft, CalendarRange, Download, ExternalLink, FileSpreadsheet, Hist
 import { AccordionCard } from "@/components/AccordionCard";
 import { btn, Card, cx, MiniStat, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ACCORDION_OPEN_MAX, previewNames } from "@/lib/accordion";
-import { ownerGuard } from "@/lib/auth";
+import { roleGuard } from "@/lib/auth";
 import { getSheetArchive } from "@/lib/data";
 import { columnLetter, sheetDocument } from "@/lib/sheet-archive-rules";
 import { formatDate, formatDateTime, formatMoney, formatNumber, monthLabel } from "@/lib/time";
@@ -36,7 +36,7 @@ async function SheetArchiveView({
   params: PageProps<"/sync/arxiv/[id]">["params"];
   searchParams: PageProps<"/sync/arxiv/[id]">["searchParams"];
 }) {
-  await ownerGuard();
+  const { role } = await roleGuard(["owner", "admin", "teacher"]);
   const { id } = await params;
   const sp = await searchParams;
   const a = await getSheetArchive(id);
@@ -62,16 +62,18 @@ async function SheetArchiveView({
               <ArrowLeft className="size-4" aria-hidden />
               Google Sheets
             </Link>
-            {a.hasXlsx ? (
+            {role === "owner" && a.hasXlsx ? (
               <a href={`/api/sheet-archive/${a.id}?f=xlsx`} className={btn.outline}>
                 <Download className="size-4" aria-hidden />
                 Asl fayl (.xlsx)
               </a>
             ) : null}
-            <a href={`/api/sheet-archive/${a.id}?f=csv`} className={btn.outline}>
-              <Download className="size-4" aria-hidden />
-              CSV
-            </a>
+            {role === "owner" ? (
+              <a href={`/api/sheet-archive/${a.id}?f=csv`} className={btn.outline}>
+                <Download className="size-4" aria-hidden />
+                CSV
+              </a>
+            ) : null}
           </>
         }
       />
@@ -95,6 +97,13 @@ async function SheetArchiveView({
       </div>
 
       <div className="mb-6 grid gap-2 text-[13px] text-ink-500">
+        {a.limited ? (
+          <p className="flex items-start gap-2 rounded-xl bg-brand-50/60 px-3.5 py-2.5 text-brand-800">
+            <Info className="mt-px size-4 shrink-0" aria-hidden />
+            Faqat sizning kurslaringiz qatorlari ko‘rsatilgan.
+          </p>
+        ) : null}
+        {a.url ? (
         <p className="flex min-w-0 items-start gap-2">
           <FileSpreadsheet className="mt-px size-4 shrink-0 text-ink-400" aria-hidden />
           <span className="min-w-0">
@@ -106,6 +115,7 @@ async function SheetArchiveView({
             <span className="text-ink-400">— jadval keyin o‘chirilsa yoki o‘zgartirilsa ham, quyidagi nusxa arxivlash paytidagi holicha qoladi.</span>
           </span>
         </p>
+        ) : null}
         {a.courses.length ? (
           <p className="num flex flex-wrap items-center gap-1.5">
             <span>Kurslar:</span>

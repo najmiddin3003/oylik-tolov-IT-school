@@ -29,12 +29,14 @@ import { PaymentForm } from "@/components/PaymentForm";
 import { PaymentHistory } from "@/components/PaymentHistory";
 import { DatePicker, Select } from "@/components/pickers";
 import { AccordionCard } from "@/components/AccordionCard";
+import { fixOverpayments } from "@/app/actions/payments";
 import { QuickStudentButton } from "@/components/QuickStudent";
 import { ConfirmAction } from "@/components/SubmitButton";
 import { CompleteTaskButton } from "@/components/TaskButtons";
 import { Avatar, btn, Card, CountBadge, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Progress, Tag, type Tone } from "@/components/ui";
 import { ACCORDION_OPEN_MAX } from "@/lib/accordion";
 import { pageGuard } from "@/lib/auth";
+import { findOverpayments, type OverpayRow } from "@/lib/overpay";
 import {
   canPickPaymentDate,
   countArchivedPayments,
@@ -97,13 +99,15 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
     canPickPaymentDate(role),
     readOnly ? Promise.resolve([]) : listCourses(),
   ]);
-  const [share, unpaidList, admin, teacherChoices] = await Promise.all([
+  const [share, unpaidList, admin, teacherChoices, overpaid] = await Promise.all([
     // O'qituvchiga — o'z oyligi (o'quvchilari tushumidan foiz)
     readOnly && staffId ? getStaffPay(staffId, month) : Promise.resolve(null),
     listUnpaid(month),
     isAdmin ? adminExtras() : Promise.resolve(null),
     // «Bugun darsga keladi» blokidagi o'qituvchi filtri uchun (o'qituvchi faqat o'z o'quvchilarini ko'radi)
     readOnly ? Promise.resolve([]) : listTeacherChoices(),
+    // Ortiqcha to'lovlar (bir oyga ko'p yozilgan, oldingi oy to'lanmagan) — rahbar va administratorga
+    readOnly ? Promise.resolve([] as OverpayRow[]) : findOverpayments(),
   ]);
   const { totals, debtors } = overview;
   const preselect = students.some((s) => s.id === str("student")) ? str("student") : undefined;
@@ -154,6 +158,7 @@ async function Payments({ searchParams }: { searchParams: PageProps<"/payments">
       />
 
       {admin?.tasks.length ? <TasksCard tasks={admin.tasks} lists={admin.taskLists} /> : null}
+      {overpaid.length ? <OverpayCard rows={overpaid} /> : null}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3 xl:gap-5">
         <MoneyCard label={`${monthLabel(month)} rejasi`} value={totals.expected} icon={Target} tone="brand" hint={`${totals.students} ta o‘quvchining oylik to‘lovi`}>
@@ -371,6 +376,58 @@ async function adminExtras() {
   const months = [...new Set(tasks.filter((t) => t.status === "open").map((t) => t.month))];
   const lists = await Promise.all(months.map((m) => listUnpaid(m)));
   return { tasks, teachers, templates, discountTypes: discounts.types, taskLists: Object.fromEntries(months.map((m, i) => [m, lists[i]])) };
+}
+
+/** Ortiqcha to'lovlar: bir oyga oylikdan ko'p yozilgan, oldingi oy to'lanmagan — oldingi oyga ko'chirish. */
+function OverpayCard({ rows }: { rows: OverpayRow[] }) {
+  return (
+    <AccordionCard
+      id="ortiqcha"
+      className="mb-6 border-amber-200/80"
+      title="Ortiqcha to‘lovlar"
+      count={rows.length}
+      tone="amber"
+      subtitle="Bir oyga oylikdan ko‘p yozilgan, oldingi oy esa to‘lanmagan — ortiqcha qismi oldingi oyga o‘tkaziladi (chek, sana va usul o‘zgarmaydi)"
+      preview={rows
+        .slice(0, 3)
+        .map((r) => r.name)
+        .join(", ")}
+      defaultOpen={rows.length <= ACCORDION_OPEN_MAX}
+      toolbar={
+        <ConfirmAction
+          action={fixOverpayments.bind(null, undefined)}
+          confirmText={`${rows.length} ta o‘quvchining ortiqcha to‘lovi oldingi to‘lanmagan oylarga o‘tkazilsinmi?`}
+          className={cx(btn.primary, "h-9 px-3 text-sm")}
+          pendingText="…"
+        >
+          Hammasini to‘g‘irlash
+        </ConfirmAction>
+      }
+    >
+      <ul className="divide-y divide-line-soft">
+        {rows.map((r) => (
+          <li key={r.studentId} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 sm:px-6">
+            <div className="min-w-[220px] flex-1">
+              <p className="text-[15px] font-medium text-ink-900">{r.name}</p>
+              <p className="num text-[13px] text-ink-500">
+                {r.moves
+                  .map((m) => `${monthLabel(m.from)}: ${formatNumber(m.paid)} yozilgan (oylik ${formatNumber(m.fee)}) → ${monthLabel(m.to)}ga ${formatNumber(m.amount)}`)
+                  .join(" · ")}
+              </p>
+            </div>
+            <ConfirmAction
+              action={fixOverpayments.bind(null, r.studentId)}
+              confirmText={`${r.name}: ${r.moves.map((m) => `${monthLabel(m.from)}dan ${monthLabel(m.to)}ga ${formatNumber(m.amount)}`).join(", ")} o‘tkazilsinmi?`}
+              className={btn.sm}
+              pendingText="…"
+            >
+              To‘g‘irlash
+            </ConfirmAction>
+          </li>
+        ))}
+      </ul>
+    </AccordionCard>
+  );
 }
 
 /** Rahbardan kelgan topshiriqlar (administrator). */
