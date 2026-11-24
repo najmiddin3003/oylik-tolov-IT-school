@@ -49,6 +49,20 @@ export function nameSimilarity(a: string, b: string): number {
   return 1 - prev[y.length] / Math.max(x.length, y.length);
 }
 
+/**
+ * Qidiruv o'xshashligi (0..1): butun ism bo'yicha yoki so'zlar bo'yicha — so'rovdagi har bir so'z ismdagi biror
+ * so'zga yaqinmi (x/h, qo'sh harf farqisiz). "Abduhalilov Ahrorbek" ≈ "Abduxalilov Axrorbek", "Ahrorbek" ≈ "Abduxalilov Axrorbek".
+ */
+export function searchScore(query: string, name: string): number {
+  const whole = nameSimilarity(query, name);
+  const q = looseNameKey(query).split(" ").filter(Boolean);
+  const n = looseNameKey(name).split(" ").filter(Boolean);
+  if (!q.length || !n.length) return whole;
+  const per = q.map((t) => Math.max(...n.map((w) => (w.startsWith(t) || t.startsWith(w) ? Math.min(t.length, w.length) / Math.max(t.length, w.length) : nameSimilarity(t, w)))));
+  const tokens = per.reduce((a, b) => a + b, 0) / q.length;
+  return Math.max(whole, tokens);
+}
+
 /** Telefon kaliti: oxirgi 9 raqam (+998 bor-yo'qligidan qat'i nazar). 7 tadan kam raqam bo'lsa — bo'sh. */
 export function phoneKey(phone: string | null | undefined): string {
   const digits = String(phone ?? "").replace(/\D/g, "");
