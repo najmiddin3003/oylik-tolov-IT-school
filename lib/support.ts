@@ -6,13 +6,18 @@ import { timingSafeEqual } from "node:crypto";
 /** Kalit kamida shuncha belgi bo'lishi kerak (taxmin qilib bo'lmasligi uchun). */
 export const SUPPORT_TOKEN_MIN = 24;
 
+/** Vercel'ga nusxalanganda kalit oxiriga tushib qolgan bo'shliq/yangi qator hisobga olinmaydi. */
+function supportToken(): string {
+  return (process.env.SUPPORT_TOKEN ?? "").trim();
+}
+
 export function supportEnabled(): boolean {
-  return (process.env.SUPPORT_TOKEN ?? "").length >= SUPPORT_TOKEN_MIN;
+  return supportToken().length >= SUPPORT_TOKEN_MIN;
 }
 
 export function supportAuthorized(request: Request): boolean {
-  const secret = process.env.SUPPORT_TOKEN ?? "";
-  const header = request.headers.get("authorization");
+  const secret = supportToken();
+  const header = request.headers.get("authorization")?.trim();
   if (secret.length < SUPPORT_TOKEN_MIN || !header) return false;
   const a = Buffer.from(header);
   const b = Buffer.from(`Bearer ${secret}`);
