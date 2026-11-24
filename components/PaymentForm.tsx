@@ -6,9 +6,10 @@ import { addPayment } from "@/app/actions/payments";
 import type { FormState } from "@/app/actions/types";
 import type { StudentOption } from "@/lib/data";
 import { courseKey } from "@/lib/courses";
+import { allocateWithDebts } from "@/lib/allocate";
 import { netFee } from "@/lib/discounts";
 import type { PaymentMethod } from "@/lib/models";
-import { formatMoney, formatNumber, monthLabel } from "@/lib/time";
+import { formatMoney, formatNumber, monthLabel, shiftMonth } from "@/lib/time";
 import { MoneyInput } from "./inputs";
 import { DatePicker, formatDayLong, MonthPicker, Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
@@ -127,6 +128,7 @@ function PaymentFields({
   const [amount, setAmount] = useState<string | null>(null); // null — avtomatik (qolgan summa)
   const [method, setMethod] = useState<PaymentMethod>("naqd");
   const [showNote, setShowNote] = useState(false);
+  const [spread, setSpread] = useState(true);
 
   const st = students.find((s) => s.id === studentId);
   const fee = st ? netFee(st, month) : 0;
@@ -313,9 +315,10 @@ function PaymentFields({
           ) : null}
         </div>
         <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-ink-500">
-          <input type="checkbox" name="spread" defaultChecked className="size-3.5 rounded accent-brand-600" />
-          Oylikdan ortiq summani keyingi oylarga o‘tkazish
+          <input type="checkbox" name="spread" checked={spread} onChange={(e) => setSpread(e.target.checked)} className="size-3.5 rounded accent-brand-600" />
+          Oylikdan ortiq summani oylarga taqsimlash (avval oldingi qarz, keyin keyingi oylar)
         </label>
+        {st && spread ? <SplitPreview st={st} month={month} amount={Number(shown.replace(/\D/g, "")) || 0} /> : null}
       </div>
 
       <fieldset>
@@ -355,5 +358,20 @@ function PaymentFields({
         </button>
       )}
     </>
+  );
+}
+
+/** Ortiqcha summa qaysi oylarga yozilishi (saqlashdan oldin ko'rinadi; server ham shu qoida bilan taqsimlaydi). */
+function SplitPreview({ st, month, amount }: { st: StudentOption; month: string; amount: number }) {
+  const fee = (m: string) => netFee(st, m);
+  if (!amount || amount <= Math.max(0, fee(month) - (st.paid[month] ?? 0))) return null;
+  const back = shiftMonth(month, -12);
+  const earliest = st.startMonth > back ? st.startMonth : back;
+  const parts = allocateWithDebts(amount, fee, month, new Map(Object.entries(st.paid)), earliest);
+  if (parts.length < 2 && parts[0]?.month === month) return null;
+  return (
+    <p className="num mt-2 rounded-lg bg-brand-50/60 px-3 py-2 text-xs leading-relaxed text-brand-800">
+      Taqsimlanadi: {parts.map((p) => `${monthLabel(p.month)} — ${formatNumber(p.amount)}`).join(" · ")}
+    </p>
   );
 }

@@ -2,15 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowRight, BookOpen, Crown, History, UserPlus, UsersRound } from "lucide-react";
+import { PaydayCard } from "@/components/PaydayCard";
 import { LegacyPayForm, StaffAddForm } from "@/components/StaffForms";
 import { StaffPaySwitch } from "@/components/StaffPaySwitch";
 import { StaffHelpButton } from "@/components/StaffHelp";
 import { Card, CardHeader, cx, EmptyState, IconTile, PageHeader, PageSkeleton, Tag } from "@/components/ui";
 import { ownerGuard } from "@/lib/auth";
 import { getStaffPageData, type StaffRowView } from "@/lib/data";
+import { listPaydays } from "@/lib/pay";
+import { SALARY_CYCLE_FROM } from "@/lib/salary-cycle";
 import { formatUzPhone } from "@/lib/phone";
 import { isTeaching, payKindOf, ROLE_LABEL, STATUS_LABEL, staffInitials, staffPercent, staffSalary } from "@/lib/staff-rules";
-import { currentMonth, formatDateTime, formatMoney, isValidMonth } from "@/lib/time";
+import { currentMonth, formatDateTime, formatMoney, isValidMonth, shiftMonth, todayISO } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Xodimlar" };
 
@@ -26,7 +29,10 @@ async function StaffView({ searchParams }: { searchParams: PageProps<"/staff">["
   const session = await ownerGuard();
   const sp = await searchParams;
   const month = isValidMonth(sp.month) ? sp.month : currentMonth();
-  const d = await getStaffPageData();
+  const [d, paydays] = await Promise.all([getStaffPageData(), listPaydays()]);
+  // Oylik davri boshlangan oydan joriy oygacha (yangisi tepada)
+  const payMonths: string[] = [];
+  for (let m = currentMonth(); m >= SALARY_CYCLE_FROM; m = shiftMonth(m, -1)) payMonths.push(m);
   const active = d.staff.filter((s) => s.status !== "disabled");
   const disabled = d.staff.filter((s) => s.status === "disabled");
 
@@ -113,6 +119,9 @@ async function StaffView({ searchParams }: { searchParams: PageProps<"/staff">["
           </div>
           <StaffAddForm courses={d.courses} />
         </Card>
+      </div>
+      <div className="mt-6">
+        <PaydayCard months={payMonths} paydays={paydays} today={todayISO()} />
       </div>
     </>
   );

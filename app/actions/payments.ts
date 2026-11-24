@@ -3,7 +3,8 @@
 import mongoose from "mongoose";
 import { logActivity } from "@/lib/activity";
 import { dataChanged } from "@/lib/after-change";
-import { allocateAmount, type Allocation } from "@/lib/allocate";
+import { allocateWithDebts, type Allocation } from "@/lib/allocate";
+import { applyMoves, findOverpayments } from "@/lib/overpay";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
@@ -12,7 +13,7 @@ import { Payment, PAYMENT_METHODS, Student, type PaymentMethod } from "@/lib/mod
 import { parseAmount } from "@/lib/normalize";
 import { nextReceiptNo } from "@/lib/seq";
 import { getSettings } from "@/lib/settings";
-import { formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
+import { compareMonths, formatMoney, isoToDate, isValidMonth, monthLabel, monthOfDate, shiftMonth, todayISO } from "@/lib/time";
 import type { FormState } from "./types";
 
 const MAX_AMOUNT = 1_000_000_000;
@@ -58,21 +59,25 @@ export async function addPayment(_prev: FormState, formData: FormData): Promise<
     : "naqd";
 
   await connectDB();
-  const found = await Student.findById(studentId, { fullName: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1, endDate: 1 }).lean<StudentLean>();
+  const found = await Student.findById(studentId, { fullName: 1, monthlyFee: 1, feeHistory: 1, discountHistory: 1, startDate: 1, endDate: 1 }).lean<StudentLean>();
   if (!found) return { error: "O‘quvchi topilmadi" };
   // Oldindan to'lov oylarga chegirmali narx bo'yicha bo'linadi
   const [student] = await withDiscounts([found]);
 
-  // Oylik to'lovdan ortiq summa keyingi oylarga o'tkaziladi (oldindan to'lov)
+  // Oylik to'lovdan ortiq summa: avval oldingi to'lanmagan oylar (oxirgi 12 oy, o'qishni boshlagan oydan), keyin tanlangan
+  // va keyingi oylar (oldindan to'lov). Masalan, oktabr-noyabr uchun 500 000: oktabr 300 000, noyabr 200 000.
   const feeOf = (m: string) => studentFee(student, m);
   let parts: Allocation[] = [{ month, amount: amount! }];
   if (spread && feeOf(month) > 0) {
+    const startMonth = student.startDate ? monthOfDate(student.startDate) : month;
+    const back = shiftMonth(month, -12);
+    const earliest = compareMonths(startMonth, back) > 0 ? startMonth : back;
     const agg = await Payment.aggregate<{ _id: string; total: number }>([
-      { $match: { ...LIVE, student: new mongoose.Types.ObjectId(studentId), month: { $gte: month } } },
+      { $match: { ...LIVE, student: new mongoose.Types.ObjectId(studentId), month: { $gte: earliest } } },
       { $group: { _id: "$month", total: { $sum: "$amount" } } },
     ]);
     const paid = new Map(agg.map((a) => [a._id, a.total]));
-    parts = allocateAmount(amount!, feeOf, month, paid);
+    parts = allocateWithDebts(amount!, feeOf, month, paid, earliest);
   }
 
   const receiptNo = await nextReceiptNo();
@@ -161,4 +166,24 @@ export async function purgePayment(id: string): Promise<void> {
   const res = await Payment.deleteOne({ _id: id, archivedAt: { $ne: null } });
   if (res.deletedCount) await logActivity(session, "payment.purge", `Butunlay o‘chirildi: ${what}`);
   await dataChanged();
+}
+
+/**
+ * Ortiqcha to'lovlarni to'g'irlash: bir oyga oylikdan ko'p yozilgan, oldingi oy esa to'lanmagan — ortiqcha qism oldingi oyga
+ * ko'chiriladi. `studentId` bo'lmasa — hammasi. Taqsimot serverda qayta hisoblanadi.
+ */
+export async function fixOverpayments(studentId?: string): Promise<void> {
+  const session = await requireRole(["owner", "admin"], { fresh: true });
+  if (studentId !== undefined && !isId(studentId)) return;
+  const rows = await findOverpayments(studentId);
+  let changed = 0;
+  for (const r of rows) {
+    changed += await applyMoves(r.studentId, r.moves, session.role === "admin" ? "admin" : "owner");
+    await logActivity(
+      session,
+      "payment.rebalance",
+      `${r.name}: ortiqcha to‘lov ko‘chirildi — ${r.moves.map((m) => `${monthLabel(m.from)} → ${monthLabel(m.to)} ${formatMoney(m.amount)}`).join(", ")}`,
+    );
+  }
+  if (changed) await dataChanged();
 }

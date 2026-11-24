@@ -101,7 +101,7 @@ export const NAV: NavItem[] = [
     mobile: false,
   },
   { key: "staff", href: "/staff", label: "Xodimlar", short: "Xodimlar", icon: UsersRound, tone: "sky", monthAware: true, roles: ["owner"] },
-  { key: "sync", href: "/sync", label: "Google Sheets", short: "Sheets", icon: FileSpreadsheet, tone: "teal", monthAware: false, roles: ["owner"], mobile: false },
+  { key: "sync", href: "/sync", label: "Google Sheets", short: "Sheets", icon: FileSpreadsheet, tone: "teal", monthAware: false, roles: ["owner", "admin", "teacher"], mobile: false },
   { key: "settings", href: "/settings", label: "Sozlamalar", short: "Sozlamalar", icon: Settings2, tone: "amber", monthAware: true, roles: ["owner"], mobile: false },
   { key: "speed", href: "/tezlik", label: "Tezlik", short: "Tezlik", icon: Gauge, tone: "teal", monthAware: false, roles: ["owner"], mobile: false },
   { key: "roadmap", href: "/reja", label: "Reja va yangiliklar", short: "Reja", icon: Rocket, tone: "rose", monthAware: false, roles: ["owner"], mobile: false },

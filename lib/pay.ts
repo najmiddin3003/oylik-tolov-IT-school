@@ -6,11 +6,12 @@ import mongoose from "mongoose";
 import { cache } from "react";
 import { connectDB } from "./db";
 import { LIVE, loadStudents } from "./ledger";
-import { Payment, Salary } from "./models";
-import { SALARY_CYCLE_FROM, salaryCycles, type CycleClose, type CyclePayment, type SalaryCycles } from "./salary-cycle";
+import { Payment, Salary, Staff } from "./models";
+import { mergeCloses, paydaysOf, SALARY_CYCLE_FROM, salaryCycles, type CycleClose, type CyclePayment, type Payday, type SalaryCycles } from "./salary-cycle";
+import { getSettings } from "./settings";
 import { salaryHistoryOf, shareHistoryOf, type StaffLean } from "./staff";
 import { fixedPayOf, payEnabledOf, payKindOf, payOf, staffPercent, staffSalary, type PayKind } from "./staff-rules";
-import { isoToDate, shiftMonth } from "./time";
+import { dateToISO, isoToDate, shiftMonth } from "./time";
 
 export type SalaryRow = {
   id: string;
@@ -122,11 +123,15 @@ export const monthSalaries = cache(async (month: string) => {
 const cycleInput = cache(async () => {
   await connectDB();
   const start = isoToDate(`${SALARY_CYCLE_FROM}-01`)!;
-  const [students, payments, closes] = await Promise.all([
+  const [students, payments, closes, settings, staffRoles] = await Promise.all([
     loadStudents(),
     Payment.find({ ...LIVE, $or: [{ month: { $gte: SALARY_CYCLE_FROM } }, { paidAt: { $gte: start } }] }, { student: 1, month: 1, amount: 1, paidAt: 1, createdAt: 1 }).lean(),
-    Salary.find({ kind: "oylik", staff: { $ne: null }, month: { $gte: SALARY_CYCLE_FROM } }, { staff: 1, month: 1, date: 1, createdAt: 1 }).lean(),
+    Salary.find({ kind: "oylik", staff: { $ne: null }, month: { $gte: SALARY_CYCLE_FROM } }, { staff: 1, month: 1, date: 1, createdAt: 1, selfReported: 1 }).lean(),
+    getSettings(),
+    Staff.find({}, { role: 1 }).lean(),
   ]);
+  // Administrator (belgilangan oylik) yozuvi umumiy oylik kunini belgilamaydi — faqat foizli oylik (o'qituvchi, rahbar)
+  const fixedStaff = new Set(staffRoles.filter((s) => s.role === "admin").map((s) => String(s._id)));
   const teacherOf = new Map(students.map((s) => [String(s._id), s.teacher ? String(s.teacher) : ""]));
   const all: CyclePayment[] = [];
   const byTeacher = new Map<string, CyclePayment[]>();
@@ -147,13 +152,25 @@ const cycleInput = cache(async () => {
     if (list) list.push(row);
     else closesByStaff.set(key, [row]);
   }
-  return { all, byTeacher, closesByStaff };
+  // Umumiy oylik kuni: rahbar aniq belgilagani yoki rahbar yozgan birinchi «oylik» — hamma xodim uchun
+  const paydays = paydaysOf(
+    settings.paydays.filter((p) => p.month >= SALARY_CYCLE_FROM),
+    closes.filter((x) => !fixedStaff.has(String(x.staff))).map((x) => ({ month: x.month, date: x.date, createdAt: x.createdAt, selfReported: x.selfReported })),
+    dateToISO,
+  );
+  return { all, byTeacher, closesByStaff, paydays };
 });
+
+/** Umumiy oylik kunlari (Xodimlar sahifasi): oy -> kun va rahbar aniq belgilaganmi. */
+export async function listPaydays(): Promise<Payday[]> {
+  const { paydays } = await cycleInput();
+  return [...paydays.values()].map(({ month, date, exact }) => ({ month, date, exact })).sort((a, b) => (a.month < b.month ? 1 : -1));
+}
 
 /** Xodimning oylik davri: qaysi oy oyligiga qancha to'lov, qaysi oylar yopilgan, hozir qaysi oy ochiq. */
 const staffCycles = cache(async (staffId: string, center: boolean): Promise<SalaryCycles> => {
-  const { all, byTeacher, closesByStaff } = await cycleInput();
-  return salaryCycles(center ? all : (byTeacher.get(staffId) ?? []), closesByStaff.get(staffId) ?? [], new Date());
+  const { all, byTeacher, closesByStaff, paydays } = await cycleInput();
+  return salaryCycles(center ? all : (byTeacher.get(staffId) ?? []), mergeCloses(closesByStaff.get(staffId) ?? [], paydays), new Date());
 });
 
 export async function staffPay(staff: StaffLean, month: string): Promise<StaffPay> {

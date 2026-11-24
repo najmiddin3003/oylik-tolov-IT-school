@@ -2,7 +2,7 @@
 
 import { logActivity } from "@/lib/activity";
 import { dataChanged } from "@/lib/after-change";
-import { requireOwner } from "@/lib/auth";
+import { requireOwner, requireRole } from "@/lib/auth";
 import { mismatchKey } from "@/lib/compare";
 import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
@@ -43,7 +43,7 @@ export async function saveSheetSettings(_prev: FormState, formData: FormData): P
 }
 
 export async function runSyncNow(): Promise<FormState> {
-  const session = await requireOwner({ fresh: true });
+  const session = await requireRole(["owner", "admin", "teacher"], { fresh: true });
   await connectDB();
   const res = await runSync("manual");
   await dataChanged();
@@ -73,7 +73,7 @@ export async function runSyncNow(): Promise<FormState> {
 
 /** Bitta «Saytda yo'q» / «Noma'lum o'quvchi» farqini saytga qo'shadi. */
 export async function importMismatch(runId: string, mismatchId: string): Promise<void> {
-  const session = await requireOwner({ fresh: true });
+  const session = await requireRole(["owner", "admin"], { fresh: true });
   if (!isId(runId) || !isId(mismatchId)) return;
   const res = await importFromRun(runId, [mismatchId]);
   if (res?.resolved) await logActivity(session, "sync.import", "Sheets’dagi yozuv saytga qo‘shildi");
@@ -85,7 +85,7 @@ export async function importMismatch(runId: string, mismatchId: string): Promise
  * to'lovlari unga yoziladi, Sheets'dagi ismi unga bog'lanadi — keyingi tekshiruvlarda o'zi topiladi.
  */
 export async function linkMismatch(runId: string, mismatchId: string, studentId: string): Promise<void> {
-  const session = await requireOwner({ fresh: true });
+  const session = await requireRole(["owner", "admin"], { fresh: true });
   if (!isId(runId) || !isId(mismatchId) || !isId(studentId)) return;
   await connectDB();
   const run = await SyncRun.findById(runId, { mismatches: 1 }).lean();
@@ -106,7 +106,7 @@ export async function linkMismatch(runId: string, mismatchId: string, studentId:
 
 /** Barcha qo'shsa bo'ladigan farqlarni saytga qo'shadi va qayta tekshiradi. */
 export async function importAllMismatches(runId: string): Promise<void> {
-  const session = await requireOwner({ fresh: true });
+  const session = await requireRole(["owner", "admin"], { fresh: true });
   if (!isId(runId)) return;
   const res = await importFromRun(runId, "all");
   if (res && res.resolved > 0) {
@@ -118,7 +118,7 @@ export async function importAllMismatches(runId: string): Promise<void> {
 
 /** Farqni "hal qilindi" deb belgilash (masalan, Sheets'ni qo'lda to'g'rilagandan keyin). */
 export async function resolveMismatch(runId: string, mismatchId: string): Promise<void> {
-  const session = await requireOwner({ fresh: true });
+  const session = await requireRole(["owner", "admin"], { fresh: true });
   if (!isId(runId) || !isId(mismatchId)) return;
   await connectDB();
   const run = await SyncRun.findById(runId);
@@ -142,7 +142,7 @@ const KIND_TEXT: Record<MismatchKind, string> = {
  * ko'rsatilmaydi, saytga avtomatik qo'shilmaydi. Shu yozuv o'zgarsa (summa, sana, yangi to'lov) — farq yana chiqadi.
  */
 export async function ignoreMismatch(runId: string, mismatchId: string): Promise<void> {
-  const session = await requireOwner({ fresh: true });
+  const session = await requireRole(["owner", "admin"], { fresh: true });
   if (!isId(runId) || !isId(mismatchId)) return;
   await connectDB();
   const run = await SyncRun.findById(runId);
@@ -176,7 +176,7 @@ export async function ignoreMismatch(runId: string, mismatchId: string): Promise
 
 /** E'tiborsiz qoldirishni bekor qilish: farq oxirgi tekshiruvda bo'lsa — darhol, aks holda keyingi tekshiruvda yana ko'rinadi. */
 export async function unignoreMismatch(ignoreId: string): Promise<void> {
-  const session = await requireOwner({ fresh: true });
+  const session = await requireRole(["owner", "admin"], { fresh: true });
   if (!isId(ignoreId)) return;
   await connectDB();
   const doc = await SyncIgnore.findByIdAndDelete(ignoreId).lean();

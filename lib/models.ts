@@ -132,6 +132,8 @@ const settingSchema = new Schema(
     /** Markazning standart oylik narxi (yangi o'quvchilar uchun) va uning "falon oydan" o'zgarishlari */
     defaultFee: { type: Number },
     feeSchedule: { type: [{ from: String, fee: Number, _id: false }], default: [] },
+    /** Umumiy oylik kuni: «month» oyligi hamma xodimga shu kuni ("YYYY-MM-DD") berilgan — oylik davri shu kuni yopiladi */
+    paydays: { type: [{ month: String, date: String, _id: false }], default: [] },
     /** Narx o'zgarishlari jurnali (sozlamalar sahifasida ko'rsatiladi) */
     feeChanges: { type: [{ from: String, fee: Number, count: Number, at: Date, _id: false }], default: [] },
     /** Tushumdan ulush foizi tarixi: "from" oyidan boshlab foiz (eski: bitta o'qituvchi uchun; endi — har xodimda o'zi) */

@@ -20,7 +20,7 @@ import { getSettings, updateSettings } from "@/lib/settings";
 import { scheduleSheetArchive } from "@/lib/sheet-archive-after";
 import { getStaffById, salaryHistoryOf, shareHistoryOf } from "@/lib/staff";
 import { isTeaching, parsePercent, payKindOf, ROLE_LABEL } from "@/lib/staff-rules";
-import { currentMonth, formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
+import { currentMonth, formatDate, formatMoney, isoToDate, isValidMonth, monthLabel, todayISO } from "@/lib/time";
 
 const MAX_SALARY = 100_000_000;
 import type { FormState } from "./types";
@@ -220,6 +220,38 @@ export async function assignLegacyPay(_prev: FormState, fd: FormData): Promise<F
   return { ok: true, message: `${staff.name}ga ${moved.modifiedCount} ta oylik/avans yozuvi va ulush foizi o‘tkazildi`, nonce: Date.now() };
 }
 
+// ---------- Umumiy oylik kuni ----------
+
+/**
+ * «month» oyligi hamma xodimga shu kuni berilgan: shu kungacha (shu kun ham) tushgan to'lovlar «month» oyligiga, keyingilari —
+ * keyingi oyga. Bo'sh sana — aniq belgi olib tashlanadi (rahbar yozgan birinchi «oylik» sanasi ishlatiladi).
+ */
+export async function setPayday(month: string, dateIso: string): Promise<{ error?: string; message?: string }> {
+  const session = await requireOwner({ fresh: true });
+  if (!isValidMonth(month) || month < SALARY_CYCLE_FROM) return { error: "Oy noto‘g‘ri" };
+  const date = String(dateIso ?? "");
+  if (date) {
+    if (!isoToDate(date)) return { error: "Sanani tanlang" };
+    if (date < `${month}-01`) return { error: `${monthLabel(month)} boshlanishidan oldingi sana bo‘lishi mumkin emas` };
+    if (date > todayISO()) return { error: "Kelajakdagi sana tanlab bo‘lmaydi" };
+  }
+  const { paydays } = await getSettings({ fresh: true });
+  const next = [...paydays.filter((p) => p.month !== month), ...(date ? [{ month, date }] : [])].sort((a, b) => (a.month < b.month ? -1 : 1));
+  await updateSettings({ $set: { paydays: next } });
+  await logActivity(session, "salary.payday", date ? `${monthLabel(month)} oyligi berilgan kun: ${formatDate(date)} (barcha xodimlar)` : `${monthLabel(month)}: oylik kuni belgisi olib tashlandi`);
+  await dataChanged();
+  return {
+    message: date
+      ? `${monthLabel(month)} oyligi ${formatDate(date)} da berilgan: shu kungacha tushgan to‘lovlar ${monthLabel(month)}, keyingilari — ${monthLabel(nextMonthOf(month))} oyligiga (barcha xodimlar)`
+      : "Aniq sana olib tashlandi",
+  };
+}
+
+const nextMonthOf = (m: string) => {
+  const [y, mm] = m.split("-").map(Number);
+  return mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, "0")}`;
+};
+
 // ---------- Oylik va avanslar ----------
 
 export async function addSalary(staffId: string, _prev: FormState, fd: FormData): Promise<FormState> {
@@ -251,7 +283,7 @@ export async function addSalary(staffId: string, _prev: FormState, fd: FormData)
   const archives = closes && (await scheduleSheetArchive(after, session));
   return {
     ok: true,
-    message: `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} — ${monthLabel(month)} hisobidan ayirildi${closes ? `; ${monthLabel(month)} yopildi, bundan keyin tushgan to‘lovlar keyingi oy oyligiga` : ""}${
+    message: `${kind === "oylik" ? "Oylik" : "Avans"} ${formatMoney(amount!)} — ${monthLabel(month)} hisobidan ayirildi${closes ? `; ${monthLabel(month)} oyligi berilgan kun barcha xodimlar uchun belgilandi (o‘zgartirish — «Xodimlar» sahifasida)` : ""}${
       archives ? `. ${monthLabel(month)} Google Sheets jadvali arxivga saqlanadi («Google Sheets» bo‘limi)` : ""
     }`,
     nonce: Date.now(),

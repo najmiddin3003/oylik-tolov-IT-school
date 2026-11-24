@@ -41,6 +41,8 @@ export type AppSettings = {
   defaultFee: number | null;
   /** Standart narxning "falon oydan" o'zgarishlari */
   feeSchedule: FeeChange[];
+  /** Rahbar aniq belgilagan umumiy oylik kunlari (oy -> "YYYY-MM-DD") */
+  paydays: { month: string; date: string }[];
   feeChanges: { from: string; fee: number; count: number; at: string }[];
   shareHistory: PercentChange[];
   /** Eski ulush/oylik yozuvlari o'tkazilgan xodim (null — hali o'tkazilmagan) */
@@ -72,6 +74,7 @@ type Doc = Record<string, unknown> & {
   legacyPrefs?: { syncAlert?: boolean | null } | null;
   defaultFee?: number;
   feeSchedule?: { from?: string; fee?: number }[];
+  paydays?: { month?: string | null; date?: string | null }[];
   feeChanges?: { from?: string; fee?: number; count?: number; at?: Date }[];
   shareHistory?: { from?: string; percent?: number }[];
   legacyPayStaff?: unknown;
@@ -108,6 +111,9 @@ function toAppSettings(doc: Doc | null): AppSettings {
     feeSchedule: (doc?.feeSchedule ?? [])
       .filter((h) => h.from && typeof h.fee === "number")
       .map((h) => ({ from: h.from!, fee: h.fee! })),
+    paydays: (doc?.paydays ?? [])
+      .filter((p) => /^\d{4}-\d{2}$/.test(p.month ?? "") && /^\d{4}-\d{2}-\d{2}$/.test(p.date ?? ""))
+      .map((p) => ({ month: p.month!, date: p.date! })),
     feeChanges: (doc?.feeChanges ?? []).map((c) => ({
       from: c.from ?? "",
       fee: c.fee ?? 0,

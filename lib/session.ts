@@ -75,6 +75,8 @@ export function canAccess(role: Role, pathname: string): boolean {
   if (under(pathname, "/chek")) return true;
   // O'zi olgan avans/oylik — o'qituvchi va administrator
   if (under(pathname, "/olinganlar")) return true;
+  // Google Sheets solishtiruvi: administrator — hammasi, o'qituvchi — o'z kurslari (sahifaning o'zida)
+  if (under(pathname, "/sync")) return true;
   if (role === "teacher") {
     // Imtihon — o'z o'quvchilari (savollar va ball)
     if (under(pathname, "/imtihon")) return true;

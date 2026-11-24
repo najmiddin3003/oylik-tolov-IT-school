@@ -9,6 +9,7 @@ import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
 import { Salary, Staff } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { listPaydays } from "@/lib/pay";
 import { SALARY_CYCLE_FROM } from "@/lib/salary-cycle";
 import { updateSettings } from "@/lib/settings";
 import { scheduleSheetArchive } from "@/lib/sheet-archive-after";
@@ -40,7 +41,8 @@ export async function addMySalary(_prev: FormState, fd: FormData): Promise<FormS
   await logActivity(session, "salary.self_add", `Olingan pul yozildi: ${what}`);
   await dataChanged();
   // Foizli oylikda (o'qituvchi) «oylik» oyni yopadi — keyingi to'lovlar keyingi oyga
-  const closes = kind === "oylik" && session.role === "teacher" && month >= SALARY_CYCLE_FROM;
+  // Rahbar umumiy oylik kunini belgilagan oyda o'zi yozgan «oylik» oyni yopmaydi
+  const closes = kind === "oylik" && session.role === "teacher" && month >= SALARY_CYCLE_FROM && !(await listPaydays()).some((p) => p.month === month);
   // Oylik olindi — shu oy Google Sheets jadvali arxivlanadi (javobdan keyin, saqlashni sekinlashtirmasdan)
   if (closes) await scheduleSheetArchive(after, session);
   return { ok: true, message: `${what} yozildi${closes ? ` — ${monthLabel(month)} yopildi, bundan keyin tushgan to‘lovlar keyingi oy oyligiga` : ""}`, nonce: Date.now() };
