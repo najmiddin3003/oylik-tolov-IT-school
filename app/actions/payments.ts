@@ -3,8 +3,8 @@
 import mongoose from "mongoose";
 import { logActivity } from "@/lib/activity";
 import { dataChanged } from "@/lib/after-change";
-import { allocateWithDebts, type Allocation } from "@/lib/allocate";
-import { applyMoves, findOverpayments } from "@/lib/overpay";
+import { allocateWithDebts, movesBetween, type Allocation } from "@/lib/allocate";
+import { applyMoves, findOverpayments, paidInMonths } from "@/lib/overpay";
 import { requireOwner, requireRole } from "@/lib/auth";
 import { isId } from "@/lib/ids";
 import { connectDB } from "@/lib/db";
@@ -186,4 +186,42 @@ export async function fixOverpayments(studentId?: string): Promise<void> {
     );
   }
   if (changed) await dataChanged();
+}
+
+/**
+ * Ortiqcha to'lovni qo'lda taqsimlash: xodim har oyga qancha bo'lishini o'zi yozadi. Jami summa o'zgarmaydi — faqat
+ * mavjud to'lov yozuvlari oylar orasida ko'chiriladi (chek, sana va usul saqlanadi).
+ */
+export async function rebalancePayments(studentId: string, input: Record<string, string>): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireRole(["owner", "admin"], { fresh: true });
+  if (!isId(studentId)) return { ok: false, error: "O‘quvchi topilmadi" };
+  const entries = Object.entries(input ?? {});
+  if (!entries.length || entries.length > 36) return { ok: false, error: "Oylar noto‘g‘ri" };
+  const target = new Map<string, number>();
+  for (const [month, raw] of entries) {
+    if (!isValidMonth(month)) return { ok: false, error: "Oy noto‘g‘ri" };
+    const v = String(raw ?? "").trim() === "" ? 0 : parseAmount(String(raw));
+    if (v === null || v < 0) return { ok: false, error: `${monthLabel(month)}: summa noto‘g‘ri` };
+    target.set(month, v);
+  }
+  const months = [...target.keys()];
+  const current = await paidInMonths(studentId, months);
+  const before = months.reduce((s, m) => s + (current.get(m) ?? 0), 0);
+  const after = months.reduce((s, m) => s + (target.get(m) ?? 0), 0);
+  if (before !== after) {
+    return { ok: false, error: `Jami ${formatMoney(before)} bo‘lishi kerak (hozir ${formatMoney(after)}) — summa qo‘shilmaydi, faqat oylar orasida taqsimlanadi` };
+  }
+  const moves = movesBetween(current, target);
+  if (!moves.length) return { ok: true };
+  await connectDB();
+  const st = await Student.findById(studentId, { fullName: 1 }).lean();
+  if (!st) return { ok: false, error: "O‘quvchi topilmadi" };
+  await applyMoves(studentId, moves, session.role === "admin" ? "admin" : "owner");
+  await logActivity(
+    session,
+    "payment.rebalance",
+    `${st.fullName}: to‘lov qo‘lda taqsimlandi — ${moves.map((m) => `${monthLabel(m.from)} → ${monthLabel(m.to)} ${formatMoney(m.amount)}`).join(", ")}`,
+  );
+  await dataChanged();
+  return { ok: true };
 }

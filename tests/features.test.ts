@@ -199,3 +199,17 @@ test("amountFor / applyAmountFrom (belgilangan oylik)", () => {
   ]);
   assert.equal(amountFor(h3, "2027-05", 0), 2_800_000);
 });
+
+test("qarzdorlar SMS: kimga qaysi son va rahbarga necha kunda", async () => {
+  const { debtSmsScope, ownerSmsDue, normalizeOwnerEveryDays, daysBetween } = await import("../lib/reminders");
+  assert.equal(debtSmsScope("teacher"), "own");
+  assert.equal(debtSmsScope("admin"), "all");
+  assert.equal(debtSmsScope("owner"), "all");
+  assert.equal(daysBetween("2026-11-28", "2026-12-01"), 3);
+  assert.equal(ownerSmsDue(null, "2026-11-25", 3), true, "hali yuborilmagan");
+  assert.equal(ownerSmsDue("2026-11-23", "2026-11-25", 3), false, "2 kun o'tgan");
+  assert.equal(ownerSmsDue("2026-11-22", "2026-11-25", 3), true, "3 kun o'tgan");
+  assert.equal(ownerSmsDue("2026-11-01", "2026-11-25", 0), false, "0 — yuborilmaydi");
+  assert.equal(normalizeOwnerEveryDays("x"), 3);
+  assert.equal(normalizeOwnerEveryDays("5"), 5);
+});

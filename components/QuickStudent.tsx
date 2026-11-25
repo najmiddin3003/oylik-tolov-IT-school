@@ -3,6 +3,7 @@
 // Tezkor «Yangi o'quvchi» oynasi: kurs, oylik to'lov, telefon, dars vaqti.
 // Administrator — «To'lovlar» sahifasidan (istalgan kurs, narx va o'qituvchi);
 // o'qituvchi — «O'quvchilarim» sahifasidan: faqat o'z kurslari, narx — kurs narxi, o'quvchi o'ziga biriktiriladi.
+import { PhotoField } from "./PhotoField";
 import { useState } from "react";
 import { BookOpen, Check, Lock, UserPlus } from "lucide-react";
 import { addStudentByTeacher, addStudentQuick } from "@/app/actions/students";
@@ -171,6 +172,8 @@ function QuickFields({
 
   return (
     <>
+      <PhotoField current={null} initials="" />
+      {err("photo")}
       <div>
         <label htmlFor="qs-name" className={labelCls}>
           Ism-familiya <span className="text-brand-600">*</span>

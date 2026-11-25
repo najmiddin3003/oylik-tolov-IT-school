@@ -1,5 +1,7 @@
 "use client";
 
+import { PhotoField } from "./PhotoField";
+import { staffInitials } from "@/lib/staff-rules";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Check, Info, Lock } from "lucide-react";
@@ -89,6 +91,10 @@ export function StudentForm({
       ) : null}
 
       <Section title="Shaxsiy ma’lumotlar" hint="Ism-familiya Google Sheets’dagi bilan bir xil yozilsa, solishtirish aniq bo‘ladi.">
+        <div className="sm:col-span-2">
+          <PhotoField current={student?.photoUrl ?? null} initials={student ? staffInitials(student.fullName) : ""} />
+          <FieldError msg={fe.photo} />
+        </div>
         <div className="sm:col-span-2">
           <label htmlFor="fullName" className={labelCls}>
             Ism-familiya <span className="text-brand-600">*</span>
@@ -299,6 +305,10 @@ export function TeacherStudentForm({ student }: { student: StudentDetail }) {
       ) : null}
 
       <Section title="Shaxsiy ma’lumotlar" hint="Ism-familiya Google Sheets’dagi bilan bir xil yozilsa, solishtirish aniq bo‘ladi.">
+        <div className="sm:col-span-2">
+          <PhotoField current={student.photoUrl} initials={staffInitials(student.fullName)} />
+          <FieldError msg={fe.photo} />
+        </div>
         <div className="sm:col-span-2">
           <label htmlFor="fullName" className={labelCls}>
             Ism-familiya <span className="text-brand-600">*</span>

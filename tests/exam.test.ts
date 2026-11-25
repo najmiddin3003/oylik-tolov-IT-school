@@ -48,3 +48,25 @@ test("imtihon: savol belgilari va avtomatik ball", async () => {
   assert.equal(marksScore([0, 0]), 0);
   assert.deepEqual(marksSummary([1, 0.5, 0, null, 1]), { right: 2, half: 1, wrong: 1, left: 1 });
 });
+
+test("imtihon: kurs bo'yicha mavzular va savol tuzish cheklovi", async () => {
+  const { courseFamily, cleanTopics, defaultTopics, examGenAllowed, buildExamPrompt } = await import("../lib/exam-rules");
+  assert.equal(courseFamily("Web dasturlash"), "web");
+  assert.equal(courseFamily("Kompyuter savodxonligi"), "computer");
+  assert.equal(courseFamily("Grafik dizayn"), "design");
+  assert.equal(courseFamily("Ingliz tili"), "general");
+  assert.deepEqual(cleanTopics(["html", "excel", "word"], "computer"), ["word", "excel"], "boshqa kurs mavzusi tashlanadi");
+  assert.deepEqual(defaultTopics("design"), ["designbasics", "photoshop", "illustrator"]);
+  const p = buildExamPrompt({ topics: ["word"], level: "easy", student: "Ali", course: "Kompyuter savodxonligi", avoid: [] });
+  assert.match(p.system, /kompyuter savodxonligi/);
+  assert.doesNotMatch(p.system, /frontend/);
+
+  const min = 60_000;
+  const now = 100 * min;
+  assert.deepEqual(examGenAllowed([], now), { ok: true, left: 4 });
+  const r1 = examGenAllowed([now - 3 * min], now);
+  assert.ok(!r1.ok && /7 daqiqadan/.test(r1.error), "10 daqiqada 1 marta");
+  assert.deepEqual(examGenAllowed([now - 10 * min], now), { ok: true, left: 3 });
+  const r2 = examGenAllowed([1, 2, 3, 4, 5].map((i) => now - i * 20 * min), now);
+  assert.ok(!r2.ok && /bugungi limit/.test(r2.error), "kuniga 5 marta");
+});

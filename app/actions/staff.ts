@@ -1,6 +1,8 @@
 "use server";
 
 // Xodimlarni boshqarish (faqat rahbar): qo'shish, tahrirlash, oylik foizi, kirishni o'chirish/tiklash, oylik va avanslar.
+import { storePhoto } from "@/lib/photo";
+import { parsePhotoField } from "@/lib/photo-rules";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { logActivity } from "@/lib/activity";
@@ -57,6 +59,8 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
   const settings = await getSettings({ fresh: true });
   const courseIndex = courseRaw ? settings.courses.findIndex((c) => sameCourse(c.name, courseRaw)) : -1;
   if (courseRaw && courseIndex < 0) fieldErrors.course = "Kurs topilmadi — sahifani yangilang";
+  const photo = parsePhotoField(str(fd, "photo", 500_000));
+  if (photo.kind === "error") fieldErrors.photo = photo.error;
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   await connectDB();
@@ -70,6 +74,7 @@ export async function addStaff(_prev: FormState, fd: FormData): Promise<FormStat
     // Belgilangan oylik — qo'shilgan oydan boshlab (avvalgi oylarga yozilmaydi; kerak bo'lsa profilida o'zgartiriladi)
     salaryHistory: salary ? [{ from: currentMonth(), amount: salary }] : [],
   });
+  await storePhoto("staff", String(created._id), photo);
 
   // Kurs o'qituvchilariga qo'shiladi (mavjudlari qoladi). Kursda yagona o'qituvchi bo'lsa — o'qituvchisiz o'quvchilar unga o'tadi
   let courseNote = "";
@@ -107,6 +112,8 @@ export async function updateStaff(id: string, _prev: FormState, fd: FormData): P
   const fieldErrors: Record<string, string> = {};
   if (name.length < 2) fieldErrors.name = "Ism-familiyani kiriting";
   if (!isRole(role)) fieldErrors.role = "Lavozimni tanlang";
+  const photo = parsePhotoField(str(fd, "photo", 500_000));
+  if (photo.kind === "error") fieldErrors.photo = photo.error;
   if (Object.keys(fieldErrors).length) return { fieldErrors };
   if (session.staffId === id && role !== "owner") return { error: "O‘zingizni rahbarlikdan olib bo‘lmaydi" };
 
@@ -116,6 +123,7 @@ export async function updateStaff(id: string, _prev: FormState, fd: FormData): P
   // Belgi faqat formada ko'rsatilgan bo'lsa o'qiladi (eski ochiq sahifadan yuborilsa — o'zgarmaydi)
   const teaches = role === "owner" && (fd.has("teachesShown") ? fd.get("teaches") === "on" : before.teaches === true);
   await Staff.updateOne({ _id: id }, { $set: { name, role, teaches } });
+  await storePhoto("staff", id, photo);
   // Dars bermay qolsa — kurslardagi «kurs o'qituvchisi» belgisi olib tashlanadi (o'quvchilari o'zgarmaydi)
   if (!isTeaching({ role: role as Role, teaches })) await clearCourseTeacher(id);
   await logActivity(session, "staff.edit", `Xodim ma’lumotlari: ${name} (${ROLE_LABEL[role as Role]}${teaches ? ", dars ham beradi" : ""})`);

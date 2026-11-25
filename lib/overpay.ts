@@ -9,7 +9,15 @@ import { endIsoOf, LIVE, loadStudents, studentFee } from "./ledger";
 import { Payment } from "./models";
 import { compareMonths, currentMonth, monthOfDate, shiftMonth } from "./time";
 
-export type OverpayRow = { studentId: string; name: string; group: string; moves: (Move & { fee: number; paid: number })[] };
+export type OverpayMonth = { month: string; fee: number; paid: number; suggested: number };
+export type OverpayRow = {
+  studentId: string;
+  name: string;
+  group: string;
+  moves: (Move & { fee: number; paid: number })[];
+  /** Qo'lda taqsimlash uchun: ko'chirish tegadigan oylar (eng eskisidan ortiqcha to'langan oygacha) */
+  months: OverpayMonth[];
+};
 
 /** Tekshiriladigan oylar: oxirgi 12 oy va oldindan to'lov uchun keyingi 12 oy */
 function windowMonths(start: string): string[] {
@@ -46,7 +54,17 @@ export async function findOverpayments(onlyStudent?: string): Promise<OverpayRow
     const endIso = endIsoOf(s);
     const fee = (m: string) => (owesFor(m, { startMonth, active: s.active, endIso }) ? studentFee(s, m) : 0);
     const moves = overpaymentMoves(windowMonths(startMonth), fee, p);
-    if (moves.length) rows.push({ studentId: id, name: s.fullName, group: s.group ?? "", moves: moves.map((x) => ({ ...x, fee: fee(x.from), paid: p.get(x.from) ?? 0 })) });
+    if (!moves.length) continue;
+    const first = moves.reduce((a, x) => (x.to < a ? x.to : a), moves[0].to);
+    const last = moves.reduce((a, x) => (x.from > a ? x.from : a), moves[0].from);
+    const after = new Map(p);
+    for (const x of moves) {
+      after.set(x.from, (after.get(x.from) ?? 0) - x.amount);
+      after.set(x.to, (after.get(x.to) ?? 0) + x.amount);
+    }
+    const months: OverpayMonth[] = [];
+    for (let m = first; m <= last; m = shiftMonth(m, 1)) months.push({ month: m, fee: fee(m), paid: p.get(m) ?? 0, suggested: after.get(m) ?? 0 });
+    rows.push({ studentId: id, name: s.fullName, group: s.group ?? "", moves: moves.map((x) => ({ ...x, fee: fee(x.from), paid: p.get(x.from) ?? 0 })), months });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -79,4 +97,14 @@ export async function applyMoves(studentId: string, moves: Move[], by: "owner" |
     }
   }
   return changed;
+}
+
+/** O'quvchining shu oylardagi hozirgi to'lovlari (arxivlanganlarsiz). */
+export async function paidInMonths(studentId: string, months: string[]): Promise<Map<string, number>> {
+  await connectDB();
+  const agg = await Payment.aggregate<{ _id: string; total: number }>([
+    { $match: { ...LIVE, student: new mongoose.Types.ObjectId(studentId), month: { $in: months } } },
+    { $group: { _id: "$month", total: { $sum: "$amount" } } },
+  ]);
+  return new Map(agg.map((a) => [a._id, a.total]));
 }

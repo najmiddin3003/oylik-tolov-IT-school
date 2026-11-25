@@ -175,7 +175,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
                 />
                 <FeatureCheck
                   title="Kunlik SMS eslatma"
-                  hint={`Har kuni kechqurun qarzdorlar soni ${formatUzPhone(d.sms.phone)} raqamiga SMS bo‘lib keladi.`}
+                  hint="Har kuni kechqurun har bir xodimga o‘z raqamiga: o‘qituvchiga — o‘z o‘quvchilaridan, administratorga — jami to‘lamaganlar soni."
                   initial={d.sms.enabled}
                   action={setFeature.bind(null, "smsEnabled")}
                   disabled={!d.eskizReady && !d.sms.enabled}
@@ -247,7 +247,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
             icon={MessageSquareText}
             tone="sky"
             title="SMS eslatma (Eskiz)"
-            subtitle={`Qarzdorlar soni har kuni kechqurun ${formatUzPhone(d.sms.phone)} raqamiga yuboriladi.`}
+            subtitle="To‘lamaganlar soni har kuni kechqurun xodimlarning o‘z raqamiga yuboriladi (rahbarga — tanlangan kunlarda)."
             right={
               d.eskizReady ? (
                 <Tag tone="emerald">
@@ -267,7 +267,7 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
             <div className="mb-5">
               <FeatureCheck
                 title="Kunlik SMS eslatma"
-                hint="Har kuni kechqurun (20:00) shu oy to‘lov qilmaganlarning jami soni SMS qilib yuboriladi. Hamma to‘laganda SMS to‘xtaydi."
+                hint="Har kuni kechqurun (20:00) har bir xodimga o‘z raqamiga: o‘qituvchiga — o‘z o‘quvchilaridan, administratorga — jami to‘lov qilmaganlar soni. Hamma to‘laganda SMS to‘xtaydi."
                 initial={d.sms.enabled}
                 action={setFeature.bind(null, "smsEnabled")}
                 disabled={!d.eskizReady && !d.sms.enabled}
@@ -286,7 +286,11 @@ async function Settings({ searchParams }: { searchParams: PageProps<"/settings">
                     <li key={l.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
                       <span className="min-w-0 flex-1">
                         <span className="num text-ink-500">{l.at ? formatDateTime(l.at) : l.day}</span>
-                        <span className="ml-2 text-xs text-ink-400">{l.trigger === "test" ? "sinov" : "kunlik"}</span>
+                        <span className="ml-2 text-xs text-ink-400">
+                          {l.trigger === "test" ? "sinov" : "kunlik"}
+                          {l.staffName ? ` · ${l.staffName}` : ""}
+                          {l.phone ? ` · ${formatUzPhone(l.phone)}` : ""}
+                        </span>
                         <span className="mt-0.5 block text-ink-800">{l.status === "sent" ? l.text : l.error || "—"}</span>
                       </span>
                       {l.status === "sent" ? <Tag tone="emerald">yuborildi</Tag> : l.status === "failed" ? <Tag tone="rose">xato</Tag> : <Tag>yuborilmadi</Tag>}

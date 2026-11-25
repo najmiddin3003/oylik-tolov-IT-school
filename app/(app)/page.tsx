@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   BookOpen,
   CalendarDays,
+  Check,
   Crown,
   Download,
   GraduationCap,
@@ -153,7 +154,7 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
           icon={UserCheck}
           tone="emerald"
         />
-        <KpiCard label="Qarzdor o‘quvchilar" value={center.unpaid + center.partial} hint={`Jami ${formatMoney(center.debt)}`} icon={UserRound} tone="amber" />
+        <DebtorsKpi count={center.unpaid + center.partial} students={center.students} debt={center.debt} href={`/qarzdorlar?month=${month}`} />
         <KpiCard label="O‘qituvchilar" value={team.members.filter((m) => isTeaching(m)).length} hint={`${team.members.filter((m) => m.status === "invited").length} tasi hali ro‘yxatdan o‘tmagan`} icon={GraduationCap} tone="brand" />
       </div>
 
@@ -279,23 +280,26 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
       </div>
 
       {groups.length > 1 || teachers.length ? (
-        <div className="mb-4 flex flex-wrap gap-2" aria-label="Filtr">
-          {teachers.length
-            ? [{ id: "", name: "Barcha o‘qituvchilar" }, ...teachers, { id: "none", name: "Biriktirilmagan" }].map((t) => (
+        <nav className="mb-4 overflow-hidden rounded-2xl border border-line bg-surface shadow-card" aria-label="To‘lov kutilayotganlar filtri">
+          {teachers.length ? (
+            <FilterRow label="O‘qituvchi" icon={GraduationCap}>
+              {[{ id: "", name: "Hammasi" }, ...teachers, { id: "none", name: "Biriktirilmagan" }].map((t) => (
                 <FilterChip key={`t-${t.id || "all"}`} href={`/?${new URLSearchParams({ month, ...(group ? { group } : {}), ...(t.id ? { teacher: t.id } : {}) })}`} active={t.id === teacher}>
-                  {t.id && t.id !== "none" ? <GraduationCap className="size-3.5" aria-hidden /> : null}
                   {t.name}
                 </FilterChip>
-              ))
-            : null}
-          {groups.length > 1
-            ? ["", ...groups].map((g) => (
+              ))}
+            </FilterRow>
+          ) : null}
+          {groups.length > 1 ? (
+            <FilterRow label="Kurs" icon={BookOpen}>
+              {["", ...groups].map((g) => (
                 <FilterChip key={`g-${g || "all"}`} href={`/?${new URLSearchParams({ month, ...(teacher ? { teacher } : {}), ...(g ? { group: g } : {}) })}`} active={g === group}>
-                  {g || "Barcha kurslar"}
+                  {g || "Hammasi"}
                 </FilterChip>
-              ))
-            : null}
-        </div>
+              ))}
+            </FilterRow>
+          ) : null}
+        </nav>
       ) : null}
 
       <DebtorsTable
@@ -313,6 +317,54 @@ async function HeadDashboard({ session, month, page, group, teacher }: { session
   );
 }
 
+/**
+ * «Qarzdor o'quvchilar» — qizil, diqqatni tortadigan karta: qarzdorlar ulushi qancha ko'p bo'lsa, rang shuncha to'q
+ * (5% — och pushti, 60% va undan ko'p — to'q qizil). Qarzdor yo'q bo'lsa — tinch yashil.
+ */
+function DebtorsKpi({ count, students, debt, href }: { count: number; students: number; debt: number; href: string }) {
+  if (!count) {
+    return <KpiCard label="Qarzdor o‘quvchilar" value={0} hint="Hamma to‘lovni yopgan" icon={UserCheck} tone="emerald" />;
+  }
+  const ratio = students ? Math.min(1, count / students) : 1;
+  // Rang kuchi: 18% (kam qarzdor) .. 100% (ko'pchilik qarzdor)
+  const level = Math.round(18 + Math.min(1, ratio / 0.6) * 82);
+  const strong = level >= 50;
+  const pct = students ? Math.round(ratio * 100) : null;
+  return (
+    <Link
+      href={href}
+      aria-label={`Qarzdor o‘quvchilar: ${count} ta${pct !== null ? `, ${pct}%` : ""} — ro‘yxatni ochish`}
+      className={cx(
+        "group relative flex min-h-[148px] flex-col overflow-hidden rounded-2xl border p-5 shadow-card transition hover:-translate-y-0.5 hover:shadow-pop sm:p-6",
+        strong ? "border-rose-700/40 text-white" : "border-rose-300 text-rose-950 dark:text-rose-100",
+      )}
+      style={{
+        background: `linear-gradient(135deg, color-mix(in oklab, #e11d48 ${level}%, var(--color-surface)) 0%, color-mix(in oklab, #9f1239 ${level}%, var(--color-surface)) 100%)`,
+      }}
+    >
+      <span className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full bg-white/10" aria-hidden />
+      <div className="relative flex items-start justify-between gap-3">
+        <p className={cx("text-[15px] font-semibold", strong ? "text-white/90" : "text-rose-800 dark:text-rose-200")}>Qarzdor o‘quvchilar</p>
+        <span className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/20 ring-1 ring-inset ring-white/30" aria-hidden>
+          <span className="absolute inset-0 animate-ping rounded-xl bg-white/20 [animation-duration:2.4s] motion-reduce:hidden" />
+          <UserRound className={cx("relative size-5", strong ? "text-white" : "text-rose-700 dark:text-rose-200")} />
+        </span>
+      </div>
+      <p className="num relative mt-3 text-[32px] font-bold leading-none tracking-[-0.02em]">
+        {count}
+        {pct !== null ? <span className={cx("ml-2 text-base font-semibold", strong ? "text-white/80" : "text-rose-700 dark:text-rose-200")}>{pct}%</span> : null}
+      </p>
+      <div className={cx("num relative mt-auto flex items-center justify-between gap-2 pt-3 text-[13px]", strong ? "text-white/85" : "text-rose-800 dark:text-rose-200")}>
+        <span>Jami {formatMoney(debt)}</span>
+        <span className="inline-flex items-center gap-1 font-semibold">
+          Undirish
+          <ArrowUpRight className="size-4 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
 function HeadFigure({ icon: Icon, label, value, hint, strong, negative }: { icon: typeof Wallet; label: string; value: string; hint: string; strong?: boolean; negative?: boolean }) {
   return (
     <div className={cx("rounded-2xl px-4 py-3.5 ring-1 ring-inset", strong ? "bg-white/[0.14] ring-amber-300/30" : "bg-white/[0.07] ring-white/10")}>
@@ -326,15 +378,30 @@ function HeadFigure({ icon: Icon, label, value, hint, strong, negative }: { icon
   );
 }
 
+function FilterRow({ label, icon: Icon, children }: { label: string; icon: typeof Wallet; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 border-b border-line-soft px-3 py-2.5 last:border-b-0 sm:px-4">
+      <span className="flex w-[104px] shrink-0 items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-400 max-sm:w-auto">
+        <Icon className="size-4" aria-hidden />
+        <span className="max-sm:sr-only">{label}</span>
+      </span>
+      <div className="-my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1 [scrollbar-width:none]">{children}</div>
+    </div>
+  );
+}
+
 function FilterChip({ href, active, children }: { href: string; active: boolean; children: ReactNode }) {
   return (
     <Link
       href={href}
+      scroll={false}
+      aria-current={active ? "true" : undefined}
       className={cx(
-        "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-medium ring-1 ring-inset transition",
-        active ? "bg-ink-900 text-surface ring-ink-900" : "bg-surface text-ink-600 ring-line hover:bg-slate-50",
+        "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px] font-medium transition",
+        active ? "bg-brand-600 text-white shadow-brand" : "text-ink-600 hover:bg-slate-100 hover:text-ink-900",
       )}
     >
+      {active ? <Check className="size-3.5" strokeWidth={2.6} aria-hidden /> : null}
       {children}
     </Link>
   );
@@ -361,12 +428,17 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
       <div className="flex items-start gap-3">
         <span
           className={cx(
-            "inline-flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white",
+            "inline-flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold text-white",
             isTeacher ? "bg-linear-to-br from-brand-500 to-brand-700 shadow-brand" : "bg-linear-to-br from-emerald-400 to-emerald-600",
           )}
           aria-hidden
         >
-          {staffInitials(m.name)}
+          {m.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={m.photoUrl} alt="" className="size-full object-cover" loading="lazy" />
+          ) : (
+            staffInitials(m.name)
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <Link href={`/staff/${m.id}?month=${month}`} className="block truncate text-[16px] font-semibold text-ink-900 hover:text-brand-600">
@@ -392,7 +464,14 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
             <span>Tushum: {formatMoney(collectedFromStudents)}</span>
             <span>Qarz: {formatMoney(m.debt)}</span>
           </p>
-          {m.discount ? <p className="num mt-1 text-xs text-amber-700">Chegirma: −{formatMoney(m.discount)} — tushum va oylikka kirmaydi</p> : null}
+          {m.discount ? (
+            <p
+              className="num mt-1 text-xs text-amber-700"
+              title={m.pay.enabled && m.pay.percent ? `Xodim oyligidan −${formatMoney(Math.round((m.discount * m.pay.percent) / 100))} (${m.pay.percent}%), qolgani markaz hisobidan` : undefined}
+            >
+              Chegirma: {formatMoney(m.discount)}
+            </p>
+          ) : null}
         </>
       ) : (
         <p className="mt-4 text-sm text-ink-500">
@@ -413,21 +492,7 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
           Oylik hisoblash o‘chiq{m.pay.taken ? ` · olingan: ${formatMoney(m.pay.taken)}` : ""}
         </p>
       ) : (
-      <div className="num mt-4 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[13px] ring-1 ring-inset ring-line-soft">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-ink-500">{payLabel(m.pay)}</span>
-          <span className="font-semibold text-ink-900">{formatMoney(m.pay.share)}</span>
-        </div>
-        <div className="mt-0.5 flex items-center justify-between gap-2">
-          <span className="text-ink-500">Olindi</span>
-          <span className="text-ink-700">− {formatMoney(m.pay.taken)}</span>
-        </div>
-        <div className="mt-1 flex items-center justify-between gap-2 border-t border-line pt-1">
-          <span className="font-medium text-ink-700">Qoldi</span>
-          <span className={cx("font-bold", m.pay.left < 0 ? "text-rose-600" : "text-emerald-600")}>{formatMoney(m.pay.left)}</span>
-        </div>
-        {cycleHint(m.pay.cycle, month) ? <p className="mt-1.5 text-xs leading-snug text-amber-700">{cycleHint(m.pay.cycle, month)}</p> : null}
-      </div>
+        <PayBlock pay={m.pay} hint={cycleHint(m.pay.cycle, month)} />
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -442,6 +507,45 @@ function TeamCard({ m, month }: { m: TeamMember; month: string }) {
         </Link>
       </div>
     </Card>
+  );
+}
+
+/** Xodim oyligi: hisoblangan, olingan (avans/oylik) va qolgan — ixcham «hisob varag'i» ko'rinishida. */
+function PayBlock({ pay, hint }: { pay: TeamMember["pay"]; hint: string | null }) {
+  const takenPct = pay.share > 0 ? Math.min(100, Math.round((pay.taken / pay.share) * 100)) : pay.taken > 0 ? 100 : 0;
+  const over = pay.left < 0;
+  return (
+    <div className="num mt-4 overflow-hidden rounded-2xl bg-linear-to-br from-slate-50 to-white ring-1 ring-inset ring-line-soft dark:from-white/[0.04] dark:to-transparent">
+      <div className="flex items-end justify-between gap-3 px-4 pt-3.5">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">{payLabel(pay)}</p>
+          <p className="mt-0.5 text-[22px] font-bold leading-tight tracking-[-0.02em] text-ink-900">{formatMoney(pay.share)}</p>
+        </div>
+        <span className={cx("mb-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset", over ? "bg-rose-50 text-rose-700 ring-rose-200" : takenPct >= 100 ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-100 text-ink-500 ring-line")}>
+          {over ? "Ortiqcha olingan" : `${takenPct}% olingan`}
+        </span>
+      </div>
+      <div className="mx-4 mt-2.5 h-1.5 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/10" aria-hidden>
+        <div className={cx("h-full rounded-full", over ? "bg-rose-500" : "bg-linear-to-r from-amber-400 to-amber-500")} style={{ width: `${takenPct}%` }} />
+      </div>
+      <dl className="mt-3 grid grid-cols-2 divide-x divide-line-soft border-t border-line-soft">
+        <div className="px-4 py-2.5">
+          <dt className="flex items-center gap-1.5 text-[11px] text-ink-400">
+            <span className="size-1.5 rounded-full bg-amber-500" aria-hidden />
+            Olingan avans
+          </dt>
+          <dd className="mt-0.5 text-[15px] font-semibold text-ink-800">{formatMoney(pay.taken)}</dd>
+        </div>
+        <div className="px-4 py-2.5">
+          <dt className="flex items-center gap-1.5 text-[11px] text-ink-400">
+            <span className={cx("size-1.5 rounded-full", over ? "bg-rose-500" : "bg-emerald-500")} aria-hidden />
+            Qolgan oylik
+          </dt>
+          <dd className={cx("mt-0.5 text-[15px] font-bold", over ? "text-rose-600" : "text-emerald-600")}>{formatMoney(pay.left)}</dd>
+        </div>
+      </dl>
+      {hint ? <p className="border-t border-line-soft bg-amber-50/60 px-4 py-2 text-xs leading-snug text-amber-800">{hint}</p> : null}
+    </div>
   );
 }
 

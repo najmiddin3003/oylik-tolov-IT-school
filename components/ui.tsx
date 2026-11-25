@@ -152,7 +152,7 @@ export function initials(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-export function Avatar({ name, size = "md" }: { name: string; size?: "md" | "lg" }) {
+export function Avatar({ name, size = "md", src = null }: { name: string; size?: "md" | "lg"; src?: string | null }) {
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return (
@@ -160,11 +160,12 @@ export function Avatar({ name, size = "md" }: { name: string; size?: "md" | "lg"
       className={cx(
         "inline-flex shrink-0 items-center justify-center rounded-full font-semibold",
         size === "lg" ? "size-14 text-lg" : "size-10 text-sm",
-        AVATAR_TONES[h % AVATAR_TONES.length],
+        src ? "overflow-hidden ring-1 ring-line" : AVATAR_TONES[h % AVATAR_TONES.length],
       )}
       aria-hidden
     >
-      {initials(name)}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {src ? <img src={src} alt="" className="size-full object-cover" /> : initials(name)}
     </span>
   );
 }

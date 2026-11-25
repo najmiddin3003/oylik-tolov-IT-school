@@ -7,14 +7,13 @@ import { isOwnerPassword, passwordVersion, requireOwner } from "@/lib/auth";
 import { assignCourseStudents } from "@/lib/course-teacher";
 import { cleanCourseName, courseKey, coursesForStorage, courseTeacher, sameCourse, type Course } from "@/lib/courses";
 import { connectDB } from "@/lib/db";
-import { normalizeUzPhone } from "@/lib/eskiz";
 import { applyFeeFrom, feeFor, type FeeChange } from "@/lib/fees";
 import { isId } from "@/lib/ids";
 import { feeHistoryOf, isCurrent, listFee, type StudentLean } from "@/lib/ledger";
 import { Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { DEFAULT_OTP_TEMPLATE, templateHasCode } from "@/lib/otp-text";
-import { normalizeStartDay, templateHasCount } from "@/lib/reminders";
+import { normalizeOwnerEveryDays, normalizeStartDay, templateHasCount } from "@/lib/reminders";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/passwords";
 import { createSessionToken, SESSION_COOKIE, SESSION_DAYS } from "@/lib/session";
 import { getSettings, updateSettings } from "@/lib/settings";
@@ -201,14 +200,13 @@ export async function saveSmsSettings(_prev: FormState, fd: FormData): Promise<F
   const session = await requireOwner({ fresh: true });
   // Yoqish/o'chirish — alohida katakcha (Funksiyalar); forma maydoni bo'lsa — o'qiladi
   const enabled = fd.has("enabled") ? fd.get("enabled") === "on" : null;
-  const phone = normalizeUzPhone(str(fd, "phone", 40));
   const template = str(fd, "template", 400).replace(/\s+/g, " ");
+  const ownerEveryDays = normalizeOwnerEveryDays(fd.get("ownerEveryDays"));
   const sender = str(fd, "sender", 20) || "4546";
   const startDay = normalizeStartDay(fd.get("startDay"));
   const otpTemplate = str(fd, "otpTemplate", 300).replace(/\s+/g, " ") || DEFAULT_OTP_TEMPLATE;
 
   const fieldErrors: Record<string, string> = {};
-  if (!phone) fieldErrors.phone = "Raqamni to‘liq kiriting, masalan: 33 626 30 06";
   if (!templateHasCount(template)) fieldErrors.template = "Matnda {#soni#} bo‘lishi shart (to‘lamaganlar soni)";
   if (!/^[\w.-]{2,11}$/.test(sender)) fieldErrors.sender = "Jo‘natuvchi nomi noto‘g‘ri (odatda 4546)";
   if (!templateHasCode(otpTemplate)) fieldErrors.otpTemplate = "Matnda {#kod#} bo‘lishi shart (tasdiqlash kodi)";
@@ -217,21 +215,23 @@ export async function saveSmsSettings(_prev: FormState, fd: FormData): Promise<F
   await updateSettings({
     $set: {
       ...(enabled !== null ? { "sms.enabled": enabled } : {}),
-      "sms.phone": phone,
       "sms.template": template,
+      "sms.ownerEveryDays": ownerEveryDays,
       "sms.sender": sender,
       "sms.startDay": startDay,
       "sms.otpTemplate": otpTemplate,
     },
   });
-  await logActivity(session, "settings.sms", "SMS sozlamalari saqlandi (raqam, matnlar, boshlanish sanasi)");
+  await logActivity(session, "settings.sms", "SMS sozlamalari saqlandi (matnlar, boshlanish sanasi, rahbarga necha kunda)");
   await dataChanged();
   return { ok: true, message: "SMS sozlamalari saqlandi", nonce: Date.now() };
 }
 
 export async function sendTestSmsAction(): Promise<FormState> {
   const session = await requireOwner({ fresh: true });
-  const res = await sendTestSms();
+  // Sinov — rahbarning o'z raqamiga (xodim profili bo'lsa)
+  const me = session.staffId ? await Staff.findById(session.staffId, { phone: 1 }).lean() : null;
+  const res = await sendTestSms(me?.phone ?? null);
   await logActivity(session, "settings.sms_test", res.status === "sent" ? `Sinov SMS yuborildi: «${res.text}»` : `Sinov SMS yuborilmadi: ${res.message}`);
   await dataChanged();
   if (res.status === "sent") return { ok: true, message: `Sinov SMS yuborildi: «${res.text}»` };

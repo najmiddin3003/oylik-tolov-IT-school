@@ -3,7 +3,7 @@
 // Chegirmalar: turlarni boshqarish (Sozlamalar) va o'quvchiga switch bilan yoqish/o'chirish (Chegirmalar sahifasi).
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { BadgePercent, Check, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { BadgePercent, Check, ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { addDiscountType, deleteDiscountType, setStudentDiscount, updateDiscountType } from "@/app/actions/discounts";
 import type { FormState } from "@/app/actions/types";
 import type { DiscountStudentRow } from "@/lib/data";
@@ -331,23 +331,27 @@ export function StudentDiscountList({
   const [q, setQ] = useState("");
   const [course, setCourse] = useState("");
   const [only, setOnly] = useState(false);
+  const [page, setPage] = useState(1);
   const courses = useMemo(() => [...new Set(students.map((s) => s.group.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [students]);
   const nq = q.trim().toLowerCase();
   const list = students.filter(
     (s) => (!nq || s.name.toLowerCase().includes(nq)) && (!course || s.group.trim() === course) && (!only || s.current || s.next?.kind),
   );
   const withCount = students.filter((s) => s.current).length;
+  const pages = Math.max(1, Math.ceil(list.length / DISCOUNT_PAGE));
+  const current = Math.min(page, pages);
+  const shown = list.slice((current - 1) * DISCOUNT_PAGE, current * DISCOUNT_PAGE);
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-line-soft px-5 py-3 sm:px-6">
         <label className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" aria-hidden />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="O‘quvchi qidirish…" className={cx(inputCls, "pl-9")} aria-label="Qidirish" />
+          <input value={q} onChange={(e) => (setQ(e.target.value), setPage(1))} placeholder="O‘quvchi qidirish…" className={cx(inputCls, "pl-9")} aria-label="Qidirish" />
         </label>
         {courses.length > 1 ? (
           <Select
             value={course}
-            onChange={setCourse}
+            onChange={(v) => (setCourse(v), setPage(1))}
             searchable={false}
             aria-label="Kurs"
             wrapperClassName="w-full sm:w-56"
@@ -355,19 +359,42 @@ export function StudentDiscountList({
           />
         ) : null}
         <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-600">
-          <Switch checked={only} onChange={setOnly} label="Faqat chegirmalilar" />
+          <Switch checked={only} onChange={(v) => (setOnly(v), setPage(1))} label="Faqat chegirmalilar" />
           Faqat chegirmalilar ({withCount})
         </label>
       </div>
       {list.length ? (
         <ul className="divide-y divide-line-soft">
-          {list.map((s) => (
+          {shown.map((s) => (
             <StudentDiscountRow key={s.id} s={s} types={types} month={month} canLink={canLink} />
           ))}
         </ul>
       ) : (
         <p className="px-6 py-8 text-center text-sm text-ink-500">Topilmadi.</p>
       )}
+      {list.length > DISCOUNT_PAGE ? (
+        <nav className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-5 py-3 sm:px-6" aria-label="Sahifalar">
+          <span className="num text-[13px] text-ink-500">
+            {(current - 1) * DISCOUNT_PAGE + 1}–{Math.min(current * DISCOUNT_PAGE, list.length)} / {list.length} ta o‘quvchi
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={() => setPage(current - 1)} disabled={current <= 1} className={btn.sm} aria-label="Oldingi 10 ta">
+              <ChevronLeft className="size-4" aria-hidden />
+              Oldingi
+            </button>
+            <span className="num px-2 text-[13px] text-ink-500">
+              {current} / {pages}
+            </span>
+            <button type="button" onClick={() => setPage(current + 1)} disabled={current >= pages} className={btn.sm} aria-label="Keyingi 10 ta">
+              Keyingi
+              <ChevronRight className="size-4" aria-hidden />
+            </button>
+          </div>
+        </nav>
+      ) : null}
     </>
   );
 }
+
+/** Chegirmalar ro'yxati: bir sahifada shuncha o'quvchi */
+const DISCOUNT_PAGE = 10;
