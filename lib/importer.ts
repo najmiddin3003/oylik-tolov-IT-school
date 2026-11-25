@@ -2,12 +2,14 @@
 import mongoose from "mongoose";
 import { allocateAmount, importFromMonth } from "./allocate";
 import { courseTeacherResolver } from "./course-teacher";
+import { resolveCourse } from "./courses";
 import { connectDB } from "./db";
 import { LIVE, studentFee, withDiscounts, type StudentLean } from "./ledger";
 import { Payment, Student, SyncRun, type PaymentMethod } from "./models";
 import { nameKey } from "./normalize";
 import { nameMatches, studentNameKeys } from "./compare";
 import { nextStudentSeq } from "./seq";
+import { getSettings } from "./settings";
 import { isoToDate, monthOfDate, shiftMonth } from "./time";
 
 /**
@@ -123,17 +125,20 @@ export async function importFromRun(runId: string, ids: string[] | "all", opts: 
 
   // Yangi o'quvchi kursining o'qituvchisi bo'lsa — darhol unga biriktiriladi
   const teacherOf = toCreate.size ? await courseTeacherResolver() : () => null;
+  // Sheets'dagi qisqartma ("Kompyuter S") — markazdagi to'liq kurs nomi bilan yoziladi
+  const courseList = toCreate.size ? (await getSettings({ fresh: true })).courses.map((c) => c.name) : [];
   const createdIds = new Set<string>();
   for (const group of toCreate.values()) {
     const first = group[0];
     const months = group.flatMap((m) => partsOf(m).map((p) => partMonth(m, p))).sort();
     const fee = Math.max(0, ...group.map((m) => m.fee ?? 0));
+    const course = resolveCourse(first.group, courseList) ?? first.group ?? "";
     const created = await Student.create({
       seq: await nextStudentSeq(),
       fullName: first.studentName.replace(/\s+/g, " ").trim(),
       phone: first.phone ?? "",
-      group: first.group ?? "",
-      teacher: teacherOf(first.group),
+      group: course,
+      teacher: teacherOf(course),
       monthlyFee: fee,
       startDate: isoToDate(`${months[0]}-01`)!,
       active: true,

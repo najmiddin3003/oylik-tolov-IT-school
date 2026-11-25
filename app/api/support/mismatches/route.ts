@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { sameCourse, teacherCourses } from "@/lib/courses";
+import { sheetCourseIs, teacherCourses } from "@/lib/courses";
 import { connectDB } from "@/lib/db";
 import { Student, SyncRun } from "@/lib/models";
 import { searchScore } from "@/lib/normalize";
@@ -38,8 +38,9 @@ export async function GET(request: Request) {
     teacher = { id: best.t.id, name: best.t.name };
     const mine = await Student.find({ teacher: best.t.id }, { group: 1 }).lean();
     const ids = new Set(mine.map((s) => String(s._id)));
+    const allCourses = settings.courses.map((c) => c.name);
     courses = [...new Set([...teacherCourses(settings.courses, best.t.id).map((c) => c.name), ...mine.map((s) => s.group ?? "").filter(Boolean)])];
-    inScope = (m) => (m.studentId != null && ids.has(String(m.studentId))) || courses.some((c) => sameCourse(m.group ?? "", c));
+    inScope = (m) => (m.studentId != null && ids.has(String(m.studentId))) || courses.some((c) => sheetCourseIs(m.group ?? "", c, allCourses));
   }
 
   const mismatches = (run.mismatches ?? [])

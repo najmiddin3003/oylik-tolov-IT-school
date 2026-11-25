@@ -4,7 +4,7 @@ import { cache } from "react";
 import { listMyActivity, type ActivityRow } from "./activity";
 import { requireAuth, requireOwner, requireRole, type Session } from "./auth";
 import { mismatchKey, nameMatches } from "./compare";
-import { courseFee, courseNames, courseTeacher, courseTeachers, sameCourse, teacherCourses } from "./courses";
+import { courseFee, courseNames, courseTeacher, courseTeachers, sameCourse, sheetCourseIs, teacherCourses } from "./courses";
 import { connectDB } from "./db";
 import { eskizConfigured } from "./eskiz";
 import { changesAfter, type FeeChange } from "./fees";
@@ -1184,15 +1184,17 @@ function toArchiveRow(d: ArchiveListDoc): SheetArchiveRow {
  */
 async function syncScope() {
   const v = await viewer();
-  if (v.role !== "teacher" || !v.staffId) return { role: v.role, courses: null as string[] | null, studentIds: null as Set<string> | null };
+  if (v.role !== "teacher" || !v.staffId) return { role: v.role, courses: null as string[] | null, allCourses: [] as string[], studentIds: null as Set<string> | null };
   const [settings, students] = await Promise.all([getSettings(), loadStudents()]);
   const mine = students.filter((s) => String(s.teacher ?? "") === v.staffId);
   const courses = [...new Set([...teacherCourses(settings.courses, v.staffId).map((c) => c.name), ...mine.map((s) => s.group ?? "").filter(Boolean)])];
-  return { role: v.role, courses, studentIds: new Set(mine.map((s) => String(s._id))) };
+  // Markazdagi kurslar (Sozlamalar → Kurslar): Sheets'dagi qisqartma ("Kompyuter S") qaysi kursligini aniqlash uchun
+  const allCourses = settings.courses.map((c) => c.name);
+  return { role: v.role, courses, allCourses, studentIds: new Set(mine.map((s) => String(s._id))) };
 }
 
 /** O'qituvchiga: Sheets jadvali qatorlaridan faqat o'z kurslari (sarlavha qatori — kurs ustuni nomi bo'yicha topiladi). */
-function filterSheetRows(rows: string[][], courseColumn: string, courses: string[]): { keep: (row: string[]) => boolean; header: number; col: number } {
+function filterSheetRows(rows: string[][], courseColumn: string, courses: string[], allCourses: string[]): { keep: (row: string[]) => boolean; header: number; col: number } {
   const want = courseColumn.trim().toLowerCase();
   let header = -1;
   let col = -1;
@@ -1203,7 +1205,7 @@ function filterSheetRows(rows: string[][], courseColumn: string, courses: string
       col = j;
     }
   }
-  return { keep: (row) => col >= 0 && courses.some((c) => sameCourse(String(row[col] ?? ""), c)), header, col };
+  return { keep: (row) => col >= 0 && courses.some((c) => sheetCourseIs(String(row[col] ?? ""), c, allCourses)), header, col };
 }
 
 /** Arxivdagi jadval to'liq (ko'rish sahifasi): qiymatlar, kuzatuv, varaqlar ko'rinishi. Asl .xlsx — alohida yuklab olinadi. */
@@ -1216,9 +1218,9 @@ export async function getSheetArchive(id: string) {
   if (!full || !scope.courses) return full ? { ...full, limited: false } : null;
   // O'qituvchi: faqat o'z kurslari qatorlari (Google ko'rinishi, havola va fayl yuklash — yo'q)
   const { columns } = await getSettings();
-  const f = filterSheetRows(full.rows, columns.course, scope.courses);
+  const f = filterSheetRows(full.rows, columns.course, scope.courses, scope.allCourses);
   const idx = full.rows.map((_, i) => i).filter((i) => i <= f.header || f.keep(full.rows[i]));
-  const courses = full.courses.filter((c) => scope.courses!.some((x) => sameCourse(c.course, x)));
+  const courses = full.courses.filter((c) => scope.courses!.some((x) => sheetCourseIs(c.course, x, scope.allCourses)));
   return {
     ...full,
     url: "",
@@ -1270,7 +1272,7 @@ export async function getSyncPageData() {
     suggestedArchiveMonth(),
   ]);
   // O'qituvchi: faqat o'z kurslari va o'z o'quvchilari farqlari; ko'rsatkichlar ham shular bo'yicha
-  const mineCourse = (g: string) => !scope.courses || scope.courses.some((c) => sameCourse(g, c));
+  const mineCourse = (g: string) => !scope.courses || scope.courses.some((c) => sheetCourseIs(g, c, scope.allCourses));
   const views = runs.map(toRunView).map((r) => {
     if (!scope.courses) return r;
     const courseStats = r.courseStats.filter((c) => mineCourse(c.course));
