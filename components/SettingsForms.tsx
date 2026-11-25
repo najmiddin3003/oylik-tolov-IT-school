@@ -413,7 +413,8 @@ export function SmsForm({
         <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
           <li>o‘qituvchiga — faqat <b className="font-semibold text-ink-800">o‘z o‘quvchilaridan</b> to‘lamaganlar soni;</li>
           <li>administratorga — markaz bo‘yicha <b className="font-semibold text-ink-800">jami</b> to‘lamaganlar soni;</li>
-          <li>rahbarga — jami, quyida tanlangan kunlarda bir marta.</li>
+          <li>rahbarga — jami, quyida tanlangan kunlarda bir marta;</li>
+          <li>dars ham beradigan rahbarga — o‘qituvchi kabi, har kuni o‘z o‘quvchilari soni.</li>
         </ul>
         To‘lamagan o‘quvchisi yo‘q xodimga SMS yuborilmaydi.
       </div>

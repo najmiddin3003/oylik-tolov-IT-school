@@ -84,9 +84,17 @@ export function normalizeOwnerEveryDays(v: unknown): number {
   return Number.isInteger(n) && n >= 0 && n <= 30 ? n : DEFAULT_OWNER_EVERY_DAYS;
 }
 
-/** Kim qaysi sonni oladi: o'qituvchi — faqat o'z o'quvchilari, administrator va rahbar — markaz bo'yicha jami. */
-export function debtSmsScope(role: string): "own" | "all" {
-  return role === "teacher" ? "own" : "all";
+/**
+ * Kim qaysi sonni oladi: o'qituvchi va dars ham beradigan rahbar — faqat o'z o'quvchilari (har kuni);
+ * administrator va dars bermaydigan rahbar — markaz bo'yicha jami.
+ */
+export function debtSmsScope(role: string, teaches = false): "own" | "all" {
+  return role === "teacher" || (role === "owner" && teaches) ? "own" : "all";
+}
+
+/** Rahbarlarga belgilangan oraliq (N kunda bir marta) — faqat jami oladigan (dars bermaydigan) rahbarga. */
+export function debtSmsEveryDays(role: string, teaches = false): boolean {
+  return role === "owner" && !teaches;
 }
 
 /** Ikki sana orasidagi kunlar ("YYYY-MM-DD"). */
