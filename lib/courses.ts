@@ -31,6 +31,40 @@ export function sameCourse(a: string | null | undefined, b: string | null | unde
   return ka !== "" && ka === courseKey(b);
 }
 
+/** Kurs nomi so'zlari (tinish belgilarisiz): "Kompyuter S." -> ["kompyuter", "s"]. */
+function courseWords(name: string | null | undefined): string[] {
+  return courseKey(name).replace(/[.,;:()"]/g, " ").split(" ").filter(Boolean);
+}
+
+/**
+ * Sheets'dagi qisqartirilgan kurs nomi shu kursmi: har bir so'z kurs nomidagi o'sha o'rindagi so'zning boshi
+ * ("Kompyuter S" ≈ "Kompyuter savodxonligi", "Grafik" ≈ "Grafik dizayn"). Birinchi so'z kamida 3 harf.
+ */
+export function courseAbbreviates(value: string | null | undefined, course: string | null | undefined): boolean {
+  const v = courseWords(value);
+  const c = courseWords(course);
+  if (!v.length || v.length > c.length || v[0].length < 3) return false;
+  return v.every((w, i) => c[i].startsWith(w));
+}
+
+/**
+ * Sheets'dagi kurs nomi qaysi kurs: aynan mos yoki qisqartmasi faqat bitta kursga to'g'ri kelsa — o'sha kurs nomi,
+ * aks holda null ("Kompyuter S" -> "Kompyuter savodxonligi").
+ */
+export function resolveCourse(value: string | null | undefined, courses: string[]): string | null {
+  const exact = courses.find((c) => sameCourse(c, value));
+  if (exact) return exact;
+  const found = [...new Map(courses.filter((c) => courseAbbreviates(value, c)).map((c) => [courseKey(c), c])).values()];
+  return found.length === 1 ? found[0] : null;
+}
+
+/** Sheets'dagi kurs nomi (qisqartma bo'lsa ham) shu kursmi. `courses` — markazdagi barcha kurs nomlari. */
+export function sheetCourseIs(value: string | null | undefined, course: string, courses: string[]): boolean {
+  if (sameCourse(value, course)) return true;
+  const r = resolveCourse(value, courses);
+  return r !== null && sameCourse(r, course);
+}
+
 /** Nomni tozalash: ortiqcha bo'shliqlarsiz, 80 belgigacha. */
 export function cleanCourseName(raw: string): string {
   return raw.replace(/\s+/g, " ").trim().slice(0, 80);
