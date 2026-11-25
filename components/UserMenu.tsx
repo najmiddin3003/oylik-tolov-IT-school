@@ -24,12 +24,12 @@ const TONE_TEXT: Record<Tone, string> = {
 };
 
 /** Foydalanuvchi belgisi: rahbar — toj, xodim — ism bosh harflari. */
-export function UserAvatar({ role, name, size = "md" }: { role: Role; name: string | null; size?: "sm" | "md" }) {
+export function UserAvatar({ role, name, size = "md", photo = null }: { role: Role; name: string | null; size?: "sm" | "md"; photo?: string | null }) {
   const isOwner = role === "owner";
   return (
     <span
       className={cx(
-        "relative inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white",
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white",
         size === "sm" ? "size-8 text-xs" : "size-10 text-sm",
         isOwner
           ? "bg-linear-to-br from-amber-400 to-orange-600 shadow-[0_8px_16px_-8px_rgb(234_88_12/0.8)] ring-2 ring-amber-200 dark:ring-amber-400/30"
@@ -39,7 +39,10 @@ export function UserAvatar({ role, name, size = "md" }: { role: Role; name: stri
       )}
       aria-hidden
     >
-      {isOwner ? (
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photo} alt="" className="size-full object-cover" />
+      ) : isOwner ? (
         <Crown className={size === "sm" ? "size-4" : "size-[18px]"} strokeWidth={2} fill="currentColor" fillOpacity={0.25} />
       ) : name ? (
         staffInitials(name)
@@ -54,7 +57,7 @@ export function UserAvatar({ role, name, size = "md" }: { role: Role; name: stri
  * Foydalanuvchi menyusi (yuqori panelda, bitta joyda): profil (rahbarda — menyuda «Profilim» yo'q), faoliyat tarixi, mavzu,
  * chiqish. Telefonda pastki menyuga sig'magan bo'limlar ham shu yerda (kompyuterda ular yon menyuda bor — takrorlanmaydi).
  */
-export function UserMenu({ role, name }: { role: Role; name: string | null }) {
+export function UserMenu({ role, name, photo = null }: { role: Role; name: string | null; photo?: string | null }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const dark = useIsDark();
@@ -93,7 +96,7 @@ export function UserMenu({ role, name }: { role: Role; name: string | null }) {
           open && "bg-slate-100",
         )}
       >
-        <UserAvatar role={role} name={name} size="sm" />
+        <UserAvatar role={role} name={name} size="sm" photo={photo} />
         <span className="hidden min-w-0 text-left leading-tight xl:block">
           <span className="block max-w-36 truncate text-[13px] font-semibold text-ink-900">{name ?? info.name}</span>
           <span className={cx("block text-[11px]", isOwner ? "font-semibold text-amber-700" : "text-ink-400")}>{info.name}</span>
