@@ -5,7 +5,7 @@ import { connectDB } from "./db";
 import { eskizConfigured, EskizError, normalizeUzPhone, sendSms } from "./eskiz";
 import { loadStudents, monthRows, sortDebtors } from "./ledger";
 import { Setting, SmsLog, Staff, SyncRun } from "./models";
-import { debtSmsScope, DEFAULT_SMS_START_DAY, ownerSmsDue, renderSmsText, smsCandidateMonths } from "./reminders";
+import { debtSmsEveryDays, debtSmsScope, DEFAULT_SMS_START_DAY, ownerSmsDue, renderSmsText, smsCandidateMonths } from "./reminders";
 import { getSettings, type AppSettings } from "./settings";
 import { runSync, type SyncTrigger } from "./sync";
 import { MONTH_NAMES, todayISO } from "./time";
@@ -99,14 +99,14 @@ async function refreshFromSheets(settings: AppSettings, trigger: SyncTrigger): P
 
 /** Qarzdorlar SMS'ini oladigan xodimlar: o'chirilmagan, telefoni to'g'ri; rolga qarab o'z soni yoki jami. */
 async function debtSmsRecipients() {
-  const docs = await Staff.find({ status: { $ne: "disabled" } }, { name: 1, phone: 1, role: 1 }).sort({ role: 1, name: 1 }).lean();
+  const docs = await Staff.find({ status: { $ne: "disabled" } }, { name: 1, phone: 1, role: 1, teaches: 1 }).sort({ role: 1, name: 1 }).lean();
   const seen = new Set<string>();
-  const out: { id: string; name: string; role: string; phone: string }[] = [];
+  const out: { id: string; name: string; role: string; teaches: boolean; phone: string }[] = [];
   for (const d of docs) {
     const phone = normalizeUzPhone(d.phone ?? "");
     if (!phone || seen.has(phone)) continue;
     seen.add(phone);
-    out.push({ id: String(d._id), name: d.name ?? "", role: d.role, phone });
+    out.push({ id: String(d._id), name: d.name ?? "", role: d.role, teaches: d.teaches === true, phone });
   }
   return out;
 }
@@ -117,7 +117,8 @@ const SUMMARY = { kind: { $nin: ["parent", "attendance"] as ("parent" | "attenda
  * Kunlik qarzdorlar SMS'i — har bir xodimga o'z telefoniga, kuniga bir marta:
  *  - o'qituvchiga — faqat o'z o'quvchilaridan to'lamaganlar soni;
  *  - administratorga — markaz bo'yicha jami;
- *  - rahbarga — jami, sozlamadagi kunlarda bir marta (standart — 3 kunda 1).
+ *  - rahbarga — jami, sozlamadagi kunlarda bir marta (standart — 3 kunda 1);
+ *  - dars ham beradigan rahbarga — o'qituvchidek: har kuni, faqat o'z o'quvchilari soni.
  * Joriy oy sozlamadagi sanadan boshlab sanaladi. To'lamagan yo'q bo'lsa — yuborilmaydi.
  */
 export async function runDailySms(trigger: "cron" | "auto"): Promise<SmsOutcome> {
@@ -143,7 +144,8 @@ export async function runDailySms(trigger: "cron" | "auto"): Promise<SmsOutcome>
     const pending = [];
     for (const r of recipients) {
       if (sentToday.has(r.phone) || recentFail.has(r.phone)) continue;
-      if (r.role === "owner") {
+      // Dars bermaydigan rahbar — jami, N kunda bir marta; dars ham beradigan rahbar — o'qituvchidek, har kuni
+      if (debtSmsEveryDays(r.role, r.teaches)) {
         const last = await SmsLog.findOne({ ...SUMMARY, phone: r.phone, status: "sent", trigger: { $ne: "test" } }, { day: 1 }).sort({ day: -1 }).lean();
         if (!ownerSmsDue(last?.day ?? null, today, settings.sms.ownerEveryDays)) continue;
       }
@@ -158,7 +160,7 @@ export async function runDailySms(trigger: "cron" | "auto"): Promise<SmsOutcome>
     let failed = 0;
     const errors: string[] = [];
     for (const r of pending) {
-      const { months, count, text } = debtSmsFor(data, settings.sms.template, debtSmsScope(r.role) === "own" ? r.id : null);
+      const { months, count, text } = debtSmsFor(data, settings.sms.template, debtSmsScope(r.role, r.teaches) === "own" ? r.id : null);
       if (!count) continue;
       const res = await deliver({ trigger, day: today, phone: r.phone, sender: settings.sms.sender, months, count, text, staff: { id: r.id, name: r.name } });
       if (res.status === "sent") sent++;

@@ -205,6 +205,11 @@ test("qarzdorlar SMS: kimga qaysi son va rahbarga necha kunda", async () => {
   assert.equal(debtSmsScope("teacher"), "own");
   assert.equal(debtSmsScope("admin"), "all");
   assert.equal(debtSmsScope("owner"), "all");
+  assert.equal(debtSmsScope("owner", true), "own", "dars ham beradigan rahbar — o'z o'quvchilari");
+  const { debtSmsEveryDays } = await import("../lib/reminders");
+  assert.equal(debtSmsEveryDays("owner"), true);
+  assert.equal(debtSmsEveryDays("owner", true), false, "dars beradigan rahbarga — har kuni");
+  assert.equal(debtSmsEveryDays("teacher"), false);
   assert.equal(daysBetween("2026-11-28", "2026-12-01"), 3);
   assert.equal(ownerSmsDue(null, "2026-11-25", 3), true, "hali yuborilmagan");
   assert.equal(ownerSmsDue("2026-11-23", "2026-11-25", 3), false, "2 kun o'tgan");
