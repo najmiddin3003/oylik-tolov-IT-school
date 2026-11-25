@@ -1,5 +1,6 @@
 import "server-only";
 // Xodimlar bilan ishlash (baza). Ruxsat tekshiruvi chaqiruvchida (lib/auth.ts, server action'lar).
+import { photoUrl } from "./photo-rules";
 import mongoose from "mongoose";
 import { cache } from "react";
 import { connectDB } from "./db";
@@ -25,6 +26,7 @@ export type StaffLean = {
   payEnabled?: boolean | null;
   activatedAt?: Date | null;
   lastLoginAt?: Date | null;
+  photoAt?: Date | null;
   createdAt?: Date;
   /** Shaxsiy sozlamalar (maydon yo'q — standart) */
   prefs?: { syncAlert?: boolean | null } | null;
@@ -45,6 +47,8 @@ export type StaffView = {
   payEnabled: boolean;
   activatedAt: string | null;
   lastLoginAt: string | null;
+  /** Rasm manzili (yuklanmagan — null) */
+  photoUrl: string | null;
 };
 
 export function shareHistoryOf(s: Pick<StaffLean, "shareHistory">): PercentChange[] {
@@ -72,6 +76,7 @@ export function toStaffView(s: StaffLean): StaffView {
     payEnabled: payEnabledOf(s),
     activatedAt: s.activatedAt ? s.activatedAt.toISOString() : null,
     lastLoginAt: s.lastLoginAt ? s.lastLoginAt.toISOString() : null,
+    photoUrl: photoUrl("staff", String(s._id), s.photoAt),
   };
 }
 

@@ -72,3 +72,31 @@ export function dayLabel(iso: string): string {
   const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   return `${d}-${MONTHS_LOWER[m - 1]}, ${WEEKDAYS[wd]}`;
 }
+
+// ---------- Xodimlarga qarzdorlar SMS'i ----------
+
+/** Rahbarga qarzdorlar SMS'i necha kunda bir marta (0 — yuborilmaydi). Standart — 3 kunda 1. */
+export const DEFAULT_OWNER_EVERY_DAYS = 3;
+export const OWNER_EVERY_DAYS_OPTIONS = [0, 1, 2, 3, 5, 7] as const;
+
+export function normalizeOwnerEveryDays(v: unknown): number {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  return Number.isInteger(n) && n >= 0 && n <= 30 ? n : DEFAULT_OWNER_EVERY_DAYS;
+}
+
+/** Kim qaysi sonni oladi: o'qituvchi — faqat o'z o'quvchilari, administrator va rahbar — markaz bo'yicha jami. */
+export function debtSmsScope(role: string): "own" | "all" {
+  return role === "teacher" ? "own" : "all";
+}
+
+/** Ikki sana orasidagi kunlar ("YYYY-MM-DD"). */
+export function daysBetween(a: string, b: string): number {
+  const t = (iso: string) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
+  return Math.round((t(b) - t(a)) / 86_400_000);
+}
+
+/** Rahbarga bugun yuborish navbatimi: oxirgi yuborilgan kundan beri `everyDays` kun o'tgan bo'lsa (0 — hech qachon). */
+export function ownerSmsDue(lastSentDay: string | null, today: string, everyDays: number): boolean {
+  if (everyDays <= 0) return false;
+  return !lastSentDay || daysBetween(lastSentDay, today) >= everyDays;
+}

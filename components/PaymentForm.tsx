@@ -128,7 +128,7 @@ function PaymentFields({
   const [amount, setAmount] = useState<string | null>(null); // null — avtomatik (qolgan summa)
   const [method, setMethod] = useState<PaymentMethod>("naqd");
   const [showNote, setShowNote] = useState(false);
-  const [spread, setSpread] = useState(true);
+  const [spread, setSpread] = useState(false);
 
   const st = students.find((s) => s.id === studentId);
   const fee = st ? netFee(st, month) : 0;

@@ -28,6 +28,7 @@ import { UnpaidButton } from "@/components/Notifications";
 import { PaymentForm } from "@/components/PaymentForm";
 import { PaymentHistory } from "@/components/PaymentHistory";
 import { DatePicker, Select } from "@/components/pickers";
+import { OverpayEditor } from "@/components/OverpayEditor";
 import { AccordionCard } from "@/components/AccordionCard";
 import { fixOverpayments } from "@/app/actions/payments";
 import { QuickStudentButton } from "@/components/QuickStudent";
@@ -387,7 +388,7 @@ function OverpayCard({ rows }: { rows: OverpayRow[] }) {
       title="Ortiqcha to‘lovlar"
       count={rows.length}
       tone="amber"
-      subtitle="Bir oyga oylikdan ko‘p yozilgan, oldingi oy esa to‘lanmagan — ortiqcha qismi oldingi oyga o‘tkaziladi (chek, sana va usul o‘zgarmaydi)"
+      subtitle="Bir oyga oylikdan ko‘p yozilgan, oldingi oy esa to‘lanmagan. «Avtomatik» — oldingi oylarga o‘tkaziladi, «Qo‘lda» — har oyga summani o‘zingiz yozasiz (chek, sana va usul o‘zgarmaydi)"
       preview={rows
         .slice(0, 3)
         .map((r) => r.name)
@@ -415,13 +416,14 @@ function OverpayCard({ rows }: { rows: OverpayRow[] }) {
                   .join(" · ")}
               </p>
             </div>
+            <OverpayEditor studentId={r.studentId} name={r.name} months={r.months} />
             <ConfirmAction
               action={fixOverpayments.bind(null, r.studentId)}
               confirmText={`${r.name}: ${r.moves.map((m) => `${monthLabel(m.from)}dan ${monthLabel(m.to)}ga ${formatNumber(m.amount)}`).join(", ")} o‘tkazilsinmi?`}
               className={btn.sm}
               pendingText="…"
             >
-              To‘g‘irlash
+              Avtomatik
             </ConfirmAction>
           </li>
         ))}

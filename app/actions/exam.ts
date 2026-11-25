@@ -1,16 +1,17 @@
 "use server";
 
 // Imtihon: o'quvchiga ChatGPT bilan 10 ta savol (javoblari bilan) yaratish va ball qo'yish. Rahbar — hamma o'quvchiga,
-// o'qituvchi — faqat o'z o'quvchilariga.
+// o'qituvchi — faqat o'z o'quvchilariga. Savollar faqat o'quvchi kursi mavzularidan; bitta o'quvchiga 10 daqiqada 1 marta,
+// kuniga 5 marta.
 import { logActivity } from "@/lib/activity";
 import { requireRole } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
-import { buildExamPrompt, cleanTopics, EXAM_JSON_SCHEMA, isExamLevel, isExamMark, marksScore, normalizeQuestions, parseScore, topicLabel, type ExamMark, type ExamQuestion } from "@/lib/exam-rules";
+import { buildExamPrompt, cleanTopics, courseFamily, EXAM_JSON_SCHEMA, examGenAllowed, isExamLevel, isExamMark, marksScore, normalizeQuestions, parseScore, topicLabel, type ExamMark, type ExamQuestion } from "@/lib/exam-rules";
 import { isId } from "@/lib/ids";
 import { examDay, type ExamGroup } from "@/lib/exam";
 import { Exam, Student } from "@/lib/models";
 import { openaiJson, OpenAIError, openaiModel } from "@/lib/openai";
-import { isoToDate } from "@/lib/time";
+import { isoToDate, todayISO } from "@/lib/time";
 
 type Who = Awaited<ReturnType<typeof requireRole>>;
 
@@ -31,7 +32,7 @@ async function studentFor(session: Who, studentId: string) {
   return s;
 }
 
-export type GenerateExamResult = { ok: true; questions: ExamQuestion[]; generatedAt: string } | { ok: false; error: string };
+export type GenerateExamResult = { ok: true; questions: ExamQuestion[]; generatedAt: string; left: number } | { ok: false; error: string };
 
 /**
  * 10 ta savol yaratish (yoki qayta yaratish): tanlangan mavzular va daraja bo'yicha. Shu kuni boshqa o'quvchilarga
@@ -40,11 +41,27 @@ export type GenerateExamResult = { ok: true; questions: ExamQuestion[]; generate
 export async function generateExamQuestions(input: { date: string; studentId: string; topics: string[]; level: string }): Promise<GenerateExamResult> {
   const session = await requireRole(["owner", "teacher"], { fresh: true });
   if (!isoToDate(input.date)) return { ok: false, error: "Sana noto‘g‘ri" };
-  const topics = cleanTopics(Array.isArray(input.topics) ? input.topics : []);
-  if (!topics.length) return { ok: false, error: "Kamida bitta mavzuni tanlang" };
-  const level = isExamLevel(input.level) ? input.level : "medium";
   const s = await studentFor(session, input.studentId);
   if (!s) return { ok: false, error: "O‘quvchi topilmadi" };
+  // Faqat o'quvchi kursi mavzulari (masalan, kompyuter savodxonligi o'quvchisiga — HTML emas)
+  const topics = cleanTopics(Array.isArray(input.topics) ? input.topics : [], courseFamily(s.group));
+  if (!topics.length) return { ok: false, error: "Kamida bitta mavzuni tanlang (o‘quvchi kursi bo‘yicha)" };
+  const level = isExamLevel(input.level) ? input.level : "medium";
+
+  // Cheklov: bitta o'quvchiga 10 daqiqada 1 marta, kuniga 5 marta (Toshkent kuni)
+  const now = new Date();
+  const dayStart = isoToDate(todayISO())!;
+  const logs = await Exam.find({ student: s._id, genLog: { $gte: dayStart } }, { genLog: 1 }).lean<{ genLog?: Date[] }[]>();
+  const times = logs.flatMap((d) => (d.genLog ?? []).map((t) => new Date(t).getTime())).filter((t) => t >= dayStart.getTime());
+  const allowed = examGenAllowed(times, now.getTime());
+  if (!allowed.ok) return allowed;
+  // Joy band qilinadi (ikki marta bosilsa ham bitta hisoblanadi); savol tuzilmasa — qaytariladi
+  await Exam.updateOne(
+    { date: input.date, student: s._id },
+    { $push: { genLog: now }, $setOnInsert: { studentName: s.fullName, group: s.group ?? "", teacher: s.teacher ?? null, score: null, note: "" } },
+    { upsert: true },
+  );
+  const release = () => Exam.updateOne({ date: input.date, student: s._id }, { $pull: { genLog: now } });
 
   const others = await Exam.find({ date: input.date, student: { $ne: s._id } }, { questions: 1 }).lean();
   const avoid = others.flatMap((d) => (d.questions ?? []).map((q) => q.question ?? "")).filter(Boolean);
@@ -56,11 +73,15 @@ export async function generateExamQuestions(input: { date: string; studentId: st
       questions = normalizeQuestions(await openaiJson({ ...prompt, schema: EXAM_JSON_SCHEMA }), topics);
     }
   } catch (err) {
+    await release();
     if (err instanceof OpenAIError) return { ok: false, error: err.message };
     console.error("[exam] openai", err);
     return { ok: false, error: "Savollarni yaratib bo‘lmadi — qayta urinib ko‘ring" };
   }
-  if (!questions) return { ok: false, error: "ChatGPT 10 ta savol qaytarmadi — qayta urinib ko‘ring" };
+  if (!questions) {
+    await release();
+    return { ok: false, error: "ChatGPT 10 ta savol qaytarmadi — qayta urinib ko‘ring" };
+  }
 
   const generatedAt = new Date();
   await Exam.updateOne(
@@ -73,7 +94,7 @@ export async function generateExamQuestions(input: { date: string; studentId: st
     { upsert: true },
   );
   await logActivity(session, "exam.generate", `Imtihon savollari: ${s.fullName} — ${topics.map(topicLabel).join(", ")}`);
-  return { ok: true, questions, generatedAt: generatedAt.toISOString() };
+  return { ok: true, questions, generatedAt: generatedAt.toISOString(), left: allowed.left };
 }
 
 export type SaveMarksResult = { ok: true; score: number | null; scoredAt: string | null } | { ok: false; error: string };

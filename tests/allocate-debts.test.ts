@@ -52,3 +52,15 @@ test("mavjud ortiqcha to'lovlar: oldingi to'lanmagan oyga ko'chirish", async () 
   const fee = (m: string) => (m > "2026-10" ? 0 : 300_000);
   assert.deepEqual(overpaymentMoves(months, fee, paidOf({ "2026-09": 300_000, "2026-12": 300_000 })), [{ from: "2026-12", to: "2026-10", amount: 300_000 }]);
 });
+
+test("qo'lda taqsimlash: joriy va kerakli farqidan ko'chirishlar", async () => {
+  const { movesBetween } = await import("../lib/allocate");
+  const cur = new Map([["2026-10", 0], ["2026-11", 500000]]);
+  assert.deepEqual(movesBetween(cur, new Map([["2026-10", 300000], ["2026-11", 200000]])), [{ from: "2026-11", to: "2026-10", amount: 300000 }]);
+  assert.deepEqual(movesBetween(cur, new Map([["2026-10", 0], ["2026-11", 500000]])), [], "o'zgarmasa — hech narsa");
+  const three = movesBetween(new Map([["2026-09", 0], ["2026-10", 0], ["2026-11", 600000]]), new Map([["2026-09", 250000], ["2026-10", 250000], ["2026-11", 100000]]));
+  assert.deepEqual(three, [
+    { from: "2026-11", to: "2026-09", amount: 250000 },
+    { from: "2026-11", to: "2026-10", amount: 250000 },
+  ]);
+});

@@ -102,3 +102,22 @@ export function overpaymentMoves(months: string[], fee: (m: string) => number, p
   }
   return moves;
 }
+
+/** Joriy va kerakli taqsimot farqidan ko'chirishlar: ortig'i bor oylardan kami bor oylarga (eskidan boshlab). */
+export function movesBetween(current: Map<string, number>, target: Map<string, number>): Move[] {
+  const months = [...new Set([...current.keys(), ...target.keys()])].sort();
+  const surplus = months.map((m) => ({ m, x: (current.get(m) ?? 0) - (target.get(m) ?? 0) })).filter((v) => v.x > 0);
+  const deficit = months.map((m) => ({ m, x: (target.get(m) ?? 0) - (current.get(m) ?? 0) })).filter((v) => v.x > 0);
+  const moves: Move[] = [];
+  for (const d of deficit) {
+    for (const sp of surplus) {
+      if (d.x <= 0) break;
+      if (sp.x <= 0) continue;
+      const amount = Math.min(d.x, sp.x);
+      moves.push({ from: sp.m, to: d.m, amount });
+      d.x -= amount;
+      sp.x -= amount;
+    }
+  }
+  return moves;
+}

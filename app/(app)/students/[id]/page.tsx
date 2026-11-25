@@ -132,7 +132,7 @@ async function StudentView({
       {/* Sarlavha: ism, kurs/o'qituvchi/holat va tez amallar (qo'ng'iroq, to'lov, tahrirlash) */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 items-center gap-4">
-          <Avatar name={student.fullName} size="lg" />
+          <Avatar name={student.fullName} size="lg" src={student.photoUrl} />
           <div className="min-w-0">
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">O‘quvchi profili{code ? ` · ${code}` : ""}</p>
             <h1 className="text-[24px] font-bold leading-tight tracking-[-0.025em] text-ink-900 sm:text-[30px]">{student.fullName}</h1>

@@ -4,6 +4,8 @@ import mongoose, { Schema, model, models, type InferSchemaType, type Model } fro
 const studentSchema = new Schema(
   {
     fullName: { type: String, required: true, trim: true, maxlength: 120 },
+    /** Rasm yuklangan vaqt (rasm alohida «photos» to'plamida; yo'q — null) */
+    photoAt: { type: Date, default: null },
     phone: { type: String, trim: true, default: "", maxlength: 40 },
     parentPhone: { type: String, trim: true, default: "", maxlength: 40 },
     group: { type: String, trim: true, default: "", maxlength: 80 },
@@ -153,6 +155,8 @@ const settingSchema = new Schema(
       startDay: { type: Number },
       /** Xodim ro'yxatdan o'tishi / parolni tiklash uchun tasdiqlash kodi SMS matni ({#kod#}) */
       otpTemplate: { type: String },
+      /** Rahbarga qarzdorlar SMS'i necha kunda bir marta (0 — yuborilmaydi) */
+      ownerEveryDays: { type: Number },
     },
     /** Bir vaqtda ikkita tekshiruv ishlab ketmasligi uchun qulf */
     syncLockedUntil: { type: Date, default: null },
@@ -362,6 +366,8 @@ const examSchema = new Schema(
     marks: { type: [Schema.Types.Mixed], default: [] },
     model: { type: String, default: "" },
     generatedAt: { type: Date, default: null },
+    /** Savol tuzilgan vaqtlar (cheklov uchun: 10 daqiqada 1, kuniga 5 marta) */
+    genLog: { type: [Date], default: [] },
     /** Ball (bo'sh — hali qo'yilmagan) va izoh */
     score: { type: Number, default: null },
     note: { type: String, default: "", maxlength: 500 },
@@ -429,6 +435,8 @@ export const STAFF_STATUSES = ["invited", "active", "disabled"] as const;
 const staffSchema = new Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 80 },
+    /** Rasm yuklangan vaqt (rasm alohida «photos» to'plamida; yo'q — null) */
+    photoAt: { type: Date, default: null },
     /** "998XXXXXXXXX" — kirish va SMS tasdiqlash shu raqam bilan */
     phone: { type: String, required: true, unique: true },
     role: { type: String, enum: STAFF_ROLES, required: true },
@@ -492,12 +500,28 @@ const smsLogSchema = new Schema(
     ref: { type: String, default: "" },
     student: { type: Schema.Types.ObjectId, ref: "Student", default: null },
     studentName: { type: String, default: "" },
+    /** Xodimga yuborilgan qarzdorlar SMS'i: kimga (o'qituvchiga — faqat o'z o'quvchilari soni) */
+    staff: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
+    staffName: { type: String, default: "" },
   },
   { timestamps: true },
 );
 smsLogSchema.index({ day: -1, createdAt: -1 });
 smsLogSchema.index({ kind: 1, student: 1, day: -1 });
 smsLogSchema.index({ kind: 1, ref: 1 });
+
+// ---------- Rasm (o'quvchi va xodim): brauzerda kichraytirilgan JPEG/WebP ----------
+
+const photoSchema = new Schema(
+  {
+    owner: { type: String, enum: ["student", "staff"], required: true },
+    ref: { type: Schema.Types.ObjectId, required: true },
+    type: { type: String, default: "image/jpeg" },
+    data: { type: Buffer, required: true },
+  },
+  { timestamps: true },
+);
+photoSchema.index({ owner: 1, ref: 1 }, { unique: true });
 
 // ---------- Rahbardan topshiriq (masalan, administratorga: «to'lovlarni yig'ing») ----------
 const taskSchema = new Schema(
@@ -616,3 +640,5 @@ export const Otp: Model<InferSchemaType<typeof otpSchema>> = models.Otp || model
 export const Task: Model<InferSchemaType<typeof taskSchema>> = models.Task || model("Task", taskSchema);
 export const Activity: Model<InferSchemaType<typeof activitySchema>> = models.Activity || model("Activity", activitySchema);
 export const Perf: Model<InferSchemaType<typeof perfSchema>> = models.Perf || model("Perf", perfSchema);
+
+export const Photo: Model<InferSchemaType<typeof photoSchema>> = models.Photo || model("Photo", photoSchema);

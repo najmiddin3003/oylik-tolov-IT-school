@@ -11,14 +11,19 @@ import { generateExamQuestions, saveExamMarks, saveExamScore } from "@/app/actio
 import type { ExamGroup, ExamStudentRow } from "@/lib/exam";
 import {
   cleanTopics,
+  courseFamily,
+  defaultTopics,
+  EXAM_GEN_INTERVAL_MIN,
+  EXAM_GEN_PER_DAY,
   EXAM_LEVELS,
   EXAM_MARKS,
   EXAM_QUESTION_COUNT,
-  EXAM_TOPICS,
+  familyTopics,
   isExamLevel,
   marksScore,
   marksSummary,
   topicLabel,
+  type ExamFamily,
   type ExamLevel,
   type ExamMark,
   type ExamQuestion,
@@ -33,10 +38,16 @@ import { btn, cx, inputCls, studentCode } from "./ui";
 
 const STORE = "tt-exam-setup";
 const ANSWERS_STORE = "tt-exam-answers";
-const DEFAULT_TOPICS: ExamTopic[] = ["html", "css", "javascript"];
-
 type Exam = NonNullable<ExamStudentRow["exam"]>;
+/** Bitta o'quvchi uchun sozlama: mavzular (o'quvchi kursi bo'yicha) va daraja */
 type Setup = { topics: ExamTopic[]; level: ExamLevel };
+/** Eslab qolinadigan sozlama: har bir kurs yo'nalishi uchun alohida mavzular */
+type Prefs = { byFamily: Partial<Record<ExamFamily, ExamTopic[]>>; level: ExamLevel };
+const DEFAULT_PREFS: Prefs = { byFamily: {}, level: "medium" };
+const topicsFor = (p: Prefs, family: ExamFamily): ExamTopic[] => {
+  const t = cleanTopics(p.byFamily[family] ?? [], family);
+  return t.length ? t : defaultTopics(family);
+};
 /** Ro'yxat qatori: o'quvchi va uning shu kungi darsi */
 type Row = ExamStudentRow & { start: string; end: string; course: string; teacherName: string };
 
@@ -80,7 +91,7 @@ export function ExamBoard({
   }, [groups]);
 
   const [exams, setExams] = useState<Record<string, Exam | null>>(() => Object.fromEntries(rows.map((r) => [r.id, r.exam])));
-  const [setup, setSetup] = useState<Setup>({ topics: DEFAULT_TOPICS, level: "medium" });
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [showAnswers, setShowAnswers] = useState(true);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -92,13 +103,19 @@ export function ExamBoard({
 
   // Eslab qolingan mavzular, daraja va «javoblar ko'rinsinmi»
   useEffect(() => {
-    let next: Setup | null = null;
+    let next: Prefs | null = null;
     let answers: boolean | null = null;
     try {
-      const raw = JSON.parse(localStorage.getItem(STORE) ?? "null") as Partial<Setup> | null;
+      const raw = JSON.parse(localStorage.getItem(STORE) ?? "null") as { topics?: unknown; byFamily?: Record<string, unknown>; level?: unknown } | null;
       if (raw) {
-        const topics = cleanTopics(Array.isArray(raw.topics) ? raw.topics : []);
-        next = { topics: topics.length ? topics : DEFAULT_TOPICS, level: isExamLevel(raw.level) ? raw.level : "medium" };
+        const byFamily: Prefs["byFamily"] = {};
+        // Eski ko'rinish: bitta ro'yxat (web dasturlash mavzulari)
+        if (Array.isArray(raw.topics)) byFamily.web = cleanTopics(raw.topics, "web");
+        for (const [k, v] of Object.entries(raw.byFamily ?? {})) {
+          const f = courseFamily(k) === "general" && k !== "general" ? null : (k as ExamFamily);
+          if (f && Array.isArray(v)) byFamily[f] = cleanTopics(v, f);
+        }
+        next = { byFamily, level: isExamLevel(raw.level) ? raw.level : "medium" };
       }
       const a = localStorage.getItem(ANSWERS_STORE);
       if (a !== null) answers = a === "1";
@@ -107,15 +124,16 @@ export function ExamBoard({
     }
     if (!next && answers === null) return;
     const t = window.setTimeout(() => {
-      if (next) setSetup(next);
+      if (next) setPrefs(next);
       if (answers !== null) setShowAnswers(answers);
     }, 0);
     return () => window.clearTimeout(t);
   }, []);
-  const remember = (next: Setup) => {
-    setSetup(next);
+  const remember = (family: ExamFamily, next: Setup) => {
+    const value: Prefs = { byFamily: { ...prefs.byFamily, [family]: next.topics }, level: next.level };
+    setPrefs(value);
     try {
-      localStorage.setItem(STORE, JSON.stringify(next));
+      localStorage.setItem(STORE, JSON.stringify(value));
     } catch {
       // saqlab bo'lmasa — faqat shu sahifada
     }
@@ -169,12 +187,13 @@ export function ExamBoard({
   const todo = inCourse.filter((r) => !exams[r.id]?.questions.length && !isAway(r));
   const generateAll = async () => {
     const list = todo;
-    const what = `${setup.topics.map(topicLabel).join(", ")} · ${EXAM_LEVELS.find((l) => l.key === setup.level)?.label}`;
+    const fams = [...new Set(list.map((r) => courseFamily(r.course)))];
+    const what = `${fams.map((f) => topicsFor(prefs, f).map(topicLabel).join(", ")).join("; ")} · ${EXAM_LEVELS.find((l) => l.key === prefs.level)?.label}`;
     if (!window.confirm(`${list.length} ta o‘quvchiga savol tuziladi (${what}). Davom etilsinmi?`)) return;
     stopBulk.current = false;
     for (let i = 0; i < list.length && !stopBulk.current; i++) {
       setBulk({ left: list.length - i });
-      const ok = await generate(list[i].id, setup.topics, setup.level);
+      const ok = await generate(list[i].id, topicsFor(prefs, courseFamily(list[i].course)), prefs.level);
       if (!ok) break;
     }
     setBulk(null);
@@ -258,9 +277,8 @@ export function ExamBoard({
               <button
                 type="button"
                 onClick={generateAll}
-                disabled={!setup.topics.length}
                 className="inline-flex items-center gap-1 font-medium text-brand-700 underline-offset-2 hover:underline disabled:opacity-50"
-                title="Savoli yo‘q o‘quvchilarga (kelmaganlardan tashqari) — oxirgi tanlangan mavzular va daraja bo‘yicha"
+                title="Savoli yo‘q o‘quvchilarga (kelmaganlardan tashqari) — har biriga o‘z kursi bo‘yicha oxirgi tanlangan mavzular va daraja"
               >
                 <Sparkles className="size-3.5" aria-hidden />
                 Hammaga tuzish ({todo.length})
@@ -286,7 +304,7 @@ export function ExamBoard({
             key={current.id}
             r={current}
             exam={exams[current.id] ?? null}
-            setup={setup}
+            setup={{ topics: topicsFor(prefs, courseFamily(current.course)), level: prefs.level }}
             date={date}
             role={role}
             aiReady={aiReady}
@@ -294,16 +312,16 @@ export function ExamBoard({
             error={errors[current.id] ?? ""}
             showAnswers={showAnswers}
             onToggleAnswers={toggleAnswers}
-            onSetup={remember}
+            onSetup={(s) => remember(courseFamily(current.course), s)}
             onGenerate={(topics, level) => {
-              remember({ topics, level });
+              remember(courseFamily(current.course), { topics, level });
               return generate(current.id, topics, level);
             }}
             onMarked={(marks, score, scoredAt) => setExams((x) => (x[current.id] ? { ...x, [current.id]: { ...x[current.id]!, marks, score, scoredAt } } : x))}
             onScored={(score, note, scoredAt) =>
               setExams((x) => ({
                 ...x,
-                [current.id]: { ...(x[current.id] ?? { topics: [], level: setup.level, questions: [], marks: [], generatedAt: null, scoredByName: "" }), score, note, scoredAt },
+                [current.id]: { ...(x[current.id] ?? { topics: [], level: prefs.level, questions: [], marks: [], generatedAt: null, scoredByName: "" }), score, note, scoredAt },
               }))
             }
             onBack={back}
@@ -401,6 +419,7 @@ function StudentPanel({
   onBack: () => void;
   next: { name: string; go: () => void } | null;
 }) {
+  const family = courseFamily(r.course);
   const questions = exam?.questions ?? [];
   const marks = exam?.marks?.length === questions.length ? exam.marks : questions.map(() => null);
   // «Qayta tuzish»: shu o'quvchi mavzulari bilan sozlama ochiladi
@@ -478,9 +497,10 @@ function StudentPanel({
             ))}
           </div>
         ) : !questions.length ? (
-          <SetupForm value={setup} onChange={onSetup} aiReady={aiReady} onSubmit={() => void onGenerate(setup.topics, setup.level)} />
+          <SetupForm family={family} value={setup} onChange={onSetup} aiReady={aiReady} onSubmit={() => void onGenerate(setup.topics, setup.level)} />
         ) : regen ? (
           <SetupForm
+            family={family}
             value={regen}
             onChange={setRegen}
             aiReady={aiReady}
@@ -502,7 +522,7 @@ function StudentPanel({
               </span>
               <button
                 type="button"
-                onClick={() => setRegen({ topics: cleanTopics(exam!.topics).length ? cleanTopics(exam!.topics) : setup.topics, level: exam!.level })}
+                onClick={() => setRegen({ topics: cleanTopics(exam!.topics, family).length ? cleanTopics(exam!.topics, family) : setup.topics, level: exam!.level })}
                 disabled={!aiReady}
                 className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-ink-500 transition hover:bg-slate-100 hover:text-ink-800 disabled:opacity-50"
               >
@@ -539,14 +559,16 @@ function StudentPanel({
 
 /** Mavzular (galochka) va daraja — savol tuzishdan oldin. */
 function SetupForm({
+  family,
   value,
   onChange,
   aiReady,
   onSubmit,
   onCancel,
   submitLabel = `${EXAM_QUESTION_COUNT} ta savol tuzish`,
-  note = "Savollar mavzular bo‘yicha teng taqsimlanadi va boshqa o‘quvchilarnikidan farq qiladi.",
+  note = `Savollar mavzular bo‘yicha teng taqsimlanadi. Bitta o‘quvchiga ${EXAM_GEN_INTERVAL_MIN} daqiqada 1 marta, kuniga ${EXAM_GEN_PER_DAY} marta tuziladi.`,
 }: {
+  family: ExamFamily;
   value: Setup;
   onChange: (s: Setup) => void;
   aiReady: boolean;
@@ -555,13 +577,13 @@ function SetupForm({
   submitLabel?: string;
   note?: string;
 }) {
-  const toggle = (k: ExamTopic) => onChange({ ...value, topics: cleanTopics(value.topics.includes(k) ? value.topics.filter((x) => x !== k) : [...value.topics, k]) });
+  const toggle = (k: ExamTopic) => onChange({ ...value, topics: cleanTopics(value.topics.includes(k) ? value.topics.filter((x) => x !== k) : [...value.topics, k], family) });
   return (
     <div className="grid gap-5">
       <fieldset>
         <legend className="mb-2 text-sm font-medium text-ink-700">Mavzular</legend>
         <div className="flex flex-wrap gap-2">
-          {EXAM_TOPICS.map((t) => {
+          {familyTopics(family).map((t) => {
             const on = value.topics.includes(t.key);
             return (
               <label

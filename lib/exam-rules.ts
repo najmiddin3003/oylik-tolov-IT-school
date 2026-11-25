@@ -1,20 +1,82 @@
 // Imtihon: mavzular, savollar tekshiruvi, ball va AI uchun so'rov matni (sof funksiyalar — server, brauzer va testlarda).
 
+/** Kurs yo'nalishlari: har bir o'quvchiga faqat o'z kursi mavzularidan savol tuziladi. */
+export const EXAM_FAMILIES = [
+  { key: "web", label: "Web dasturlash", role: "frontend (web) dasturlash" },
+  { key: "computer", label: "Kompyuter savodxonligi", role: "kompyuter savodxonligi (Windows, MS Office, Internet)" },
+  { key: "design", label: "Grafik dizayn", role: "grafik dizayn" },
+  { key: "general", label: "Boshqa kurs", role: "shu kurs" },
+] as const;
+
+export type ExamFamily = (typeof EXAM_FAMILIES)[number]["key"];
+
 export const EXAM_TOPICS = [
-  { key: "html", label: "HTML" },
-  { key: "css", label: "CSS" },
-  { key: "javascript", label: "JavaScript" },
-  { key: "react", label: "React" },
-  { key: "nextjs", label: "Next.js" },
-  { key: "tailwindcss", label: "Tailwind CSS" },
+  { key: "html", label: "HTML", family: "web" },
+  { key: "css", label: "CSS", family: "web" },
+  { key: "javascript", label: "JavaScript", family: "web" },
+  { key: "react", label: "React", family: "web" },
+  { key: "nextjs", label: "Next.js", family: "web" },
+  { key: "tailwindcss", label: "Tailwind CSS", family: "web" },
+  { key: "windows", label: "Windows", family: "computer" },
+  { key: "word", label: "MS Word", family: "computer" },
+  { key: "excel", label: "MS Excel", family: "computer" },
+  { key: "powerpoint", label: "PowerPoint", family: "computer" },
+  { key: "internet", label: "Internet va xavfsizlik", family: "computer" },
+  { key: "typing", label: "Klaviatura va tez yozish", family: "computer" },
+  { key: "designbasics", label: "Dizayn asoslari", family: "design" },
+  { key: "photoshop", label: "Photoshop", family: "design" },
+  { key: "illustrator", label: "Illustrator", family: "design" },
+  { key: "coreldraw", label: "CorelDRAW", family: "design" },
+  { key: "figma", label: "Figma", family: "design" },
+  { key: "coursebasics", label: "Kurs mavzulari", family: "general" },
 ] as const;
 
 export type ExamTopic = (typeof EXAM_TOPICS)[number]["key"];
 
+/** Kurs nomidan yo'nalish: "Web dasturlash" -> web, "Kompyuter savodxonligi" -> computer, "Grafik dizayn" -> design. */
+export function courseFamily(course: string | null | undefined): ExamFamily {
+  const c = String(course ?? "").toLowerCase();
+  if (/web|front|dastur|program|react|javascript/.test(c)) return "web";
+  if (/savod|kompyuter|komputer|computer|office/.test(c)) return "computer";
+  if (/grafik|dizayn|design|photoshop|figma/.test(c)) return "design";
+  return "general";
+}
+
+/** Yo'nalish mavzulari (ro'yxatdagi tartibda). */
+export function familyTopics(family: ExamFamily): (typeof EXAM_TOPICS)[number][] {
+  return EXAM_TOPICS.filter((t) => t.family === family);
+}
+
+/** Yo'nalish bo'yicha boshlang'ich tanlov: birinchi 3 mavzu. */
+export function defaultTopics(family: ExamFamily): ExamTopic[] {
+  return familyTopics(family)
+    .slice(0, 3)
+    .map((t) => t.key);
+}
+
+/** Bitta o'quvchiga savol tuzish cheklovi: shuncha daqiqada bir marta va kuniga shuncha marta. */
+export const EXAM_GEN_INTERVAL_MIN = 10;
+export const EXAM_GEN_PER_DAY = 5;
+
+/**
+ * Savol tuzish mumkinmi: `times` — shu o'quvchiga bugun (Toshkent kuni) tuzilgan vaqtlar (ms). Mumkin bo'lmasa — sababi.
+ */
+export function examGenAllowed(times: number[], now: number): { ok: true; left: number } | { ok: false; error: string } {
+  const today = times.filter((t) => t <= now);
+  if (today.length >= EXAM_GEN_PER_DAY) return { ok: false, error: `Bu o‘quvchiga bugungi limit tugadi (kuniga ${EXAM_GEN_PER_DAY} marta) — ertaga qayta tuzish mumkin` };
+  const last = Math.max(0, ...today);
+  const wait = last + EXAM_GEN_INTERVAL_MIN * 60_000 - now;
+  if (wait > 0) {
+    const min = Math.ceil(wait / 60_000);
+    return { ok: false, error: `Bu o‘quvchiga ${EXAM_GEN_INTERVAL_MIN} daqiqada bir marta savol tuziladi — ${min} daqiqadan keyin qayta urinib ko‘ring` };
+  }
+  return { ok: true, left: EXAM_GEN_PER_DAY - today.length - 1 };
+}
+
 export const EXAM_LEVELS = [
-  { key: "easy", label: "Oson", hint: "boshlang‘ich: asosiy tushunchalar va sintaksis" },
-  { key: "medium", label: "O‘rta", hint: "amaliy: kod o‘qish, farqlar, odatiy vazifalar" },
-  { key: "hard", label: "Qiyin", hint: "chuqur: ichki ishlash, nozik holatlar, eng yaxshi amaliyot" },
+  { key: "easy", label: "Oson", hint: "boshlang‘ich: asosiy tushunchalar" },
+  { key: "medium", label: "O‘rta", hint: "amaliy: farqlar, odatiy vazifalar" },
+  { key: "hard", label: "Qiyin", hint: "chuqur: nozik holatlar, eng yaxshi amaliyot" },
 ] as const;
 
 export type ExamLevel = (typeof EXAM_LEVELS)[number]["key"];
@@ -70,10 +132,12 @@ export function isExamLevel(v: unknown): v is ExamLevel {
 
 export const topicLabel = (k: string) => EXAM_TOPICS.find((t) => t.key === k)?.label ?? k;
 
-/** Tanlangan mavzular: faqat ma'lumlari, takrorsiz, ro'yxatdagi tartibda. */
-export function cleanTopics(raw: unknown[]): ExamTopic[] {
+/** Tanlangan mavzular: faqat ma'lumlari (yo'nalish berilsa — faqat o'shaniki), takrorsiz, ro'yxatdagi tartibda. */
+export function cleanTopics(raw: unknown[], family?: ExamFamily): ExamTopic[] {
   const set = new Set(raw.filter(isExamTopic));
-  return EXAM_TOPICS.map((t) => t.key).filter((k) => set.has(k));
+  return EXAM_TOPICS.filter((t) => !family || t.family === family)
+    .map((t) => t.key)
+    .filter((k) => set.has(k));
 }
 
 /** 10 savol mavzular bo'yicha teng taqsimlanadi: 3 mavzu -> 4, 3, 3. */
@@ -121,8 +185,10 @@ export function buildExamPrompt(v: { topics: ExamTopic[]; level: ExamLevel; stud
     .map((p) => `- ${topicLabel(p.topic)}: ${p.count} ta savol (topic: "${p.topic}")`)
     .join("\n");
   const avoid = v.avoid.slice(0, 60).map((q) => `- ${q.replace(/\s+/g, " ").slice(0, 160)}`);
+  const family = EXAM_FAMILIES.find((f) => f.key === courseFamily(v.course))!;
+  const subject = family.key === "general" && v.course ? `«${v.course}» kursi` : family.role;
   const system =
-    "Sen IT o‘quv markazida frontend dasturlash bo‘yicha og‘zaki imtihon savollarini tuzadigan tajribali o‘qituvchisan. " +
+    `Sen IT o‘quv markazida ${subject} bo‘yicha og‘zaki imtihon savollarini tuzadigan tajribali o‘qituvchisan. ` +
     "Barcha savol va javoblarni o‘zbek tilida (lotin yozuvida) yoz; texnik atamalar va kod inglizcha qolsin. " +
     "Savollar aniq, bir ma’noli, o‘qituvchi o‘quvchiga og‘zaki bera oladigan bo‘lsin. Javob — qisqa va to‘g‘ri (1–3 gap, kerak bo‘lsa qisqa kod), " +
     "o‘qituvchi o‘quvchi javobini tez solishtira olishi uchun.";
@@ -131,7 +197,9 @@ export function buildExamPrompt(v: { topics: ExamTopic[]; level: ExamLevel; stud
     `Daraja: ${level.label} — ${level.hint}.`,
     `Jami aynan ${EXAM_QUESTION_COUNT} ta savol, mavzular bo‘yicha:`,
     plan,
-    "Savollar turli-tuman bo‘lsin: nazariya, kod natijasini topish, xatoni topish, amaliy vazifa. Bir xil narsani ikki marta so‘rama.",
+    family.key === "web"
+      ? "Savollar turli-tuman bo‘lsin: nazariya, kod natijasini topish, xatoni topish, amaliy vazifa. Bir xil narsani ikki marta so‘rama."
+      : "Savollar turli-tuman bo‘lsin: nazariya, amaliy vazifa (dasturda qanday bajariladi), qisqa tugmalar va menyular, odatiy xatolar. Bir xil narsani ikki marta so‘rama.",
     avoid.length ? `Bu savollar boshqa o‘quvchilarga berilgan — ularni va ularga juda o‘xshashlarini TAKRORLAMA:\n${avoid.join("\n")}` : "",
   ]
     .filter(Boolean)

@@ -64,12 +64,19 @@ async function Me({ searchParams }: { searchParams: PageProps<"/me">["searchPara
       <div className="mb-7 flex flex-wrap items-center gap-4">
         <span
           className={cx(
-            "inline-flex size-14 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white",
+            "inline-flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full text-lg font-semibold text-white",
             isOwner ? "bg-linear-to-br from-amber-400 to-orange-600" : staff.role === "teacher" ? "bg-linear-to-br from-brand-500 to-brand-700 shadow-brand" : "bg-linear-to-br from-emerald-400 to-emerald-600",
           )}
           aria-hidden
         >
-          {isOwner ? <Crown className="size-6" fill="currentColor" fillOpacity={0.25} /> : staffInitials(staff.name)}
+          {staff.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={staff.photoUrl} alt="" className="size-full object-cover" />
+            ) : isOwner ? (
+              <Crown className="size-6" fill="currentColor" fillOpacity={0.25} />
+            ) : (
+              staffInitials(staff.name)
+            )}
         </span>
         <div className="min-w-0">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">Profilim</p>

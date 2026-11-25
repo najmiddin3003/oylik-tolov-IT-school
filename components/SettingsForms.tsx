@@ -20,7 +20,7 @@ import type { FormState } from "@/app/actions/types";
 import { attendanceSmsAt, renderAttendanceSms } from "@/lib/attendance-sms-rules";
 import { renderOtpText } from "@/lib/otp-text";
 import { PARENT_SMS_REPEAT_OPTIONS, renderParentSms } from "@/lib/parent-sms-rules";
-import { renderSmsText, SMS_START_DAY_OPTIONS } from "@/lib/reminders";
+import { OWNER_EVERY_DAYS_OPTIONS, renderSmsText, SMS_START_DAY_OPTIONS } from "@/lib/reminders";
 import { formatNumber, MONTH_NAMES, monthLabel } from "@/lib/time";
 import { MoneyInput, PhoneInput } from "./inputs";
 import { DatePicker, MonthPicker, Select } from "./pickers";
@@ -387,10 +387,14 @@ export function SmsForm({
   sms,
   month,
 }: {
-  sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number; otpTemplate: string };
+  sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number; otpTemplate: string; ownerEveryDays: number };
   month: string;
 }) {
   const [state, onSubmit, pending] = useActionForm<FormState>(saveSmsSettings, {});
+  const [ownerEvery, setOwnerEvery] = useState(String(sms.ownerEveryDays));
+  const ownerOptions = [...new Set<number>([...OWNER_EVERY_DAYS_OPTIONS, sms.ownerEveryDays])]
+    .sort((a, b) => a - b)
+    .map((d) => ({ value: String(d), label: d === 0 ? "Yuborilmasin" : d === 1 ? "Har kuni" : `${d} kunda bir marta` }));
   const [template, setTemplate] = useState(sms.template);
   const [startDay, setStartDay] = useState(String(sms.startDay));
   const [otpTemplate, setOtpTemplate] = useState(sms.otpTemplate);
@@ -404,27 +408,35 @@ export function SmsForm({
 
   return (
     <form onSubmit={onSubmit} className="grid gap-5" noValidate>
-      <div className="max-w-sm">
-        <span className={labelCls}>Qachondan boshlab</span>
-        <Select name="startDay" value={startDay} onChange={setStartDay} options={dayOptions} aria-label="Qachondan boshlab" />
-        <p className="mt-1.5 text-xs leading-relaxed text-ink-400">Oldingi oylardan to‘lamaganlar qolgan bo‘lsa — ular ham jami songa qo‘shiladi.</p>
+      <div className="rounded-2xl border border-line-soft bg-slate-50/60 px-4 py-3 text-sm leading-relaxed text-ink-600">
+        SMS har bir xodimning <b className="font-semibold text-ink-800">o‘z telefon raqamiga</b> boradi (Xodimlar bo‘limidagi raqam):
+        <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
+          <li>o‘qituvchiga — faqat <b className="font-semibold text-ink-800">o‘z o‘quvchilaridan</b> to‘lamaganlar soni;</li>
+          <li>administratorga — markaz bo‘yicha <b className="font-semibold text-ink-800">jami</b> to‘lamaganlar soni;</li>
+          <li>rahbarga — jami, quyida tanlangan kunlarda bir marta.</li>
+        </ul>
+        To‘lamagan o‘quvchisi yo‘q xodimga SMS yuborilmaydi.
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="sms-phone" className={labelCls}>
-            Qaysi raqamga
-          </label>
-          <PhoneInput id="sms-phone" name="phone" defaultValue={sms.phone} placeholder="Eslatma boradigan raqam" invalid={!!fe.phone} />
-          <FieldError msg={fe.phone} />
+          <span className={labelCls}>Har oyning qaysi sanasidan</span>
+          <Select name="startDay" value={startDay} onChange={setStartDay} options={dayOptions} aria-label="Har oyning qaysi sanasidan" />
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-400">Oldingi oylardan to‘lamaganlar qolgan bo‘lsa — ular ham songa qo‘shiladi.</p>
         </div>
         <div>
-          <label htmlFor="sms-sender" className={labelCls}>
-            Jo‘natuvchi nomi <span className="font-normal text-ink-400">(Eskiz)</span>
-          </label>
-          <input id="sms-sender" name="sender" defaultValue={sms.sender} className={cx(inputCls, "num")} aria-invalid={!!fe.sender} />
-          <FieldError msg={fe.sender} />
+          <span className={labelCls}>Rahbarga</span>
+          <Select name="ownerEveryDays" value={ownerEvery} onChange={setOwnerEvery} options={ownerOptions} aria-label="Rahbarga necha kunda" />
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-400">Rahbar akkauntiga jami to‘lamaganlar soni shu oraliqda boradi.</p>
         </div>
+      </div>
+
+      <div className="max-w-sm">
+        <label htmlFor="sms-sender" className={labelCls}>
+          Jo‘natuvchi nomi <span className="font-normal text-ink-400">(Eskiz)</span>
+        </label>
+        <input id="sms-sender" name="sender" defaultValue={sms.sender} className={cx(inputCls, "num")} aria-invalid={!!fe.sender} />
+        <FieldError msg={fe.sender} />
       </div>
 
       <div>

@@ -8,7 +8,7 @@ import { DEFAULT_OTP_TEMPLATE } from "./otp-text";
 import { normalizeAttendanceSms, type AttendanceSmsSettings } from "./attendance-sms-rules";
 import { normalizeDiscountTypes, type DiscountType } from "./discounts";
 import { normalizeParentSms, type ParentSmsSettings } from "./parent-sms-rules";
-import { normalizeStartDay } from "./reminders";
+import { normalizeOwnerEveryDays, normalizeStartDay } from "./reminders";
 
 export const DEFAULT_FEE = 300_000;
 // Eskiz'da tasdiqlangan shablon bilan harfma-harf bir xil bo'lishi kerak (oxirida nuqta yo'q).
@@ -56,7 +56,7 @@ export type AppSettings = {
   /** Chegirmalar: o'chiq bo'lsa — hech qayerda hisoblanmaydi va ko'rinmaydi */
   discounts: { enabled: boolean; types: DiscountType[] };
   /** startDay — joriy oy qarzdorlari shu sanadan boshlab sanaladi (1 — har kuni) */
-  sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number; otpTemplate: string };
+  sms: { enabled: boolean; phone: string; sender: string; template: string; startDay: number; otpTemplate: string; ownerEveryDays: number };
 };
 
 const TTL_MS = 15_000;
@@ -83,7 +83,7 @@ type Doc = Record<string, unknown> & {
   parentSms?: Partial<Record<keyof ParentSmsSettings, unknown>> | null;
   attendanceSms?: Partial<Record<keyof AttendanceSmsSettings, unknown>> | null;
   discounts?: { enabled?: boolean | null; types?: unknown } | null;
-  sms?: { enabled?: boolean; phone?: string; sender?: string; template?: string; startDay?: number; otpTemplate?: string };
+  sms?: { enabled?: boolean; phone?: string; sender?: string; template?: string; startDay?: number; otpTemplate?: string; ownerEveryDays?: number };
 };
 
 function toAppSettings(doc: Doc | null): AppSettings {
@@ -136,6 +136,7 @@ function toAppSettings(doc: Doc | null): AppSettings {
       template: doc?.sms?.template && !LEGACY_SMS_TEMPLATES.has(doc.sms.template) ? doc.sms.template : DEFAULT_SMS_TEMPLATE,
       startDay: normalizeStartDay(doc?.sms?.startDay),
       otpTemplate: doc?.sms?.otpTemplate || DEFAULT_OTP_TEMPLATE,
+      ownerEveryDays: normalizeOwnerEveryDays(doc?.sms?.ownerEveryDays),
     },
   };
 }

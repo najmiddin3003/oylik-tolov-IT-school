@@ -6,8 +6,9 @@ import { ArrowRightLeft, Check, Percent, UserPlus } from "lucide-react";
 import { addStaff, assignLegacyPay } from "@/app/actions/staff";
 import type { FormState } from "@/app/actions/types";
 import type { Role } from "@/lib/session";
-import { defaultPercent, payKindOf, ROLE_HINT, ROLE_LABEL } from "@/lib/staff-rules";
+import { defaultPercent, payKindOf, ROLE_HINT, ROLE_LABEL, staffInitials } from "@/lib/staff-rules";
 import { MoneyInput, PhoneInput } from "./inputs";
+import { PhotoField } from "./PhotoField";
 import { Select } from "./pickers";
 import { btn, cx, inputCls, labelCls } from "./ui";
 import { useActionForm } from "./useActionForm";
@@ -62,6 +63,10 @@ function StaffAddFields({ fe, courses }: { fe: Record<string, string>; courses: 
   const taken = courses.find((c) => c.name === course)?.teacherNames ?? [];
   return (
     <>
+      <div>
+        <PhotoField current={null} initials="" />
+        <FieldError msg={fe.photo} />
+      </div>
       <div>
         <label htmlFor="st-name" className={labelCls}>
           Ism-familiya
@@ -162,8 +167,10 @@ export function StaffEditForm({
   role,
   teaches,
   self,
+  photoUrl = null,
 }: {
   action: (prev: FormState, fd: FormData) => Promise<FormState>;
+  photoUrl?: string | null;
   name: string;
   role: Role;
   /** Rahbar o'zi ham dars beradi */
@@ -176,6 +183,10 @@ export function StaffEditForm({
   const [roleNow, setRoleNow] = useState<Role>(role);
   return (
     <form onSubmit={onSubmit} className="grid gap-4" noValidate>
+      <div>
+        <PhotoField key={photoUrl ?? "none"} current={photoUrl} initials={staffInitials(name)} />
+        <FieldError msg={fe.photo} />
+      </div>
       <div>
         <label htmlFor="se-name" className={labelCls}>
           Ism-familiya

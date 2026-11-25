@@ -1,5 +1,7 @@
 "use server";
 
+import { storePhoto } from "@/lib/photo";
+import { parsePhotoField } from "@/lib/photo-rules";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { dataChanged } from "@/lib/after-change";
@@ -12,7 +14,7 @@ import { discountLabel, type DiscountChange } from "@/lib/discounts";
 import { endDateError, lastBilledMonth } from "@/lib/enrollment";
 import { applyFeeFrom, changesAfter } from "@/lib/fees";
 import { currentStudentQuery, feeHistoryOf, listFee, type StudentLean } from "@/lib/ledger";
-import { Payment, Staff, Student } from "@/lib/models";
+import { Payment, Photo, Staff, Student } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
 import { formatUzPhone, normalizeUzPhone } from "@/lib/phone";
 import { parseLessons } from "@/lib/schedule";
@@ -91,6 +93,8 @@ export async function saveStudent(
     if (e) fieldErrors.endDate = e;
   }
   if ("error" in schedule) fieldErrors.schedule = schedule.error;
+  const photo = parsePhotoField(str(formData, "photo"));
+  if (photo.kind === "error") fieldErrors.photo = photo.error;
   if (Object.keys(fieldErrors).length) return { fieldErrors };
   const lessons = "lessons" in schedule ? schedule.lessons : [];
 
@@ -127,6 +131,7 @@ export async function saveStudent(
     }
     await Student.updateOne({ _id: id }, { $set: { ...base, ...fees } }, { runValidators: true });
     savedId = id;
+    await storePhoto("student", id, photo);
     await logActivity(session, "student.edit", `O‘quvchi ma’lumotlari o‘zgartirildi: ${fullName}`);
     const before = existing.endDate ? dateToISO(existing.endDate) : "";
     if (hasEnd && before !== endRaw) {
@@ -141,6 +146,7 @@ export async function saveStudent(
     const feeHistory = standardFee(settings, startMonth) === monthlyFee ? changesAfter(settings.feeSchedule, startMonth) : [];
     const created = await Student.create({ ...base, monthlyFee: monthlyFee!, feeHistory, discountHistory: discount.history, seq: await nextStudentSeq() });
     savedId = String(created._id);
+    await storePhoto("student", savedId, photo);
     await logActivity(
       session,
       "student.add",
@@ -172,6 +178,8 @@ export async function saveStudentByTeacher(id: string, _prev: FormState, formDat
     if (value && value.replace(/\D/g, "").length < 9) fieldErrors[key] = "Telefon raqam noto‘g‘ri";
   }
   if ("error" in schedule) fieldErrors.schedule = schedule.error;
+  const photo = parsePhotoField(str(formData, "photo"));
+  if (photo.kind === "error") fieldErrors.photo = photo.error;
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   await connectDB();
@@ -182,6 +190,7 @@ export async function saveStudentByTeacher(id: string, _prev: FormState, formDat
     { runValidators: true },
   );
   if (!res.matchedCount) return { error: "Bu o‘quvchi sizga biriktirilmagan" };
+  await storePhoto("student", id, photo);
   await logActivity(session, "student.edit", `O‘quvchi ma’lumotlari o‘zgartirildi: ${fullName}`);
   redirect(`/students/${id}`);
 }
@@ -254,6 +263,7 @@ export async function deleteStudent(id: string, redirectTo: string | null): Prom
   const removed = await Student.findOneAndDelete({ _id: id, ...own }).lean();
   if (!removed) return;
   const payments = await Payment.deleteMany({ student: id });
+  await Photo.deleteOne({ owner: "student", ref: id });
   await logActivity(session, "student.delete", `O‘chirildi: ${removed.fullName} (${payments.deletedCount} ta to‘lovi bilan)`);
   // Faqat o'quvchilar ro'yxatiga qaytariladi (boshqa manzilga yo'naltirib bo'lmaydi)
   if (redirectTo === "/students") redirect("/students");
@@ -270,6 +280,7 @@ export async function bulkStudents(action: "activate" | "deactivate" | "delete",
   if (action === "delete") {
     await Payment.deleteMany({ student: { $in: valid } });
     await Student.deleteMany({ _id: { $in: valid } });
+    await Photo.deleteMany({ owner: "student", ref: { $in: valid } });
   } else {
     await Student.updateMany({ _id: { $in: valid } }, { $set: { active: action === "activate" } });
   }
@@ -367,6 +378,8 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
   else if (monthlyFee > 100_000_000) fieldErrors.monthlyFee = "Summa juda katta — tekshirib ko‘ring";
   if (!startDate) fieldErrors.startDate = "Boshlagan sanani tanlang";
   if ("error" in schedule) fieldErrors.schedule = schedule.error;
+  const photo = parsePhotoField(str(formData, "photo"));
+  if (photo.kind === "error") fieldErrors.photo = photo.error;
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   await connectDB();
@@ -389,7 +402,7 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
   const discount = newStudentDiscount(str(formData, "discountType"), settings, startMonth);
   if ("error" in discount) return { fieldErrors: { discountType: discount.error } };
   const feeHistory = standardFee(settings, startMonth) === monthlyFee ? changesAfter(settings.feeSchedule, startMonth) : [];
-  await Student.create({
+  const createdQuick = await Student.create({
     fullName,
     phone,
     parentPhone: "",
@@ -404,6 +417,7 @@ export async function addStudentQuick(_prev: FormState, formData: FormData): Pro
     teacher,
     seq: await nextStudentSeq(),
   });
+  await storePhoto("student", String(createdQuick._id), photo);
   await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${group}), oylik ${formatMoney(monthlyFee!)}${discount.label ? `, chegirma: ${discount.label}` : ""}`);
   await dataChanged();
   return { ok: true, message: `${fullName} qo‘shildi (${group}, oylik ${formatMoney(monthlyFee!)}${discount.label ? `, chegirma: ${discount.label}` : ""})`, nonce: Date.now() };
@@ -439,6 +453,8 @@ export async function addStudentByTeacher(_prev: FormState, formData: FormData):
   else if (monthlyFee > 100_000_000) fieldErrors.monthlyFee = "Summa juda katta — tekshirib ko‘ring";
   if (!startDate) fieldErrors.startDate = "Boshlagan sanani tanlang";
   if ("error" in schedule) fieldErrors.schedule = schedule.error;
+  const photo = parsePhotoField(str(formData, "photo"));
+  if (photo.kind === "error") fieldErrors.photo = photo.error;
   if (Object.keys(fieldErrors).length || !course || monthlyFee === null || !startDate) return { fieldErrors };
 
   // Bir xil ismli faol o'quvchi bo'lsa — ogohlantirish (ikki marta qo'shilmasin)
@@ -454,7 +470,7 @@ export async function addStudentByTeacher(_prev: FormState, formData: FormData):
   }
   const startMonth = monthOfDate(startDate);
   const feeHistory = standardFee(settings, startMonth) === monthlyFee ? changesAfter(settings.feeSchedule, startMonth) : [];
-  await Student.create({
+  const createdByTeacher = await Student.create({
     fullName,
     phone,
     parentPhone: "",
@@ -468,6 +484,7 @@ export async function addStudentByTeacher(_prev: FormState, formData: FormData):
     teacher: staffId,
     seq: await nextStudentSeq(),
   });
+  await storePhoto("student", String(createdByTeacher._id), photo);
   await logActivity(session, "student.add", `Yangi o‘quvchi: ${fullName} (${course.name}), oylik ${formatMoney(monthlyFee)}`);
   await dataChanged();
   return { ok: true, message: `${fullName} qo‘shildi (${course.name}, oylik ${formatMoney(monthlyFee)})`, nonce: Date.now() };

@@ -55,6 +55,7 @@ import {
   type LessonFilter,
 } from "./schedule";
 import { getSettings, standardFee } from "./settings";
+import { photoUrl } from "./photo-rules";
 import type { Role } from "./session";
 import { activeStaffRoles, getStaffById, listStaff, listTeachers, salaryHistoryOf, shareHistoryOf, teacherNames, toStaffView, type StaffLean, type StaffView } from "./staff";
 import { payHistoryMonths, payPlanOf, trimEmptyPayMonths, type PayPlan, type StaffStatus } from "./staff-rules";
@@ -69,6 +70,8 @@ export type StudentDetail = {
   id: string;
   seq: number | null;
   fullName: string;
+  /** Rasm manzili (yuklanmagan — null) */
+  photoUrl: string | null;
   phone: string;
   parentPhone: string;
   group: string;
@@ -766,6 +769,7 @@ export async function getStudent(id: string): Promise<StudentDetail | null> {
     id: String(s._id),
     seq: s.seq ?? null,
     fullName: s.fullName,
+    photoUrl: photoUrl("student", String(s._id), (raw as { photoAt?: Date | null }).photoAt),
     phone: s.phone ?? "",
     parentPhone: s.parentPhone ?? "",
     group: s.group ?? "",
@@ -943,7 +947,7 @@ export async function getSettingsPageData(month: string) {
   await connectDB();
   const [settings, logs, parentLogs, attLogs, students, roles, syncAlert, teachers, names] = await Promise.all([
     getSettings({ fresh: true }),
-    SmsLog.find({ kind: { $nin: ["parent", "attendance"] } }).sort({ createdAt: -1 }).limit(8).lean(),
+    SmsLog.find({ kind: { $nin: ["parent", "attendance"] } }).sort({ createdAt: -1 }).limit(20).lean(),
     SmsLog.find({ kind: "parent" }).sort({ createdAt: -1 }).limit(15).lean(),
     SmsLog.find({ kind: "attendance" }).sort({ createdAt: -1 }).limit(15).lean(),
     Student.find({}, { monthlyFee: 1, feeHistory: 1, group: 1, active: 1, endDate: 1, teacher: 1 }).lean<StudentLean[]>(),
@@ -1005,6 +1009,8 @@ export async function getSettingsPageData(month: string) {
       count: l.count ?? 0,
       text: l.text ?? "",
       error: l.error ?? "",
+      staffName: l.staffName ?? "",
+      phone: l.phone ?? "",
       at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",
     })),
     discounts: settings.discounts,
