@@ -4,7 +4,9 @@ import { after } from "next/server";
 import { runAttendanceSms } from "@/lib/attendance-sms";
 import { pageGuard } from "@/lib/auth";
 import { getBellExtras, getNavCounts, getReminders, getSyncAlert } from "@/lib/data";
+import { photoUrl } from "@/lib/photo-rules";
 import { getSettings } from "@/lib/settings";
+import { getStaffById } from "@/lib/staff";
 import { currentMonth } from "@/lib/time";
 import { HistoryNav } from "./HistoryNav";
 import { navFor } from "./nav";
@@ -56,7 +58,9 @@ export function SidebarSkeleton() {
 /** Yuqori panelning o'ng qismi: qidiruv (rahbar, o'qituvchi), oy tanlagich, mavzu, bildirishnomalar, foydalanuvchi. */
 export async function HeaderTools() {
   const { role, name, staffId } = await pageGuard();
-  const [reminders, sync, extras] = await Promise.all([getReminders(), getSyncAlert(), getBellExtras()]);
+  const [reminders, sync, extras, me] = await Promise.all([getReminders(), getSyncAlert(), getBellExtras(), staffId ? getStaffById(staffId) : null]);
+  // Xodim o'zi qo'ygan rasm (yo'q bo'lsa — bosh harflar / toj)
+  const photo = staffId ? photoUrl("staff", staffId, me?.photoAt) : null;
   // Javobdan keyin: davomati kechikkan guruhlar o'qituvchisiga SMS. /api/ping (cron-job.org) sozlanmagan yoki kechikkan
   // bo'lsa ham, saytda kimdir sahifa ochganda tekshiriladi (jarayon ichida daqiqada bir marta, bazada qulf bilan).
   after(() => runAttendanceSms("auto").catch((err) => console.error("[shell] davomat SMS:", err)));
@@ -69,7 +73,7 @@ export async function HeaderTools() {
       <NotificationBell reminders={reminders} sync={sync} role={role} tasks={extras.tasks} sent={extras.sent} attendance={extras.attendance} followUps={extras.followUps} />
       {/* Kelmagan o'quvchilar — keyingi darsi boshlanganda bir marta oynada */}
       <FollowUpModal items={extras.followUps} role={role} storageKey={`tt-followup:${staffId ?? role}`} />
-      <UserMenu role={role} name={name} />
+      <UserMenu role={role} name={name} photo={photo} />
     </>
   );
 }
