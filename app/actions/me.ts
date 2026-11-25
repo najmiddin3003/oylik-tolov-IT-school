@@ -1,6 +1,6 @@
 "use server";
 
-// Xodimning o'zi uchun: olgan avans/oylikni yozish va shaxsiy sozlamalar.
+// Xodimning o'zi uchun: olgan avans/oylikni yozish, o'z rasmi va shaxsiy sozlamalar.
 import { after } from "next/server";
 import { logActivity } from "@/lib/activity";
 import { dataChanged } from "@/lib/after-change";
@@ -9,6 +9,8 @@ import { connectDB } from "@/lib/db";
 import { isId } from "@/lib/ids";
 import { Salary, Staff } from "@/lib/models";
 import { parseAmount } from "@/lib/normalize";
+import { storePhoto } from "@/lib/photo";
+import { parsePhotoField } from "@/lib/photo-rules";
 import { listPaydays } from "@/lib/pay";
 import { SALARY_CYCLE_FROM } from "@/lib/salary-cycle";
 import { updateSettings } from "@/lib/settings";
@@ -68,4 +70,17 @@ export async function setMySyncAlert(on: boolean): Promise<void> {
   else if (session.role === "owner") await updateSettings({ $set: { "legacyPrefs.syncAlert": Boolean(on) } });
   await logActivity(session, "settings.sync_alert", `Google Sheets ogohlantiruvi ${on ? "yoqildi" : "o‘chirildi"}`);
   await dataChanged();
+}
+
+/** O'z rasmimni qo'yish yoki olib tashlash («Profilim»): faqat o'z rasmi, boshqa ma'lumotlarga tegmaydi. */
+export async function setMyPhoto(value: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireAuth({ fresh: true });
+  if (!session.staffId) return { ok: false, error: "Xodim profilingiz topilmadi — telefon raqamingiz bilan qaytadan kiring" };
+  const photo = parsePhotoField(String(value ?? ""));
+  if (photo.kind === "error") return { ok: false, error: photo.error };
+  if (photo.kind === "keep") return { ok: true };
+  await storePhoto("staff", session.staffId, photo);
+  await logActivity(session, "staff.photo", photo.kind === "remove" ? "O‘z rasmini olib tashladi" : "O‘z rasmini yukladi");
+  await dataChanged();
+  return { ok: true };
 }
