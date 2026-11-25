@@ -59,6 +59,8 @@ test("rollar bo'yicha kirish huquqi", async () => {
     assert.equal(canAccess(role, "/sync/arxiv/6ac9dcf90698aca8bd508d6c"), true, role);
   }
   assert.equal(canAccess("teacher", "/syncx"), false);
+  assert.equal(canAccess("teacher", "/api/photo/staff/65b000000000000000000003"), true, "rasmlar — hamma rolga");
+  assert.equal(canAccess("admin", "/api/photo/student/65b000000000000000000003"), true);
   // o'qituvchi — o'z sahifasi, o'quvchilari (ko'rish va o'z o'quvchisini tahrirlash), to'lovlar, profil
   for (const p of ["/", "/students", "/students/6ac9dcf90698aca8bd508d6c", "/students/6ac9dcf90698aca8bd508d6c/edit", "/payments", "/me", "/api/export/oquvchilar", "/api/export/tolovlar"]) {
     assert.equal(canAccess("teacher", p), true, p);

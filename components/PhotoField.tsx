@@ -9,7 +9,7 @@ import { cx } from "./ui";
 const SIZE = 320;
 
 /** Rasmni kvadrat qilib (markazdan) kichraytirish — data URL. */
-async function shrink(file: File): Promise<string> {
+export async function shrink(file: File): Promise<string> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
