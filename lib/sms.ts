@@ -111,6 +111,36 @@ async function debtSmsRecipients() {
   return out;
 }
 
+/**
+ * Bugungi qarzdorlar SMS'i kimga ketadi (yubormaydi — faqat ko'rsatadi): har bir xodim, qaysi son va nega
+ * yuborilmasligi (bugun yuborilgan, rahbar navbati emas, to'lamagan yo'q).
+ */
+export async function previewDailySms(today = todayISO()) {
+  await connectDB();
+  const settings = await getSettings({ fresh: true });
+  const recipients = await debtSmsRecipients();
+  const data = await debtorsByMonth(today, settings.sms.startDay);
+  const sentToday = new Set((await SmsLog.distinct("phone", { ...SUMMARY, day: today, status: "sent", trigger: { $ne: "test" } })).map(String));
+  const out = [];
+  for (const r of recipients) {
+    const own = debtSmsScope(r.role, r.teaches) === "own";
+    const { count, text } = debtSmsFor(data, settings.sms.template, own ? r.id : null);
+    let reason = "";
+    if (sentToday.has(r.phone)) reason = "bugun allaqachon yuborilgan";
+    else if (debtSmsEveryDays(r.role, r.teaches)) {
+      const last = await SmsLog.findOne({ ...SUMMARY, phone: r.phone, status: "sent", trigger: { $ne: "test" } }, { day: 1 }).sort({ day: -1 }).lean();
+      if (settings.sms.ownerEveryDays <= 0) reason = "rahbarga yuborilmaydi (sozlama)";
+      else if (!ownerSmsDue(last?.day ?? null, today, settings.sms.ownerEveryDays)) reason = `navbati emas (har ${settings.sms.ownerEveryDays} kunda; oxirgisi ${last?.day})`;
+    }
+    if (!reason && !count) reason = "to‘lamagan o‘quvchi yo‘q";
+    out.push({ name: r.name, role: r.role, teaches: r.teaches, phone: r.phone, scope: own ? "own" : "all", count, willSend: !reason, reason, text: reason ? "" : text });
+  }
+  return {
+    settings: { enabled: settings.sms.enabled, startDay: settings.sms.startDay, ownerEveryDays: settings.sms.ownerEveryDays, sender: settings.sms.sender },
+    recipients: out,
+  };
+}
+
 const SUMMARY = { kind: { $nin: ["parent", "attendance"] as ("parent" | "attendance")[] } };
 
 /**
