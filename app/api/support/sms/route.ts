@@ -1,11 +1,13 @@
 import { connection } from "next/server";
 import { connectDB } from "@/lib/db";
 import { SmsLog } from "@/lib/models";
+import { previewDailySms } from "@/lib/sms";
 import { supportAuthorized, supportEnabled } from "@/lib/support";
 import { todayISO } from "@/lib/time";
 
 // Texnik yordam: SMS jurnali (faqat o'qiydi — hech narsa yubormaydi).
 //   /api/support/sms?day=YYYY-MM-DD  (standart — bugun, Toshkent)  &kind=summary|parent|attendance|all (standart — summary)
+//   &plan=1 — SMS sozlamalari va bugun qarzdorlar SMS'i kimga ketishi (yubormaydi)
 const NO_STORE = { "cache-control": "no-store" };
 
 export async function GET(request: Request) {
@@ -20,10 +22,12 @@ export async function GET(request: Request) {
   const filter =
     kind === "all" ? { day } : kind === "summary" ? { day, kind: { $nin: ["parent", "attendance"] as ("parent" | "attendance")[] } } : { day, kind: kind as "parent" | "attendance" };
   const logs = await SmsLog.find(filter).sort({ createdAt: 1 }).limit(300).lean();
+  const plan = params.get("plan") === "1" && day === todayISO() ? await previewDailySms(day) : null;
   return Response.json(
     {
       day,
       kind,
+      ...(plan ? { plan } : {}),
       count: logs.length,
       logs: logs.map((l) => ({
         at: (l as { createdAt?: Date }).createdAt?.toISOString() ?? "",
